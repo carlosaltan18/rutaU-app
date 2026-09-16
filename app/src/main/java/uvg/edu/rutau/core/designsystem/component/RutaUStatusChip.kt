@@ -8,6 +8,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import uvg.edu.rutau.ui.theme.LocalRutaUSemanticColors
 
 /** Variantes semánticas disponibles para los chips de estado. */
 enum class RutaUStatusType {
@@ -26,15 +27,16 @@ fun RutaUStatusChip(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
 ) {
+    val semanticColors = LocalRutaUSemanticColors.current
     val (containerColor, contentColor) = when (type) {
         RutaUStatusType.NEUTRAL -> MaterialTheme.colorScheme.surfaceVariant to
             MaterialTheme.colorScheme.onSurfaceVariant
         RutaUStatusType.INFO -> MaterialTheme.colorScheme.primaryContainer to
             MaterialTheme.colorScheme.onPrimaryContainer
-        RutaUStatusType.SUCCESS -> MaterialTheme.colorScheme.tertiaryContainer to
-            MaterialTheme.colorScheme.onTertiaryContainer
-        RutaUStatusType.WARNING -> MaterialTheme.colorScheme.secondaryContainer to
-            MaterialTheme.colorScheme.onSecondaryContainer
+        RutaUStatusType.SUCCESS -> semanticColors.successContainer to
+            semanticColors.onSuccessContainer
+        RutaUStatusType.WARNING -> semanticColors.warningContainer to
+            semanticColors.onWarningContainer
         RutaUStatusType.ERROR -> MaterialTheme.colorScheme.errorContainer to
             MaterialTheme.colorScheme.onErrorContainer
     }
