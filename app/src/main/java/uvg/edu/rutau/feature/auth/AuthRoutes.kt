@@ -107,6 +107,49 @@ fun RecoverAccessRoute(
     )
 }
 
+/** Route that lets a student resend password recovery instructions. */
+@Composable
+fun EmailSentRoute(
+    onBackToLogin: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: PasswordRecoveryViewModel,
+) {
+    EmailSentScreen(
+        onResend = viewModel::resendInstructions,
+        onBackToLogin = onBackToLogin,
+        modifier = modifier,
+    )
+}
+
+/** Route that connects the password reset form to its state holder. */
+@Composable
+fun ResetPasswordRoute(
+    onPasswordReset: () -> Unit,
+    onBackToLogin: () -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: ResetPasswordViewModel = viewModel(
+        factory = ResetPasswordViewModel.factory(RutaUAppDependencies.sessionRepository),
+    ),
+) {
+    val state = viewModel.uiState.collectAsStateWithLifecycle().value
+    LaunchedEffect(viewModel) {
+        viewModel.events.collectLatest { event ->
+            if (event is ResetPasswordEvent.PasswordReset) onPasswordReset()
+        }
+    }
+    ResetPasswordScreen(
+        newPassword = state.newPassword,
+        confirmPassword = state.confirmPassword,
+        onNewPasswordChange = viewModel::onNewPasswordChange,
+        onConfirmPasswordChange = viewModel::onConfirmPasswordChange,
+        onUpdatePassword = viewModel::resetPassword,
+        onBackToLogin = onBackToLogin,
+        modifier = modifier,
+        isLoading = state.isLoading,
+        errorMessage = state.errorMessage,
+    )
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun LoginRoutePreview() {
@@ -128,5 +171,24 @@ private fun SignUpRoutePreview() {
 private fun RecoverAccessRoutePreview() {
     RutaUTheme {
         RecoverAccessRoute(onInstructionsSent = {}, onBack = {})
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun EmailSentRoutePreview() {
+    RutaUTheme {
+        EmailSentRoute(
+            onBackToLogin = {},
+            viewModel = PasswordRecoveryViewModel(RutaUAppDependencies.sessionRepository),
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ResetPasswordRoutePreview() {
+    RutaUTheme {
+        ResetPasswordRoute(onPasswordReset = {}, onBackToLogin = {})
     }
 }

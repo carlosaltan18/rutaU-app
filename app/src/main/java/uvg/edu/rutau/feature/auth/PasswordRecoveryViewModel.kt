@@ -50,6 +50,12 @@ class PasswordRecoveryViewModel(
         }
     }
 
+    fun resendInstructions() {
+        viewModelScope.launch {
+            sessionRepository.requestPasswordRecovery(uiState.value.email)
+        }
+    }
+
     companion object {
         fun factory(sessionRepository: SessionRepository) = viewModelFactory {
             initializer { PasswordRecoveryViewModel(sessionRepository) }
