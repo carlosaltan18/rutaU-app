@@ -13,17 +13,19 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.data.mock.MockSeed
-import uvg.edu.rutau.core.designsystem.component.RutaUAvatar
 import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
+import uvg.edu.rutau.core.designsystem.component.RutaUInformationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
+import uvg.edu.rutau.core.designsystem.component.RutaUProfilePhotoPicker
 import uvg.edu.rutau.core.designsystem.component.RutaUSectionTitle
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTextField
@@ -44,9 +46,32 @@ data class AccountUiState(
     val confirmPassword: String = "",
     val notificationsEnabled: Boolean = true,
     val isSaving: Boolean = false,
+    val showLogoutConfirmation: Boolean = false,
     val showDeleteConfirmation: Boolean = false,
+    val legalDocument: LegalDocument? = null,
     val message: String? = null,
 )
+
+enum class LegalDocument(
+    val title: String,
+    val content: String,
+) {
+    TERMS(
+        title = "Términos y condiciones",
+        content = "RutaU facilita el contacto entre estudiantes para coordinar trayectos. " +
+            "Cada persona es responsable de la información que comparte y de los acuerdos de viaje que acepta.",
+    ),
+    PRIVACY(
+        title = "Política de privacidad",
+        content = "RutaU muestra solo los datos necesarios para la coordinación. La información de contacto " +
+            "se comparte únicamente después de que una solicitud sea aceptada por ambas partes.",
+    ),
+    ABOUT(
+        title = "Acerca de RutaU",
+        content = "RutaU MVP v1.0 ayuda a estudiantes universitarios a encontrar compañeros compatibles " +
+            "para sus trayectos habituales.",
+    ),
+}
 
 sealed interface AccountAction {
     data class FullNameChanged(val value: String) : AccountAction
@@ -57,11 +82,16 @@ sealed interface AccountAction {
     data class CurrentPasswordChanged(val value: String) : AccountAction
     data class NewPasswordChanged(val value: String) : AccountAction
     data class ConfirmPasswordChanged(val value: String) : AccountAction
+    data class PhotoChanged(val value: String?) : AccountAction
     data class NotificationsChanged(val enabled: Boolean) : AccountAction
     data object SaveProfile : AccountAction
     data object UpdateEmail : AccountAction
     data object UpdatePassword : AccountAction
-    data object Logout : AccountAction
+    data object LogoutRequested : AccountAction
+    data object LogoutConfirmed : AccountAction
+    data object LogoutDismissed : AccountAction
+    data class LegalDocumentRequested(val document: LegalDocument) : AccountAction
+    data object LegalDocumentDismissed : AccountAction
     data object DeleteAccountRequested : AccountAction
     data object DeleteAccountConfirmed : AccountAction
     data object DeleteAccountDismissed : AccountAction
@@ -91,10 +121,10 @@ fun AccountScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                RutaUAvatar(
-                    fullName = state.user.fullName,
+                RutaUProfilePhotoPicker(
+                    fullName = state.fullName,
                     photoUrl = state.user.photoUrl,
-                    size = RutaUSpacing.Huge,
+                    onPhotoSelected = { onAction(AccountAction.PhotoChanged(it)) },
                 )
                 Spacer(Modifier.height(RutaUSpacing.Small))
                 Text(state.user.fullName, style = MaterialTheme.typography.titleLarge)
@@ -161,9 +191,18 @@ fun AccountScreen(
             }
 
             RutaUSectionTitle("Información y legal")
-            Text("Términos y condiciones", style = MaterialTheme.typography.bodyLarge)
-            Text("Política de privacidad", style = MaterialTheme.typography.bodyLarge)
-            Text("Acerca de RutaU", style = MaterialTheme.typography.bodyLarge)
+            LegalDocumentButton(
+                text = LegalDocument.TERMS.title,
+                onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.TERMS)) },
+            )
+            LegalDocumentButton(
+                text = LegalDocument.PRIVACY.title,
+                onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.PRIVACY)) },
+            )
+            LegalDocumentButton(
+                text = LegalDocument.ABOUT.title,
+                onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.ABOUT)) },
+            )
 
             state.message?.let {
                 Text(
@@ -174,7 +213,7 @@ fun AccountScreen(
             }
             RutaUOutlinedButton(
                 text = "Cerrar sesión",
-                onClick = { onAction(AccountAction.Logout) },
+                onClick = { onAction(AccountAction.LogoutRequested) },
                 modifier = Modifier.fillMaxWidth(),
             )
             RutaUDestructiveButton(
@@ -195,6 +234,43 @@ fun AccountScreen(
             onDismiss = { onAction(AccountAction.DeleteAccountDismissed) },
             isDestructive = true,
         )
+    }
+
+    if (state.showLogoutConfirmation) {
+        RutaUConfirmationDialog(
+            title = "¿Cerrar sesión?",
+            message = "Tendrás que ingresar tus credenciales para volver a acceder a RutaU.",
+            confirmLabel = "Cerrar sesión",
+            onConfirm = { onAction(AccountAction.LogoutConfirmed) },
+            onDismiss = { onAction(AccountAction.LogoutDismissed) },
+        )
+    }
+
+    state.legalDocument?.let { document ->
+        RutaUInformationDialog(
+            title = document.title,
+            message = document.content,
+            onDismiss = { onAction(AccountAction.LegalDocumentDismissed) },
+        )
+    }
+}
+
+@Composable
+private fun LegalDocumentButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TextButton(
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text("›", style = MaterialTheme.typography.titleLarge)
     }
 }
 

@@ -50,11 +50,18 @@ class AccountViewModel(
             is AccountAction.CurrentPasswordChanged -> updateState { copy(currentPassword = action.value) }
             is AccountAction.NewPasswordChanged -> updateState { copy(newPassword = action.value) }
             is AccountAction.ConfirmPasswordChanged -> updateState { copy(confirmPassword = action.value) }
+            is AccountAction.PhotoChanged -> updateState {
+                copy(user = user.copy(photoUrl = action.value))
+            }
             is AccountAction.NotificationsChanged -> updateState { copy(notificationsEnabled = action.enabled) }
             AccountAction.SaveProfile -> saveProfile()
             AccountAction.UpdateEmail -> updateEmail()
             AccountAction.UpdatePassword -> updatePassword()
-            AccountAction.Logout -> logout()
+            AccountAction.LogoutRequested -> updateState { copy(showLogoutConfirmation = true) }
+            AccountAction.LogoutDismissed -> updateState { copy(showLogoutConfirmation = false) }
+            AccountAction.LogoutConfirmed -> logout()
+            is AccountAction.LegalDocumentRequested -> updateState { copy(legalDocument = action.document) }
+            AccountAction.LegalDocumentDismissed -> updateState { copy(legalDocument = null) }
             AccountAction.DeleteAccountRequested -> updateState { copy(showDeleteConfirmation = true) }
             AccountAction.DeleteAccountDismissed -> updateState { copy(showDeleteConfirmation = false) }
             AccountAction.DeleteAccountConfirmed -> deleteAccount()
@@ -110,6 +117,7 @@ class AccountViewModel(
 
     private fun logout() {
         viewModelScope.launch {
+            updateState { copy(showLogoutConfirmation = false) }
             sessionRepository.logout()
             mutableEvents.emit(AccountEvent.SignedOut)
         }
