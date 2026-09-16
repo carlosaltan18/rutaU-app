@@ -43,10 +43,11 @@ import uvg.edu.rutau.feature.account.AccountRoute
  */
 @Composable
 fun RutaUNavHost(
-    navController: NavHostController,
+    appState: RutaUAppState,
     modifier: Modifier = Modifier,
     startDestination: Any = LoginDestination,
 ) {
+    val navController = appState.navController
     val passwordRecoveryViewModel: PasswordRecoveryViewModel = viewModel(
         factory = PasswordRecoveryViewModel.factory(RutaUAppDependencies.sessionRepository),
     )
@@ -58,9 +59,7 @@ fun RutaUNavHost(
         composable<LoginDestination> {
             LoginRoute(
                 onLoginSuccess = {
-                    navController.navigate(TripsRoute) {
-                        popUpTo(LoginDestination) { inclusive = true }
-                    }
+                    appState.navigateToAuthenticatedRoot()
                 },
                 onNavigateToSignUp = { navController.navigate(SignUpDestination) },
                 onNavigateToRecovery = { navController.navigate(RecoverAccessDestination) },
@@ -69,9 +68,7 @@ fun RutaUNavHost(
         composable<SignUpDestination> {
             SignUpRoute(
                 onAccountCreated = {
-                    navController.navigate(TripsRoute) {
-                        popUpTo(LoginDestination) { inclusive = true }
-                    }
+                    appState.navigateToAuthenticatedRoot()
                 },
                 onBack = { navController.popBackStack() },
             )
@@ -86,9 +83,7 @@ fun RutaUNavHost(
         composable<EmailSentDestination> {
             EmailSentRoute(
                 onBackToLogin = {
-                    navController.navigate(LoginDestination) {
-                        popUpTo(LoginDestination) { inclusive = true }
-                    }
+                    appState.clearToLogin()
                 },
                 viewModel = passwordRecoveryViewModel,
             )
@@ -96,14 +91,10 @@ fun RutaUNavHost(
         composable<ResetPasswordDestination> {
             ResetPasswordRoute(
                 onPasswordReset = {
-                    navController.navigate(LoginDestination) {
-                        popUpTo(LoginDestination) { inclusive = true }
-                    }
+                    appState.clearToLogin()
                 },
                 onBackToLogin = {
-                    navController.navigate(LoginDestination) {
-                        popUpTo(LoginDestination) { inclusive = true }
-                    }
+                    appState.clearToLogin()
                 },
             )
         }
@@ -118,9 +109,7 @@ fun RutaUNavHost(
         composable<AccountDestination> {
             AccountRoute(
                 onSignedOut = {
-                    navController.navigate(LoginDestination) {
-                        popUpTo(TripsRoute) { inclusive = true }
-                    }
+                    appState.clearToLogin()
                 },
             )
         }

@@ -1,15 +1,23 @@
 package uvg.edu.rutau.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
-import androidx.navigation.compose.rememberNavController
 
-/** Punto de entrada Compose de RutaU. */
+/** Compose entry point for RutaU. */
 @Composable
 fun RutaUApp(modifier: Modifier = Modifier) {
-    val navController = rememberNavController()
-    RutaUNavHost(
-        navController = navController,
+    val appState = rememberRutaUAppState()
+    val selectedDestination = appState.currentTopLevelDestination()
+
+    RutaUScaffold(
+        selectedDestination = selectedDestination,
+        onDestinationSelected = appState::navigateToTopLevel,
         modifier = modifier,
-    )
+    ) { innerPadding ->
+        RutaUNavHost(
+            appState = appState,
+            modifier = Modifier.padding(innerPadding),
+        )
+    }
 }

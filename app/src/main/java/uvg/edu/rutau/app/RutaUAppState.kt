@@ -10,6 +10,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import uvg.edu.rutau.core.navigation.AccountRoute
 import uvg.edu.rutau.core.navigation.AppDestination
+import uvg.edu.rutau.core.navigation.LoginRoute
 import uvg.edu.rutau.core.navigation.RequestsRoute
 import uvg.edu.rutau.core.navigation.TripsRoute
 
@@ -41,8 +42,17 @@ class RutaUAppState internal constructor(
         }
     }
 
-    fun clearToLogin(destination: AppDestination) {
-        navController.navigate(destination) {
+    fun navigateToAuthenticatedRoot() {
+        navController.navigate(TripsRoute) {
+            popUpTo(LoginRoute) {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
+    }
+
+    fun clearToLogin() {
+        navController.navigate(LoginRoute) {
             popUpTo(navController.graph.id) {
                 inclusive = true
             }
