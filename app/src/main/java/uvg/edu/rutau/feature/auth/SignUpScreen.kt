@@ -18,12 +18,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.ui.theme.RutaUSpacing
+import uvg.edu.rutau.ui.theme.RutaUTheme
 
 /** Pantalla pura de creación de cuenta, sin verificación institucional. */
 @Composable
@@ -138,5 +140,30 @@ fun SignUpScreen(
             )
             Spacer(Modifier.height(RutaUSpacing.Large))
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun SignUpScreenPreview() {
+    RutaUTheme {
+        SignUpScreen(
+            fullName = "Mateo Morales Silva",
+            university = "Universidad San Carlos",
+            campus = "Campus Central",
+            email = "mateo@ejemplo.com",
+            password = "RutaU123",
+            confirmPassword = "RutaU123",
+            termsAccepted = true,
+            onFullNameChange = {},
+            onUniversityChange = {},
+            onCampusChange = {},
+            onEmailChange = {},
+            onPasswordChange = {},
+            onConfirmPasswordChange = {},
+            onTermsAcceptedChange = {},
+            onCreateAccount = {},
+            onBack = {},
+        )
     }
 }

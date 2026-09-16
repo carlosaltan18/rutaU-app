@@ -17,19 +17,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
+import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
-import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Pantalla pura para solicitar instrucciones de recuperación de contraseña. */
+/** Password reset form accessed from a temporary recovery link. */
 @Composable
-fun RecoverAccessScreen(
-    email: String,
-    onEmailChange: (String) -> Unit,
-    onSendInstructions: () -> Unit,
-    onBack: () -> Unit,
+fun ResetPasswordScreen(
+    newPassword: String,
+    confirmPassword: String,
+    onNewPasswordChange: (String) -> Unit,
+    onConfirmPasswordChange: (String) -> Unit,
+    onUpdatePassword: () -> Unit,
+    onBackToLogin: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
     errorMessage: String? = null,
@@ -38,10 +40,10 @@ fun RecoverAccessScreen(
         modifier = modifier,
         topBar = {
             RutaUTopAppBar(
-                title = "Recuperar acceso",
+                title = "Restablecer contraseña",
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 navigationIconContentDescription = "Volver",
-                onNavigationClick = onBack,
+                onNavigationClick = onBackToLogin,
             )
         },
     ) { innerPadding ->
@@ -54,36 +56,43 @@ fun RecoverAccessScreen(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = "¿Olvidaste tu contraseña?",
+                text = "Crea una nueva contraseña",
                 style = MaterialTheme.typography.titleLarge,
             )
             Spacer(Modifier.height(RutaUSpacing.Small))
             Text(
-                text = "Ingresa el correo asociado a tu cuenta. Te enviaremos instrucciones para restablecer tu contraseña.",
+                text = "Ingresa una contraseña segura para volver a acceder a tu cuenta de RutaU.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyLarge,
             )
             Spacer(Modifier.height(RutaUSpacing.XXLarge))
-            RutaUTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                label = "Correo electrónico",
+            RutaUPasswordField(
+                value = newPassword,
+                onValueChange = onNewPasswordChange,
+                label = "Nueva contraseña",
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(RutaUSpacing.Medium))
+            RutaUPasswordField(
+                value = confirmPassword,
+                onValueChange = onConfirmPasswordChange,
+                label = "Confirmar contraseña",
                 modifier = Modifier.fillMaxWidth(),
                 supportingText = errorMessage,
                 isError = errorMessage != null,
             )
-            Spacer(Modifier.height(RutaUSpacing.XLarge))
-            RutaULoadingButton(
-                text = "Enviar instrucciones",
-                onClick = onSendInstructions,
-                isLoading = isLoading,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(RutaUSpacing.XLarge))
+            Spacer(Modifier.height(RutaUSpacing.Medium))
             Text(
-                text = "Por seguridad y privacidad, no confirmaremos si el correo ingresado está asociado con una cuenta.",
+                text = "Requisitos: al menos 8 caracteres, una letra mayúscula y un número.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.height(RutaUSpacing.XLarge))
+            RutaULoadingButton(
+                text = "Actualizar contraseña",
+                onClick = onUpdatePassword,
+                isLoading = isLoading,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -91,13 +100,15 @@ fun RecoverAccessScreen(
 
 @Preview(showBackground = true)
 @Composable
-private fun RecoverAccessScreenPreview() {
+private fun ResetPasswordScreenPreview() {
     RutaUTheme {
-        RecoverAccessScreen(
-            email = "mateo@ejemplo.com",
-            onEmailChange = {},
-            onSendInstructions = {},
-            onBack = {},
+        ResetPasswordScreen(
+            newPassword = "",
+            confirmPassword = "",
+            onNewPasswordChange = {},
+            onConfirmPasswordChange = {},
+            onUpdatePassword = {},
+            onBackToLogin = {},
         )
     }
 }

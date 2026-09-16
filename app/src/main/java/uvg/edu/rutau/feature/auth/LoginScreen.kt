@@ -16,12 +16,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.ui.theme.RutaUSpacing
+import uvg.edu.rutau.ui.theme.RutaUTheme
 
 /** Pantalla pura de inicio de sesión; la Route administra el estado y la navegación. */
 @Composable
@@ -111,5 +113,21 @@ fun LoginScreen(
                 textAlign = TextAlign.Center,
             )
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LoginScreenPreview() {
+    RutaUTheme {
+        LoginScreen(
+            email = "mateo@ejemplo.com",
+            password = "RutaU123",
+            onEmailChange = {},
+            onPasswordChange = {},
+            onLogin = {},
+            onForgotPassword = {},
+            onSignUp = {},
+        )
     }
 }

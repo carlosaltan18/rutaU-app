@@ -33,6 +33,41 @@ data class Student(
     val photoUrl: String?,
 )
 
+/** Private account data that must not be exposed from public candidate profiles. */
+data class UserAccount(
+    val id: String,
+    val fullName: String,
+    val university: String,
+    val campus: String,
+    val email: String,
+    val photoUrl: String?,
+)
+
+data class SignUpInput(
+    val fullName: String,
+    val university: String,
+    val campus: String,
+    val email: String,
+    val password: String,
+)
+
+data class UpdateProfileInput(
+    val fullName: String,
+    val university: String,
+    val campus: String,
+    val photoUrl: String?,
+)
+
+data class UpdateEmailInput(
+    val email: String,
+    val currentPassword: String,
+)
+
+data class UpdatePasswordInput(
+    val currentPassword: String,
+    val newPassword: String,
+)
+
 /**
  * Trayecto habitual registrado por un estudiante.
  *
