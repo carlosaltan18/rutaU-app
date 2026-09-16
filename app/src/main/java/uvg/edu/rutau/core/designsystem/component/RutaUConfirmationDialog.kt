@@ -3,6 +3,8 @@ package uvg.edu.rutau.core.designsystem.component
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 
 /** Diálogo para confirmar acciones que requieren una decisión explícita del estudiante. */
 @Composable
@@ -12,7 +14,7 @@ fun RutaUConfirmationDialog(
     confirmLabel: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
+    modifier: Modifier = Modifier,
     dismissLabel: String = "Cancelar",
     isDestructive: Boolean = false,
 ) {
@@ -26,11 +28,13 @@ fun RutaUConfirmationDialog(
                 RutaUDestructiveButton(
                     text = confirmLabel,
                     onClick = onConfirm,
+                    modifier = Modifier.testTag("ConfirmationDialogConfirmButton"),
                 )
             } else {
                 RutaUPrimaryButton(
                     text = confirmLabel,
                     onClick = onConfirm,
+                    modifier = Modifier.testTag("ConfirmationDialogConfirmButton"),
                 )
             }
         },

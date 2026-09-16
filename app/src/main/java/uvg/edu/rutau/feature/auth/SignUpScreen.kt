@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.data.catalog.AcademicCatalog
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
@@ -88,27 +89,27 @@ fun SignUpScreen(
                 value = fullName,
                 onValueChange = onFullNameChange,
                 label = "Nombre completo",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpFullNameInput"),
             )
             RutaUProfilePhotoPicker(
                 fullName = fullName,
                 photoUrl = photoUrl,
                 onPhotoSelected = onPhotoChange,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpPhotoPicker"),
             )
             RutaUDropdownField(
                 selectedOption = university.ifBlank { null },
                 options = AcademicCatalog.universities,
                 onOptionSelected = onUniversityChange,
                 label = "Universidad",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpUniversitySelector"),
             )
             RutaUDropdownField(
                 selectedOption = campus.ifBlank { null },
                 options = AcademicCatalog.campusesFor(university),
                 onOptionSelected = onCampusChange,
                 label = "Campus o sede habitual",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpCampusSelector"),
                 enabled = university.isNotBlank(),
                 supportingText = if (university.isBlank()) "Primero selecciona tu universidad." else null,
             )
@@ -116,19 +117,19 @@ fun SignUpScreen(
                 value = email,
                 onValueChange = onEmailChange,
                 label = "Correo electrónico",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpEmailInput"),
             )
             RutaUPasswordField(
                 value = password,
                 onValueChange = onPasswordChange,
                 label = "Contraseña",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpPasswordInput"),
             )
             RutaUPasswordField(
                 value = confirmPassword,
                 onValueChange = onConfirmPasswordChange,
                 label = "Confirmar contraseña",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpConfirmPasswordInput"),
                 supportingText = errorMessage,
                 isError = errorMessage != null,
             )
@@ -141,6 +142,7 @@ fun SignUpScreen(
                 Checkbox(
                     checked = termsAccepted,
                     onCheckedChange = onTermsAcceptedChange,
+                    modifier = Modifier.testTag("SignUpTermsCheckbox"),
                 )
                 Text(
                     text = "Acepto los Términos y condiciones y la Política de privacidad de RutaU.",
@@ -151,7 +153,7 @@ fun SignUpScreen(
                 text = "Crear cuenta",
                 onClick = onCreateAccount,
                 isLoading = isLoading,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("SignUpSubmitButton"),
             )
             Spacer(Modifier.height(RutaUSpacing.Large))
         }

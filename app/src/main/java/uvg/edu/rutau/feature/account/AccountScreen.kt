@@ -17,6 +17,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.data.mock.MockSeed
 import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
@@ -136,14 +137,19 @@ fun AccountScreen(
             }
 
             RutaUSectionTitle("Datos personales")
-            RutaUTextField(state.fullName, { onAction(AccountAction.FullNameChanged(it)) }, "Nombre completo", Modifier.fillMaxWidth())
+            RutaUTextField(
+                state.fullName,
+                { onAction(AccountAction.FullNameChanged(it)) },
+                "Nombre completo",
+                Modifier.fillMaxWidth().testTag("AccountFullNameInput"),
+            )
             RutaUTextField(state.university, { onAction(AccountAction.UniversityChanged(it)) }, "Universidad", Modifier.fillMaxWidth())
             RutaUTextField(state.campus, { onAction(AccountAction.CampusChanged(it)) }, "Campus habitual", Modifier.fillMaxWidth())
             RutaULoadingButton(
                 text = "Guardar datos",
                 onClick = { onAction(AccountAction.SaveProfile) },
                 isLoading = state.isSaving,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("AccountSaveProfileButton"),
             )
 
             RutaUSectionTitle("Correo electrónico")
@@ -214,7 +220,7 @@ fun AccountScreen(
             RutaUOutlinedButton(
                 text = "Cerrar sesión",
                 onClick = { onAction(AccountAction.LogoutRequested) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("AccountLogoutButton"),
             )
             RutaUDestructiveButton(
                 text = "Eliminar mi cuenta",
@@ -243,6 +249,7 @@ fun AccountScreen(
             confirmLabel = "Cerrar sesión",
             onConfirm = { onAction(AccountAction.LogoutConfirmed) },
             onDismiss = { onAction(AccountAction.LogoutDismissed) },
+            modifier = Modifier.testTag("AccountLogoutConfirmation"),
         )
     }
 
@@ -271,6 +278,17 @@ private fun LegalDocumentButton(
             style = MaterialTheme.typography.bodyLarge,
         )
         Text("›", style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun LegalDocumentButtonPreview() {
+    RutaUTheme {
+        LegalDocumentButton(
+            text = "Términos y condiciones",
+            onClick = {},
+        )
     }
 }
 

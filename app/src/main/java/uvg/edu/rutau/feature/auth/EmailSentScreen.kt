@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
@@ -27,6 +28,7 @@ import uvg.edu.rutau.ui.theme.RutaUTheme
 @Composable
 fun EmailSentScreen(
     onResend: () -> Unit,
+    onOpenResetLink: () -> Unit,
     onBackToLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -65,7 +67,18 @@ fun EmailSentScreen(
             RutaUPrimaryButton(
                 text = "Enviar nuevamente",
                 onClick = onResend,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("RecoveryResendButton"),
+            )
+            Spacer(Modifier.height(RutaUSpacing.Medium))
+            Text(
+                text = "¿Abriste el enlace de tu correo?",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            RutaUPrimaryButton(
+                text = "Abrir enlace de demostración",
+                onClick = onOpenResetLink,
+                modifier = Modifier.fillMaxWidth().testTag("RecoveryOpenDemoLinkButton"),
             )
             Spacer(Modifier.height(RutaUSpacing.Medium))
             androidx.compose.material3.TextButton(onClick = onBackToLogin) {
@@ -79,6 +92,6 @@ fun EmailSentScreen(
 @Composable
 private fun EmailSentScreenPreview() {
     RutaUTheme {
-        EmailSentScreen(onResend = {}, onBackToLogin = {})
+        EmailSentScreen(onResend = {}, onOpenResetLink = {}, onBackToLogin = {})
     }
 }

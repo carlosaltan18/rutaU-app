@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
@@ -68,7 +69,7 @@ fun RecoverAccessScreen(
                 value = email,
                 onValueChange = onEmailChange,
                 label = "Correo electrónico",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("RecoveryEmailInput"),
                 supportingText = errorMessage,
                 isError = errorMessage != null,
             )
@@ -77,7 +78,7 @@ fun RecoverAccessScreen(
                 text = "Enviar instrucciones",
                 onClick = onSendInstructions,
                 isLoading = isLoading,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("RecoverySubmitButton"),
             )
             Spacer(Modifier.height(RutaUSpacing.XLarge))
             Text(

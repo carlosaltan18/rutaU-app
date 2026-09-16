@@ -1,6 +1,8 @@
 package uvg.edu.rutau.feature.account
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -25,6 +27,7 @@ sealed interface AccountEvent {
 class AccountViewModel(
     private val userRepository: UserRepository,
     private val sessionRepository: SessionRepository,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow<AccountUiState?>(null)
     val uiState = mutableUiState.asStateFlow()
@@ -35,7 +38,16 @@ class AccountViewModel(
     init {
         viewModelScope.launch {
             userRepository.observeCurrentUser().collectLatest { user ->
-                mutableUiState.value = user?.let(::AccountUiState)
+                mutableUiState.value = user?.let { account ->
+                    AccountUiState(
+                        user = account.copy(photoUrl = savedStateHandle[PhotoUrlKey] ?: account.photoUrl),
+                        fullName = savedStateHandle[FullNameKey] ?: account.fullName,
+                        university = savedStateHandle[UniversityKey] ?: account.university,
+                        campus = savedStateHandle[CampusKey] ?: account.campus,
+                        email = savedStateHandle[EmailKey] ?: account.email,
+                        notificationsEnabled = savedStateHandle[NotificationsKey] ?: true,
+                    )
+                }
             }
         }
     }
@@ -132,7 +144,18 @@ class AccountViewModel(
     }
 
     private fun updateState(transform: AccountUiState.() -> AccountUiState) {
-        mutableUiState.update { state -> state?.transform() }
+        mutableUiState.update { state ->
+            state?.transform()?.also(::persistRestorableFields)
+        }
+    }
+
+    private fun persistRestorableFields(state: AccountUiState) {
+        savedStateHandle[FullNameKey] = state.fullName
+        savedStateHandle[UniversityKey] = state.university
+        savedStateHandle[CampusKey] = state.campus
+        savedStateHandle[EmailKey] = state.email
+        savedStateHandle[PhotoUrlKey] = state.user.photoUrl
+        savedStateHandle[NotificationsKey] = state.notificationsEnabled
     }
 
     companion object {
@@ -140,7 +163,20 @@ class AccountViewModel(
             userRepository: UserRepository,
             sessionRepository: SessionRepository,
         ) = viewModelFactory {
-            initializer { AccountViewModel(userRepository, sessionRepository) }
+            initializer {
+                AccountViewModel(
+                    userRepository = userRepository,
+                    sessionRepository = sessionRepository,
+                    savedStateHandle = createSavedStateHandle(),
+                )
+            }
         }
+
+        private const val FullNameKey = "account_full_name"
+        private const val UniversityKey = "account_university"
+        private const val CampusKey = "account_campus"
+        private const val EmailKey = "account_email"
+        private const val PhotoUrlKey = "account_photo_url"
+        private const val NotificationsKey = "account_notifications_enabled"
     }
 }

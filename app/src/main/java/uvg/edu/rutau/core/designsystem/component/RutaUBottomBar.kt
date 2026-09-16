@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 
 /** Un destino que puede presentarse en la navegación inferior principal. */
 data class RutaUBottomNavigationItem(
@@ -38,6 +39,7 @@ fun RutaUBottomBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = { onItemSelected(item) },
+                modifier = Modifier.testTag("BottomNavigation-${item.id}"),
                 icon = {
                     Icon(
                         imageVector = if (selected) item.selectedIcon else item.icon,

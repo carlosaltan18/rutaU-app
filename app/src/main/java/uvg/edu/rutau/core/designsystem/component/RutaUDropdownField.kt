@@ -35,12 +35,11 @@ fun RutaUDropdownField(
     ExposedDropdownMenuBox(
         expanded = expanded,
         onExpandedChange = { expanded = it },
-        modifier = modifier,
     ) {
         OutlinedTextField(
             value = selectedOption.orEmpty(),
             onValueChange = {},
-            modifier = Modifier
+            modifier = modifier
                 .menuAnchor(
                     type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                     enabled = enabled,

@@ -82,6 +82,7 @@ fun RutaUNavHost(
         }
         composable<EmailSentDestination> {
             EmailSentRoute(
+                onOpenResetLink = { navController.navigate(ResetPasswordDestination) },
                 onBackToLogin = {
                     appState.clearToLogin()
                 },

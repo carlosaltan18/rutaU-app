@@ -112,12 +112,14 @@ fun RecoverAccessRoute(
 /** Route that lets a student resend password recovery instructions. */
 @Composable
 fun EmailSentRoute(
+    onOpenResetLink: () -> Unit,
     onBackToLogin: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PasswordRecoveryViewModel,
 ) {
     EmailSentScreen(
         onResend = viewModel::resendInstructions,
+        onOpenResetLink = onOpenResetLink,
         onBackToLogin = onBackToLogin,
         modifier = modifier,
     )
@@ -181,6 +183,7 @@ private fun RecoverAccessRoutePreview() {
 private fun EmailSentRoutePreview() {
     RutaUTheme {
         EmailSentRoute(
+            onOpenResetLink = {},
             onBackToLogin = {},
             viewModel = PasswordRecoveryViewModel(RutaUAppDependencies.sessionRepository),
         )

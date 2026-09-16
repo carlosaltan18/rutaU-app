@@ -6,8 +6,10 @@ import androidx.compose.ui.Modifier
 
 /** Compose entry point for RutaU. */
 @Composable
-fun RutaUApp(modifier: Modifier = Modifier) {
-    val appState = rememberRutaUAppState()
+fun RutaUApp(
+    modifier: Modifier = Modifier,
+    appState: RutaUAppState = rememberRutaUAppState(),
+) {
     val selectedDestination = appState.currentTopLevelDestination()
 
     RutaUScaffold(

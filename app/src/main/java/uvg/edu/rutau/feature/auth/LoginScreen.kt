@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
@@ -72,7 +73,7 @@ fun LoginScreen(
                 value = email,
                 onValueChange = onEmailChange,
                 label = "Correo electrónico",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("LoginEmailInput"),
                 isError = errorMessage != null,
             )
             Spacer(Modifier.height(RutaUSpacing.Medium))
@@ -80,12 +81,15 @@ fun LoginScreen(
                 value = password,
                 onValueChange = onPasswordChange,
                 label = "Contraseña",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("LoginPasswordInput"),
                 supportingText = errorMessage,
                 isError = errorMessage != null,
             )
             Spacer(Modifier.height(RutaUSpacing.Small))
-            androidx.compose.material3.TextButton(onClick = onForgotPassword) {
+            androidx.compose.material3.TextButton(
+                onClick = onForgotPassword,
+                modifier = Modifier.testTag("LoginForgotPasswordButton"),
+            ) {
                 Text("¿Olvidaste tu contraseña?")
             }
             Spacer(Modifier.height(RutaUSpacing.Large))
@@ -93,7 +97,7 @@ fun LoginScreen(
                 text = "Iniciar sesión",
                 onClick = onLogin,
                 isLoading = isLoading,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("LoginSubmitButton"),
             )
             Spacer(Modifier.height(RutaUSpacing.XLarge))
             Text(
@@ -103,7 +107,7 @@ fun LoginScreen(
             RutaUPrimaryButton(
                 text = "Crear cuenta",
                 onClick = onSignUp,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("LoginSignUpButton"),
             )
             Spacer(Modifier.height(RutaUSpacing.XLarge))
             Text(

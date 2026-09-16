@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
@@ -70,14 +71,14 @@ fun ResetPasswordScreen(
                 value = newPassword,
                 onValueChange = onNewPasswordChange,
                 label = "Nueva contraseña",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("ResetPasswordInput"),
             )
             Spacer(Modifier.height(RutaUSpacing.Medium))
             RutaUPasswordField(
                 value = confirmPassword,
                 onValueChange = onConfirmPasswordChange,
                 label = "Confirmar contraseña",
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("ResetConfirmPasswordInput"),
                 supportingText = errorMessage,
                 isError = errorMessage != null,
             )
@@ -92,7 +93,7 @@ fun ResetPasswordScreen(
                 text = "Actualizar contraseña",
                 onClick = onUpdatePassword,
                 isLoading = isLoading,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().testTag("ResetSubmitButton"),
             )
         }
     }
