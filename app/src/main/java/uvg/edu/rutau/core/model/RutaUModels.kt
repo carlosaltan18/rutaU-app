@@ -49,6 +49,7 @@ data class SignUpInput(
     val campus: String,
     val email: String,
     val password: String,
+    val photoUrl: String? = null,
 )
 
 data class UpdateProfileInput(

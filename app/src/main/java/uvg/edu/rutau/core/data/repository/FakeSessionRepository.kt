@@ -27,7 +27,7 @@ class FakeSessionRepository(
             university = input.university.trim(),
             campus = input.campus.trim(),
             email = input.email.trim(),
-            photoUrl = null,
+            photoUrl = input.photoUrl,
         )
         store.currentUser.value = account
         store.updatePassword(input.password)

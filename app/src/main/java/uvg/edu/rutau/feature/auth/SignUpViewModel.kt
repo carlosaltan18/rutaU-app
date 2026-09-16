@@ -21,6 +21,7 @@ data class SignUpUiState(
     val email: String = "",
     val password: String = "",
     val confirmPassword: String = "",
+    val photoUrl: String? = null,
     val termsAccepted: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
@@ -40,8 +41,11 @@ class SignUpViewModel(
     val events: SharedFlow<SignUpEvent> = mutableEvents.asSharedFlow()
 
     fun onFullNameChange(value: String) = updateState { copy(fullName = value, errorMessage = null) }
-    fun onUniversityChange(value: String) = updateState { copy(university = value, errorMessage = null) }
+    fun onUniversityChange(value: String) = updateState {
+        copy(university = value, campus = "", errorMessage = null)
+    }
     fun onCampusChange(value: String) = updateState { copy(campus = value, errorMessage = null) }
+    fun onPhotoChange(value: String?) = updateState { copy(photoUrl = value, errorMessage = null) }
     fun onEmailChange(value: String) = updateState { copy(email = value, errorMessage = null) }
     fun onPasswordChange(value: String) = updateState { copy(password = value, errorMessage = null) }
     fun onConfirmPasswordChange(value: String) = updateState { copy(confirmPassword = value, errorMessage = null) }
@@ -71,6 +75,7 @@ class SignUpViewModel(
                     campus = state.campus,
                     email = state.email,
                     password = state.password,
+                    photoUrl = state.photoUrl,
                 ),
             )
             updateState { copy(isLoading = false) }

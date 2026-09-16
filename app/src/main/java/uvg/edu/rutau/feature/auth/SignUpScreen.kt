@@ -19,8 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import uvg.edu.rutau.core.data.catalog.AcademicCatalog
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
+import uvg.edu.rutau.core.designsystem.component.RutaUDropdownField
 import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
+import uvg.edu.rutau.core.designsystem.component.RutaUProfilePhotoPicker
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
@@ -36,6 +39,7 @@ fun SignUpScreen(
     email: String,
     password: String,
     confirmPassword: String,
+    photoUrl: String?,
     termsAccepted: Boolean,
     onFullNameChange: (String) -> Unit,
     onUniversityChange: (String) -> Unit,
@@ -43,6 +47,7 @@ fun SignUpScreen(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
+    onPhotoChange: (String?) -> Unit,
     onTermsAcceptedChange: (Boolean) -> Unit,
     onCreateAccount: () -> Unit,
     onBack: () -> Unit,
@@ -85,17 +90,27 @@ fun SignUpScreen(
                 label = "Nombre completo",
                 modifier = Modifier.fillMaxWidth(),
             )
-            RutaUTextField(
-                value = university,
-                onValueChange = onUniversityChange,
+            RutaUProfilePhotoPicker(
+                fullName = fullName,
+                photoUrl = photoUrl,
+                onPhotoSelected = onPhotoChange,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            RutaUDropdownField(
+                selectedOption = university.ifBlank { null },
+                options = AcademicCatalog.universities,
+                onOptionSelected = onUniversityChange,
                 label = "Universidad",
                 modifier = Modifier.fillMaxWidth(),
             )
-            RutaUTextField(
-                value = campus,
-                onValueChange = onCampusChange,
+            RutaUDropdownField(
+                selectedOption = campus.ifBlank { null },
+                options = AcademicCatalog.campusesFor(university),
+                onOptionSelected = onCampusChange,
                 label = "Campus o sede habitual",
                 modifier = Modifier.fillMaxWidth(),
+                enabled = university.isNotBlank(),
+                supportingText = if (university.isBlank()) "Primero selecciona tu universidad." else null,
             )
             RutaUTextField(
                 value = email,
@@ -154,6 +169,7 @@ private fun SignUpScreenPreview() {
             email = "mateo@ejemplo.com",
             password = "RutaU123",
             confirmPassword = "RutaU123",
+            photoUrl = null,
             termsAccepted = true,
             onFullNameChange = {},
             onUniversityChange = {},
@@ -161,6 +177,7 @@ private fun SignUpScreenPreview() {
             onEmailChange = {},
             onPasswordChange = {},
             onConfirmPasswordChange = {},
+            onPhotoChange = {},
             onTermsAcceptedChange = {},
             onCreateAccount = {},
             onBack = {},
