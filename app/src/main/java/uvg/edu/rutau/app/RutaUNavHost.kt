@@ -20,33 +20,60 @@ import uvg.edu.rutau.core.navigation.CandidateProfileRoute
 import uvg.edu.rutau.core.navigation.ConfirmCoordinationRoute
 import uvg.edu.rutau.core.navigation.CoordinatedRideRoute
 import uvg.edu.rutau.core.navigation.EmailSentRoute
-import uvg.edu.rutau.core.navigation.LoginRoute
+import uvg.edu.rutau.core.navigation.LoginRoute as LoginDestination
 import uvg.edu.rutau.core.navigation.MatchesRoute
-import uvg.edu.rutau.core.navigation.RecoverAccessRoute
+import uvg.edu.rutau.core.navigation.RecoverAccessRoute as RecoverAccessDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute
 import uvg.edu.rutau.core.navigation.RequestsRoute
 import uvg.edu.rutau.core.navigation.ResetPasswordRoute
-import uvg.edu.rutau.core.navigation.SignUpRoute
+import uvg.edu.rutau.core.navigation.SignUpRoute as SignUpDestination
 import uvg.edu.rutau.core.navigation.TripEditorRoute
 import uvg.edu.rutau.core.navigation.TripsRoute
+import uvg.edu.rutau.feature.auth.LoginRoute
+import uvg.edu.rutau.feature.auth.RecoverAccessRoute
+import uvg.edu.rutau.feature.auth.SignUpRoute
 
 /**
- * Host central de navegación. Cada módulo reemplazará su destino temporal por su Route real.
+ * Central navigation host. Each module replaces its temporary destination with its Route.
  */
 @Composable
 fun RutaUNavHost(
     navController: NavHostController,
     modifier: Modifier = Modifier,
-    startDestination: Any = LoginRoute,
+    startDestination: Any = LoginDestination,
 ) {
     NavHost(
         navController = navController,
         startDestination = startDestination,
         modifier = modifier,
     ) {
-        composable<LoginRoute> { TemporaryDestination("Iniciar sesión") }
-        composable<SignUpRoute> { TemporaryDestination("Crear cuenta") }
-        composable<RecoverAccessRoute> { TemporaryDestination("Recuperar acceso") }
+        composable<LoginDestination> {
+            LoginRoute(
+                onLoginSuccess = {
+                    navController.navigate(TripsRoute) {
+                        popUpTo(LoginDestination) { inclusive = true }
+                    }
+                },
+                onNavigateToSignUp = { navController.navigate(SignUpDestination) },
+                onNavigateToRecovery = { navController.navigate(RecoverAccessDestination) },
+            )
+        }
+        composable<SignUpDestination> {
+            SignUpRoute(
+                onAccountCreated = {
+                    navController.navigate(TripsRoute) {
+                        popUpTo(LoginDestination) { inclusive = true }
+                    }
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+        composable<RecoverAccessDestination> {
+            RecoverAccessRoute(
+                onInstructionsSent = { navController.navigate(EmailSentRoute) },
+                onBack = { navController.popBackStack() },
+            )
+        }
         composable<EmailSentRoute> { TemporaryDestination("Revisa tu correo") }
         composable<ResetPasswordRoute> { TemporaryDestination("Restablecer contraseña") }
         composable<TripsRoute> { TemporaryDestination("Mis trayectos") }
