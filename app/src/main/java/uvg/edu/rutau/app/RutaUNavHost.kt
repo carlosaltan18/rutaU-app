@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import androidx.lifecycle.viewmodel.compose.viewModel
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
@@ -37,6 +38,16 @@ import uvg.edu.rutau.feature.auth.EmailSentRoute
 import uvg.edu.rutau.feature.auth.PasswordRecoveryViewModel
 import uvg.edu.rutau.feature.auth.ResetPasswordRoute
 import uvg.edu.rutau.feature.account.AccountRoute
+import uvg.edu.rutau.feature.trips.CandidateProfileRoute as CandidateProfileScreen
+import uvg.edu.rutau.feature.trips.CandidateProfileViewModel
+import uvg.edu.rutau.feature.trips.ConfirmCoordinationRoute as ConfirmCoordinationScreen
+import uvg.edu.rutau.feature.trips.ConfirmCoordinationViewModel
+import uvg.edu.rutau.feature.trips.MatchesRoute as MatchesScreen
+import uvg.edu.rutau.feature.trips.MatchesViewModel
+import uvg.edu.rutau.feature.trips.TripEditorRoute as TripEditorScreen
+import uvg.edu.rutau.feature.trips.TripEditorViewModel
+import uvg.edu.rutau.feature.trips.TripsRoute as TripsScreen
+import uvg.edu.rutau.feature.trips.TripsViewModel
 
 /**
  * Central navigation host. Each module replaces its temporary destination with its Route.
@@ -99,11 +110,70 @@ fun RutaUNavHost(
                 },
             )
         }
-        composable<TripsRoute> { TemporaryDestination("Mis trayectos") }
-        composable<TripEditorRoute> { TemporaryDestination("Crear o editar trayecto") }
-        composable<MatchesRoute> { TemporaryDestination("Compañeros compatibles") }
-        composable<CandidateProfileRoute> { TemporaryDestination("Perfil compatible") }
-        composable<ConfirmCoordinationRoute> { TemporaryDestination("Confirmar coordinación") }
+        composable<TripsRoute> {
+            TripsScreen(
+                onCreateTrip = { navController.navigate(TripEditorRoute()) },
+                onEditTrip = { navController.navigate(TripEditorRoute(it)) },
+                onOpenMatches = { navController.navigate(MatchesRoute(it)) },
+                viewModel = viewModel(factory = TripsViewModel.factory(RutaUAppDependencies.tripRepository)),
+            )
+        }
+        composable<TripEditorRoute> { entry ->
+            val route = entry.toRoute<TripEditorRoute>()
+            TripEditorScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = viewModel(
+                    key = "trip-editor-${route.tripId ?: "new"}",
+                    factory = TripEditorViewModel.factory(route.tripId, RutaUAppDependencies.tripRepository),
+                ),
+            )
+        }
+        composable<MatchesRoute> { entry ->
+            val route = entry.toRoute<MatchesRoute>()
+            MatchesScreen(
+                onBack = { navController.popBackStack() },
+                onOpenCandidate = { candidateTripId ->
+                    navController.navigate(CandidateProfileRoute(route.tripId, candidateTripId))
+                },
+                viewModel = viewModel(
+                    key = "matches-${route.tripId}",
+                    factory = MatchesViewModel.factory(route.tripId, RutaUAppDependencies.tripRepository),
+                ),
+            )
+        }
+        composable<CandidateProfileRoute> { entry ->
+            val route = entry.toRoute<CandidateProfileRoute>()
+            CandidateProfileScreen(
+                onBack = { navController.popBackStack() },
+                onCoordinate = {
+                    navController.navigate(ConfirmCoordinationRoute(route.tripId, route.candidateTripId))
+                },
+                viewModel = viewModel(
+                    key = "candidate-${route.tripId}-${route.candidateTripId}",
+                    factory = CandidateProfileViewModel.factory(
+                        route.tripId,
+                        route.candidateTripId,
+                        RutaUAppDependencies.tripRepository,
+                    ),
+                ),
+            )
+        }
+        composable<ConfirmCoordinationRoute> { entry ->
+            val route = entry.toRoute<ConfirmCoordinationRoute>()
+            ConfirmCoordinationScreen(
+                onBack = { navController.popBackStack() },
+                onConfirmed = { requestId -> navController.navigate(RequestDetailRoute(requestId)) },
+                viewModel = viewModel(
+                    key = "confirm-${route.tripId}-${route.candidateTripId}",
+                    factory = ConfirmCoordinationViewModel.factory(
+                        route.tripId,
+                        route.candidateTripId,
+                        RutaUAppDependencies.tripRepository,
+                        RutaUAppDependencies.coordinationRepository,
+                    ),
+                ),
+            )
+        }
         composable<RequestsRoute> { TemporaryDestination("Solicitudes") }
         composable<RequestDetailRoute> { TemporaryDestination("Detalle de solicitud") }
         composable<CoordinatedRideRoute> { TemporaryDestination("Viaje coordinado") }
