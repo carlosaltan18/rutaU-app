@@ -14,6 +14,9 @@ Aplicación Android nativa para que estudiantes universitarios encuentren compa�
 - Navegación tipada con Navigation Compose y barra inferior persistente.
 - Sistema visual RutaU basado en Material 3: colores, tipografía, espaciados, formas y componentes reutilizables.
 - Datos compartidos en memoria mediante repositorios fake para el MVP.
+- Publicación y edición de trayectos como pasajero o conductor (de 1 a 3 plazas).
+- Compatibilidad por zona, campus, día, diferencia máxima de 30 minutos y roles complementarios.
+- Perfiles públicos de candidatos y confirmación de solicitudes o invitaciones pendientes.
 
 ## Alcance actual
 
@@ -23,7 +26,7 @@ Aplicación Android nativa para que estudiantes universitarios encuentren compa�
 | Modelos, rutas tipadas y `RutaUNavHost` | Implementado |
 | Autenticación y recuperación de contraseña | Implementado con datos locales |
 | Cuenta y configuración | Implementado con datos locales |
-| Trayectos y compatibilidad | Pendiente de integración del integrante 2 |
+| Trayectos y compatibilidad | Implementado con datos locales |
 | Solicitudes y viajes coordinados | Pendiente de integración del integrante 3 |
 | Persistencia remota, backend y notificaciones reales | Fuera del alcance actual del frontend MVP |
 
@@ -115,7 +118,8 @@ app/src/main/java/uvg/edu/rutau/
 │   └── navigation/       # Contrato de rutas tipadas
 ├── feature/
 │   ├── account/          # Cuenta y configuración
-│   └── auth/             # Inicio de sesión, registro y recuperación
+│   ├── auth/             # Inicio de sesión, registro y recuperación
+│   └── trips/            # Trayectos, compatibilidad, perfiles y confirmación
 └── ui/theme/             # Colores, tipografía, espaciado y formas
 ```
 
