@@ -92,6 +92,23 @@ data class Trip(
         get() = offeredSeats - occupiedSeats
 }
 
+/** Datos editables de un trayecto. El repositorio asigna el id y el propietario. */
+data class TripInput(
+    val originZone: String,
+    val destinationCampus: String,
+    val dayOfWeek: String,
+    val departureTime: LocalTime,
+    val role: TripRole,
+    val offeredSeats: Int = 0,
+)
+
+/** Resultado de compatibilidad listo para presentarse sin exponer datos privados. */
+data class TripMatch(
+    val trip: Trip,
+    val student: Student,
+    val timeDifferenceMinutes: Int,
+)
+
 /**
  * Solicitud de un pasajero o invitación de un conductor para una fecha concreta.
  * El importe se almacena en centavos; por ejemplo, Q 10.00 se representa como 1000.
