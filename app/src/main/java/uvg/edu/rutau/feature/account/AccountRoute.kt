@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.collectLatest
 import uvg.edu.rutau.app.RutaUAppDependencies
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Route that connects [AccountScreen] to account data, actions, and logout navigation. */
+/** Conecta la pantalla de cuenta con sus datos y acciones. */
 @Composable
 fun AccountRoute(
     onSignedOut: () -> Unit,

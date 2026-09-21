@@ -10,6 +10,7 @@ import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 
+/** Comprueba los cambios de estado de una solicitud. */
 class FakeRideRequestRepositoryTest {
     @Test
     fun `accepting a request creates a coordination and occupies one driver seat`() = runBlocking {

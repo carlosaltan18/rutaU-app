@@ -2,11 +2,14 @@ package uvg.edu.rutau.core.data.repository
 
 import kotlinx.coroutines.flow.Flow
 import uvg.edu.rutau.core.model.RideRequest
+import uvg.edu.rutau.core.model.RideRequestDetails
 
-/** Source of truth for the state machine of ride requests and invitations. */
+/** Indica las acciones disponibles para solicitudes e invitaciones. */
 interface RideRequestRepository {
     fun observeRequests(): Flow<List<RideRequest>>
     fun observeRequest(requestId: String): Flow<RideRequest?>
+    fun observeRequestDetails(): Flow<List<RideRequestDetails>>
+    fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?>
 
     suspend fun accept(requestId: String)
     suspend fun reject(requestId: String)

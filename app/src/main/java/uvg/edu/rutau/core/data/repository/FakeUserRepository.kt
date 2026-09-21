@@ -7,6 +7,7 @@ import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
 import uvg.edu.rutau.core.model.UserAccount
 
+/** Maneja la cuenta de ejemplo mientras la aplicación está abierta. */
 class FakeUserRepository(
     private val store: MockRutaUStore,
 ) : UserRepository {

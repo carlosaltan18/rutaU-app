@@ -1,22 +1,13 @@
 package uvg.edu.rutau.app
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import androidx.lifecycle.viewmodel.compose.viewModel
-import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
-import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.navigation.AccountRoute as AccountDestination
 import uvg.edu.rutau.core.navigation.CandidateProfileRoute
 import uvg.edu.rutau.core.navigation.ConfirmCoordinationRoute
@@ -48,10 +39,14 @@ import uvg.edu.rutau.feature.trips.TripEditorRoute as TripEditorScreen
 import uvg.edu.rutau.feature.trips.TripEditorViewModel
 import uvg.edu.rutau.feature.trips.TripsRoute as TripsScreen
 import uvg.edu.rutau.feature.trips.TripsViewModel
+import uvg.edu.rutau.feature.requests.CoordinatedRideRoute as CoordinatedRideScreen
+import uvg.edu.rutau.feature.requests.CoordinatedRideViewModel
+import uvg.edu.rutau.feature.requests.RequestDetailRoute as RequestDetailScreen
+import uvg.edu.rutau.feature.requests.RequestDetailViewModel
+import uvg.edu.rutau.feature.requests.RequestsRoute as RequestsScreen
+import uvg.edu.rutau.feature.requests.RequestsViewModel
 
-/**
- * Central navigation host. Each module replaces its temporary destination with its Route.
- */
+/** Conecta las pantallas de RutaU y permite pasar de una a otra. */
 @Composable
 fun RutaUNavHost(
     appState: RutaUAppState,
@@ -174,35 +169,55 @@ fun RutaUNavHost(
                 ),
             )
         }
-        composable<RequestsRoute> { TemporaryDestination("Solicitudes") }
-        composable<RequestDetailRoute> { TemporaryDestination("Detalle de solicitud") }
-        composable<CoordinatedRideRoute> { TemporaryDestination("Viaje coordinado") }
+        composable<RequestsRoute> {
+            RequestsScreen(
+                onOpenRequest = { requestId -> navController.navigate(RequestDetailRoute(requestId)) },
+                viewModel = viewModel(
+                    factory = RequestsViewModel.factory(
+                        RutaUAppDependencies.rideRequestRepository,
+                        RutaUAppDependencies.userRepository,
+                    ),
+                ),
+            )
+        }
+        composable<RequestDetailRoute> { entry ->
+            val route = entry.toRoute<RequestDetailRoute>()
+            RequestDetailScreen(
+                onBack = { navController.popBackStack() },
+                onOpenCoordinatedRide = {
+                    navController.navigate(CoordinatedRideRoute(route.requestId))
+                },
+                viewModel = viewModel(
+                    key = "request-detail-${route.requestId}",
+                    factory = RequestDetailViewModel.factory(
+                        route.requestId,
+                        RutaUAppDependencies.rideRequestRepository,
+                        RutaUAppDependencies.coordinationRepository,
+                        RutaUAppDependencies.userRepository,
+                    ),
+                ),
+            )
+        }
+        composable<CoordinatedRideRoute> { entry ->
+            val route = entry.toRoute<CoordinatedRideRoute>()
+            CoordinatedRideScreen(
+                onBack = { navController.popBackStack() },
+                viewModel = viewModel(
+                    key = "coordinated-ride-${route.requestId}",
+                    factory = CoordinatedRideViewModel.factory(
+                        route.requestId,
+                        RutaUAppDependencies.coordinationRepository,
+                        RutaUAppDependencies.userRepository,
+                        RutaUAppDependencies.rideRequestRepository,
+                    ),
+                ),
+            )
+        }
         composable<AccountDestination> {
             AccountRoute(
                 onSignedOut = {
                     appState.clearToLogin()
                 },
-            )
-        }
-    }
-}
-
-@Composable
-private fun TemporaryDestination(title: String) {
-    RutaUScreenContainer(
-        topBar = { RutaUTopAppBar(title = title) },
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
             )
         }
     }

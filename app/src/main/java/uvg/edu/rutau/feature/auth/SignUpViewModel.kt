@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
 import uvg.edu.rutau.core.model.SignUpInput
 
+/** Guarda lo que se muestra al crear una cuenta. */
 data class SignUpUiState(
     val fullName: String = "",
     val university: String = "",
@@ -27,10 +28,12 @@ data class SignUpUiState(
     val errorMessage: String? = null,
 )
 
+/** Indica los resultados posibles al crear una cuenta. */
 sealed interface SignUpEvent {
     data object AccountCreated : SignUpEvent
 }
 
+/** Maneja la creación de cuentas nuevas. */
 class SignUpViewModel(
     private val sessionRepository: SessionRepository,
 ) : ViewModel() {

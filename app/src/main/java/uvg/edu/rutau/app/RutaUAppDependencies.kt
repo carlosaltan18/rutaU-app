@@ -13,7 +13,7 @@ import uvg.edu.rutau.core.data.repository.SessionRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.UserAccount
 
-/** Temporary manual dependency container for the local frontend MVP. */
+/** Reúne los datos compartidos que usa la aplicación. */
 object RutaUAppDependencies {
     private var store = MockRutaUStore()
 
@@ -28,7 +28,7 @@ object RutaUAppDependencies {
     var rideRequestRepository: RideRequestRepository = FakeRideRequestRepository(store)
         private set
 
-    /** Recreates the in-memory dependencies for isolated instrumentation tests. */
+    /** Reinicia los datos de ejemplo para las pruebas. */
     internal fun resetForTesting() {
         store = MockRutaUStore()
         sessionRepository = FakeSessionRepository(store)

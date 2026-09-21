@@ -35,6 +35,7 @@ import uvg.edu.rutau.core.model.UserAccount
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
+/** Guarda la información que se muestra en la cuenta. */
 data class AccountUiState(
     val user: UserAccount,
     val fullName: String = user.fullName,
@@ -53,6 +54,7 @@ data class AccountUiState(
     val message: String? = null,
 )
 
+/** Indica el documento que se quiere consultar. */
 enum class LegalDocument(
     val title: String,
     val content: String,
@@ -74,6 +76,7 @@ enum class LegalDocument(
     ),
 }
 
+/** Indica las acciones que puede elegir una persona en su cuenta. */
 sealed interface AccountAction {
     data class FullNameChanged(val value: String) : AccountAction
     data class UniversityChanged(val value: String) : AccountAction
@@ -98,7 +101,7 @@ sealed interface AccountAction {
     data object DeleteAccountDismissed : AccountAction
 }
 
-/** Account and settings screen driven entirely by immutable state and events. */
+/** Muestra los datos y opciones de la cuenta. */
 @Composable
 fun AccountScreen(
     state: AccountUiState,

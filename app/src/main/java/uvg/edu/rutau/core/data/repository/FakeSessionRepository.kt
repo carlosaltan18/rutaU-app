@@ -6,6 +6,7 @@ import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.model.SignUpInput
 import uvg.edu.rutau.core.model.UserAccount
 
+/** Maneja la sesión de ejemplo mientras la aplicación está abierta. */
 class FakeSessionRepository(
     private val store: MockRutaUStore,
 ) : SessionRepository {

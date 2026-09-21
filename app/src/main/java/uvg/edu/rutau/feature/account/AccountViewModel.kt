@@ -20,10 +20,12 @@ import uvg.edu.rutau.core.model.UpdateEmailInput
 import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
 
+/** Indica los resultados posibles de las acciones de cuenta. */
 sealed interface AccountEvent {
     data object SignedOut : AccountEvent
 }
 
+/** Maneja los cambios de la cuenta de la persona actual. */
 class AccountViewModel(
     private val userRepository: UserRepository,
     private val sessionRepository: SessionRepository,

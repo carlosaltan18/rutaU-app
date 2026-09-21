@@ -11,6 +11,7 @@ import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
 
+/** Maneja los trayectos de ejemplo mientras la aplicación está abierta. */
 class FakeTripRepository(
     private val store: MockRutaUStore,
 ) : TripRepository {
@@ -33,9 +34,9 @@ class FakeTripRepository(
     override suspend fun updateTrip(tripId: String, input: TripInput) {
         validate(input)
         val existingTrip = store.trips.value.firstOrNull { it.id == tripId }
-            ?: error("Trip does not exist.")
+            ?: error("El trayecto no existe.")
         require(existingTrip.ownerId == store.currentUser.value?.id) {
-            "Only the trip owner can update it."
+            "Solo quien creó el trayecto puede editarlo."
         }
         if (existingTrip.occupiedSeats > 0) {
             require(input.role == TripRole.DRIVER) {
@@ -62,16 +63,16 @@ class FakeTripRepository(
     override suspend fun deleteTrip(tripId: String) {
         val trip = store.trips.value.firstOrNull { it.id == tripId } ?: return
         require(trip.ownerId == store.currentUser.value?.id) {
-            "Only the trip owner can delete it."
+            "Solo quien creó el trayecto puede eliminarlo."
         }
         store.trips.value = store.trips.value.filterNot { it.id == tripId }
     }
 
     override suspend fun deactivateTrip(tripId: String) {
         val trip = store.trips.value.firstOrNull { it.id == tripId }
-            ?: error("Trip does not exist.")
+            ?: error("El trayecto no existe.")
         require(trip.ownerId == store.currentUser.value?.id) {
-            "Only the trip owner can deactivate it."
+            "Solo quien creó el trayecto puede desactivarlo."
         }
         store.trips.value = store.trips.value.map { trip ->
             if (trip.id == tripId) trip.copy(active = false) else trip

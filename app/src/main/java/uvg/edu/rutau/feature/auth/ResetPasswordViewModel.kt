@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
 
+/** Guarda lo que se muestra al cambiar una contraseña. */
 data class ResetPasswordUiState(
     val newPassword: String = "",
     val confirmPassword: String = "",
@@ -20,10 +21,12 @@ data class ResetPasswordUiState(
     val errorMessage: String? = null,
 )
 
+/** Indica los resultados posibles al cambiar una contraseña. */
 sealed interface ResetPasswordEvent {
     data object PasswordReset : ResetPasswordEvent
 }
 
+/** Maneja el cambio de contraseña desde la recuperación. */
 class ResetPasswordViewModel(
     private val sessionRepository: SessionRepository,
 ) : ViewModel() {

@@ -10,6 +10,7 @@ import uvg.edu.rutau.core.model.UpdateEmailInput
 import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
 
+/** Comprueba los cambios que se pueden hacer en una cuenta. */
 class FakeUserRepositoryTest {
     @Test
     fun `profile updates are reflected in the shared store`() = runBlocking {

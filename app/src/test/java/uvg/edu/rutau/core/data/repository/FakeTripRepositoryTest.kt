@@ -15,6 +15,7 @@ import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.Student
 
+/** Comprueba las acciones y reglas de los trayectos. */
 class FakeTripRepositoryTest {
     @Test
     fun `passenger receives only compatible drivers with seats`() = runBlocking {

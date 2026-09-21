@@ -21,6 +21,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
+/** Comprueba que las pantallas principales se conecten correctamente. */
 @RunWith(AndroidJUnit4::class)
 class RutaUAppNavigationTest {
     @get:Rule

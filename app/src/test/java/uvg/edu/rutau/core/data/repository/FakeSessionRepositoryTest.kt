@@ -8,6 +8,7 @@ import org.junit.Test
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.model.SignUpInput
 
+/** Comprueba las acciones de inicio y cierre de sesión. */
 class FakeSessionRepositoryTest {
     @Test
     fun `login signs in with the seeded credentials`() = runBlocking {

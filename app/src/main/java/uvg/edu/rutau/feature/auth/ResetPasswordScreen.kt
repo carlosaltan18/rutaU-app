@@ -24,7 +24,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Password reset form accessed from a temporary recovery link. */
+/** Muestra el formulario para cambiar la contraseña. */
 @Composable
 fun ResetPasswordScreen(
     newPassword: String,

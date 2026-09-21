@@ -2,7 +2,7 @@ package uvg.edu.rutau.ui.theme
 
 import androidx.compose.ui.unit.dp
 
-/** Tokens de espacio del sistema visual de RutaU, alineados a una retícula de 8 dp. */
+/** Reúne los espacios que se repiten en la interfaz. */
 object RutaUSpacing {
     val Grid = 8.dp
     val XSmall = 4.dp

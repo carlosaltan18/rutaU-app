@@ -9,6 +9,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.app.RutaUApp
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
+/** Abre la interfaz principal de RutaU. */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

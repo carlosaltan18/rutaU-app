@@ -7,7 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Read-only dialog used for brief legal or product information. */
+/** Muestra información breve sin permitir cambios. */
 @Composable
 fun RutaUInformationDialog(
     title: String,

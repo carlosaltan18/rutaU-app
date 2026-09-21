@@ -14,7 +14,7 @@ import uvg.edu.rutau.core.navigation.LoginRoute
 import uvg.edu.rutau.core.navigation.RequestsRoute
 import uvg.edu.rutau.core.navigation.TripsRoute
 
-/** State holder for app-wide navigation decisions and top-level tab behavior. */
+/** Maneja la navegación principal de la aplicación. */
 @Stable
 class RutaUAppState internal constructor(
     val navController: NavHostController,
@@ -66,6 +66,7 @@ fun rememberRutaUAppState(
     navController: NavHostController = rememberNavController(),
 ): RutaUAppState = remember(navController) { RutaUAppState(navController) }
 
+/** Indica las tres secciones principales después de iniciar sesión. */
 enum class RutaUTopLevelDestination(
     val route: AppDestination,
 ) {

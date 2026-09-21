@@ -6,6 +6,7 @@ import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
 import uvg.edu.rutau.core.model.UserAccount
 
+/** Indica las acciones disponibles para la cuenta de una persona. */
 interface UserRepository {
     fun observeCurrentUser(): Flow<UserAccount?>
 

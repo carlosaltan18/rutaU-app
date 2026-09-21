@@ -21,8 +21,10 @@ import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
 
+/** Guarda los trayectos que se muestran en la lista principal. */
 data class TripsUiState(val trips: List<Trip> = emptyList())
 
+/** Maneja la lista de trayectos de la persona actual. */
 class TripsViewModel(private val repository: TripRepository) : ViewModel() {
     val uiState: StateFlow<TripsUiState> = repository.observeTrips()
         .combine(MutableStateFlow(Unit)) { trips, _ -> TripsUiState(trips) }
@@ -36,6 +38,7 @@ class TripsViewModel(private val repository: TripRepository) : ViewModel() {
     }
 }
 
+/** Guarda los datos que se editan en el formulario de un trayecto. */
 data class TripEditorUiState(
     val originZone: String = "Zona 11",
     val destinationCampus: String = "Campus Central",
@@ -48,6 +51,7 @@ data class TripEditorUiState(
     val error: String? = null,
 )
 
+/** Maneja la creación y edición de un trayecto. */
 class TripEditorViewModel(
     private val tripId: String?,
     private val repository: TripRepository,
@@ -129,11 +133,13 @@ class TripEditorViewModel(
     }
 }
 
+/** Guarda el trayecto elegido y sus personas compatibles. */
 data class MatchesUiState(
     val sourceTrip: Trip? = null,
     val matches: List<TripMatch> = emptyList(),
 )
 
+/** Busca personas compatibles para un trayecto. */
 class MatchesViewModel(tripId: String, repository: TripRepository) : ViewModel() {
     val uiState = combine(repository.observeTrip(tripId), repository.observeMatches(tripId)) { trip, matches ->
         MatchesUiState(trip, matches)
@@ -145,6 +151,7 @@ class MatchesViewModel(tripId: String, repository: TripRepository) : ViewModel()
     }
 }
 
+/** Guarda los datos que se muestran en el perfil compatible. */
 data class CandidateProfileUiState(
     val sourceTrip: Trip? = null,
     val candidateTrip: Trip? = null,
@@ -152,6 +159,7 @@ data class CandidateProfileUiState(
     val contributionQuetzales: Int = 10,
 )
 
+/** Maneja la información de una persona compatible. */
 class CandidateProfileViewModel(
     tripId: String,
     candidateTripId: String,
@@ -175,6 +183,7 @@ class CandidateProfileViewModel(
     }
 }
 
+/** Guarda los datos para enviar una solicitud o invitación. */
 data class ConfirmCoordinationUiState(
     val sourceTrip: Trip? = null,
     val candidateTrip: Trip? = null,
@@ -185,6 +194,7 @@ data class ConfirmCoordinationUiState(
     val error: String? = null,
 )
 
+/** Maneja el envío de una solicitud o invitación. */
 class ConfirmCoordinationViewModel(
     private val tripId: String,
     private val candidateTripId: String,

@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** App shell that applies the common scaffold and authenticated bottom navigation. */
+/** Coloca la barra inferior y el espacio común de la aplicación. */
 @Composable
 fun RutaUScaffold(
     selectedDestination: RutaUTopLevelDestination?,

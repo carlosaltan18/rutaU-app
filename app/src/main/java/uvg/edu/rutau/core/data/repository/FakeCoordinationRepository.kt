@@ -10,6 +10,7 @@ import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequest
 
+/** Maneja los viajes aceptados que se guardan solo mientras la app está abierta. */
 class FakeCoordinationRepository(
     private val store: MockRutaUStore,
 ) : CoordinationRepository {
@@ -47,17 +48,17 @@ class FakeCoordinationRepository(
             message = message?.trim()?.takeIf(String::isNotEmpty),
             contributionCents = contributionCents,
         )
-        // A pending request never reserves or reduces seats.
+        // Una solicitud pendiente no ocupa plazas.
         return id
     }
 
     private fun cancelConfirmedCoordination(coordinationId: String) {
         synchronized(store) {
             val coordination = store.coordinations.value.firstOrNull { it.id == coordinationId }
-                ?: error("Coordination does not exist.")
+                ?: error("El viaje coordinado no existe.")
             val request = store.requests.value.firstOrNull { it.id == coordination.requestId }
-                ?: error("Ride request does not exist.")
-            check(request.status == RequestStatus.ACCEPTED) { "Only accepted coordinations can be cancelled." }
+                ?: error("La solicitud no existe.")
+            check(request.status == RequestStatus.ACCEPTED) { "Solo los viajes aceptados se pueden cancelar." }
 
             store.requests.value = store.requests.value.map { existing ->
                 if (existing.id == request.id) existing.copy(status = RequestStatus.CANCELLED) else existing

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
 
+/** Guarda lo que se muestra al iniciar sesión. */
 data class LoginUiState(
     val email: String = "",
     val password: String = "",
@@ -20,10 +21,12 @@ data class LoginUiState(
     val errorMessage: String? = null,
 )
 
+/** Indica los resultados posibles al iniciar sesión. */
 sealed interface LoginEvent {
     data object SignedIn : LoginEvent
 }
 
+/** Maneja el inicio de sesión. */
 class LoginViewModel(
     private val sessionRepository: SessionRepository,
 ) : ViewModel() {
