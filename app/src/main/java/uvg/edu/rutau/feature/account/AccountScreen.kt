@@ -173,6 +173,11 @@ fun AccountScreen(
             RutaUPasswordField(state.currentPassword, { onAction(AccountAction.CurrentPasswordChanged(it)) }, "Contraseña actual", Modifier.fillMaxWidth())
             RutaUPasswordField(state.newPassword, { onAction(AccountAction.NewPasswordChanged(it)) }, "Nueva contraseña", Modifier.fillMaxWidth())
             RutaUPasswordField(state.confirmPassword, { onAction(AccountAction.ConfirmPasswordChanged(it)) }, "Confirmar nueva contraseña", Modifier.fillMaxWidth())
+            Text(
+                text = "Usa al menos 8 caracteres, una mayúscula y un número.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
             RutaUOutlinedButton(
                 text = "Actualizar contraseña",
                 onClick = { onAction(AccountAction.UpdatePassword) },

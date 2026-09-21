@@ -22,16 +22,30 @@ import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
 
 /** Guarda los trayectos que se muestran en la lista principal. */
-data class TripsUiState(val trips: List<Trip> = emptyList())
+data class TripsUiState(
+    val trips: List<Trip> = emptyList(),
+    val error: String? = null,
+)
 
 /** Maneja la lista de trayectos de la persona actual. */
 class TripsViewModel(private val repository: TripRepository) : ViewModel() {
+    private val error = MutableStateFlow<String?>(null)
+
     val uiState: StateFlow<TripsUiState> = repository.observeTrips()
-        .combine(MutableStateFlow(Unit)) { trips, _ -> TripsUiState(trips) }
+        .combine(error) { trips, message -> TripsUiState(trips, message) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsUiState())
 
-    fun remove(tripId: String) = viewModelScope.launch { repository.deleteTrip(tripId) }
-    fun deactivate(tripId: String) = viewModelScope.launch { repository.deactivateTrip(tripId) }
+    fun remove(tripId: String) = viewModelScope.launch {
+        runCatching { repository.deleteTrip(tripId) }
+            .onSuccess { error.value = null }
+            .onFailure { error.value = it.message ?: "No fue posible eliminar el trayecto." }
+    }
+
+    fun deactivate(tripId: String) = viewModelScope.launch {
+        runCatching { repository.deactivateTrip(tripId) }
+            .onSuccess { error.value = null }
+            .onFailure { error.value = it.message ?: "No fue posible desactivar el trayecto." }
+    }
 
     companion object {
         fun factory(repository: TripRepository) = viewModelFactory { TripsViewModel(repository) }

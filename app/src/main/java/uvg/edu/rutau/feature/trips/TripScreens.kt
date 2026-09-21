@@ -99,6 +99,9 @@ fun TripsScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item { Text("Publica como pasajero o conductor. Cada trayecto mantiene un único rol.") }
+                state.error?.let { message ->
+                    item { Text(message, color = MaterialTheme.colorScheme.error) }
+                }
                 items(state.trips, key = Trip::id) { trip ->
                     TripCard(
                         trip,

@@ -59,4 +59,33 @@ class FakeUserRepositoryTest {
         assertTrue(didUpdate)
         assertTrue(store.passwordMatches("NuevaRutaU123"))
     }
+
+    @Test
+    fun `password and email updates reject invalid new values`() = runBlocking {
+        val store = MockRutaUStore()
+        val repository = FakeUserRepository(store)
+
+        val passwordUpdated = repository.updatePassword(
+            UpdatePasswordInput("RutaU123", "solo1234"),
+        )
+        val emailUpdated = repository.updateEmail(
+            UpdateEmailInput("correo-invalido", "RutaU123"),
+        )
+
+        assertFalse(passwordUpdated)
+        assertFalse(emailUpdated)
+        assertTrue(store.passwordMatches("RutaU123"))
+    }
+
+    @Test
+    fun `deleting the account also clears coordinated rides`() = runBlocking {
+        val store = MockRutaUStore()
+        val repository = FakeUserRepository(store)
+
+        repository.deleteAccount()
+
+        assertTrue(store.coordinations.value.isEmpty())
+        assertTrue(store.requests.value.isEmpty())
+        assertTrue(store.trips.value.isEmpty())
+    }
 }

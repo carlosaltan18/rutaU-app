@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import uvg.edu.rutau.app.RutaUAppDependencies
 import uvg.edu.rutau.core.navigation.CoordinatedRideRoute as CoordinatedRideDestination
+import uvg.edu.rutau.core.navigation.MatchesRoute as MatchesDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute as RequestDetailDestination
 import uvg.edu.rutau.core.navigation.RequestsRoute as RequestsDestination
 
@@ -30,6 +31,7 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
             onOpenCoordinatedRide = {
                 navController.navigate(CoordinatedRideDestination(route.requestId))
             },
+            onSearchAgain = { tripId -> navController.navigate(MatchesDestination(tripId)) },
             viewModel = viewModel(
                 key = "request-detail-${route.requestId}",
                 factory = RequestDetailViewModel.factory(

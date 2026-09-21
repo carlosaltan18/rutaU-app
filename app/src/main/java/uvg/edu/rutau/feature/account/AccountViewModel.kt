@@ -19,6 +19,7 @@ import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.UpdateEmailInput
 import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
+import uvg.edu.rutau.core.model.PasswordRules
 
 /** Indica los resultados posibles de las acciones de cuenta. */
 sealed interface AccountEvent {
@@ -84,6 +85,10 @@ class AccountViewModel(
 
     private fun saveProfile() {
         val state = uiState.value ?: return
+        if (state.fullName.isBlank() || state.university.isBlank() || state.campus.isBlank()) {
+            updateState { copy(message = "Completa tu nombre, universidad y campus.") }
+            return
+        }
         viewModelScope.launch {
             updateState { copy(isSaving = true, message = null) }
             userRepository.updateProfile(
@@ -110,8 +115,11 @@ class AccountViewModel(
 
     private fun updatePassword() {
         val state = uiState.value ?: return
-        if (state.newPassword.length < 8 || state.newPassword != state.confirmPassword) {
-            updateState { copy(message = "Verifica la nueva contraseña y su confirmación.") }
+        val passwordError = PasswordRules.validationError(state.newPassword)
+        if (passwordError != null || state.newPassword != state.confirmPassword) {
+            updateState {
+                copy(message = passwordError ?: "Las contraseñas no coinciden.")
+            }
             return
         }
         viewModelScope.launch {

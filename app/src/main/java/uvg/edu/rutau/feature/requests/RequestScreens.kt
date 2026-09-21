@@ -82,6 +82,14 @@ fun RequestsScreen(
             item {
                 RequestFilterSelector(state.selectedFilter, onFilterSelected)
             }
+            if (state.selectedTab == RequestTab.RECEIVED) {
+                item {
+                    RutaUInfoCard(
+                        title = "Solicitudes recibidas",
+                        message = "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor.",
+                    )
+                }
+            }
             if (state.requests.isEmpty()) {
                 item { EmptyRequestsCard() }
             } else {
@@ -103,6 +111,7 @@ fun RequestsScreen(
 fun RequestDetailRoute(
     onBack: () -> Unit,
     onOpenCoordinatedRide: () -> Unit,
+    onSearchAgain: (String) -> Unit,
     viewModel: RequestDetailViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -113,6 +122,7 @@ fun RequestDetailRoute(
         onReject = viewModel::reject,
         onCancel = viewModel::cancel,
         onOpenCoordinatedRide = onOpenCoordinatedRide,
+        onSearchAgain = onSearchAgain,
     )
 }
 
@@ -125,6 +135,7 @@ fun RequestDetailScreen(
     onReject: () -> Unit,
     onCancel: () -> Unit,
     onOpenCoordinatedRide: () -> Unit,
+    onSearchAgain: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmation by remember { mutableStateOf<RequestAction?>(null) }
@@ -185,6 +196,7 @@ fun RequestDetailScreen(
                         onReject = { confirmation = RequestAction.REJECT },
                         onCancel = { confirmation = RequestAction.CANCEL },
                         onOpenCoordinatedRide = onOpenCoordinatedRide,
+                        onSearchAgain = onSearchAgain,
                         onBack = onBack,
                     )
                 }
@@ -347,6 +359,7 @@ private fun RequestActions(
     onReject: () -> Unit,
     onCancel: () -> Unit,
     onOpenCoordinatedRide: () -> Unit,
+    onSearchAgain: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -370,9 +383,21 @@ private fun RequestActions(
             RequestStatus.ACCEPTED -> if (hasCoordination) {
                 RutaUPrimaryButton("Ver viaje coordinado", onOpenCoordinatedRide, Modifier.fillMaxWidth())
             }
-            RequestStatus.REJECTED -> Text("Esta solicitud no fue aceptada.")
+            RequestStatus.REJECTED -> RutaUPrimaryButton(
+                "Buscar otras opciones",
+                onClick = {
+                    onSearchAgain(if (isReceived) detail.targetTrip.id else detail.senderTrip.id)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
             RequestStatus.CANCELLED -> Text("Esta solicitud fue cancelada.")
-            RequestStatus.EXPIRED -> Text("El tiempo para responder esta solicitud terminó.")
+            RequestStatus.EXPIRED -> RutaUPrimaryButton(
+                "Buscar nuevamente",
+                onClick = {
+                    onSearchAgain(if (isReceived) detail.targetTrip.id else detail.senderTrip.id)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
         RutaUSecondaryButton("Volver a solicitudes", onBack, Modifier.fillMaxWidth())
     }

@@ -65,6 +65,11 @@ class FakeTripRepository(
         require(trip.ownerId == store.currentUser.value?.id) {
             "Solo quien creó el trayecto puede eliminarlo."
         }
+        require(store.requests.value.none { request ->
+            request.senderTripId == tripId || request.targetTripId == tripId
+        }) {
+            "No puedes eliminar un trayecto que tiene solicitudes. Desactívalo o cancela sus coordinaciones primero."
+        }
         store.trips.value = store.trips.value.filterNot { it.id == tripId }
     }
 

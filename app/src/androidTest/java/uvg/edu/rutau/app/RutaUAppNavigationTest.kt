@@ -81,6 +81,29 @@ class RutaUAppNavigationTest {
     }
 
     @Test
+    fun resettingThePasswordReturnsToLogin() {
+        composeRule.onNodeWithTag("LoginForgotPasswordButton").performClick()
+        composeRule.onNodeWithTag("RecoveryEmailInput").performTextInput("mateo@ejemplo.com")
+        composeRule.onNodeWithTag("RecoverySubmitButton").performClick()
+        composeRule.onNodeWithTag("RecoveryOpenDemoLinkButton").performClick()
+
+        composeRule.onNodeWithTag("ResetPasswordInput").performTextInput("NuevaRutaU123")
+        composeRule.onNodeWithTag("ResetConfirmPasswordInput").performTextInput("NuevaRutaU123")
+        composeRule.onNodeWithTag("ResetSubmitButton").performClick()
+
+        assertScreenVisible("Bienvenido a RutaU")
+    }
+
+    @Test
+    fun backFromTripsDoesNotReturnToLogin() {
+        loginWithDefaultAccount()
+
+        composeRule.runOnIdle {
+            assertFalse(appState.navController.popBackStack())
+        }
+    }
+
+    @Test
     fun logoutClearsNavigationHistory() {
         loginWithDefaultAccount()
         openAccount()
@@ -137,6 +160,21 @@ class RutaUAppNavigationTest {
     }
 
     @Test
+    fun bottomNavigationKeepsTheRequestsTabAndFilter() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+
+        composeRule.onNodeWithTag("RequestsTab-SENT").performClick()
+        composeRule.onNodeWithTag("RequestsFilter-PENDING").performClick()
+        composeRule.onNodeWithTag("BottomNavigation-TRIPS").performClick()
+        assertScreenVisible("Mis trayectos")
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+
+        composeRule.onNodeWithTag("RequestsTab-SENT").assertIsSelected()
+        composeRule.onNodeWithTag("RequestsFilter-PENDING").assertIsSelected()
+    }
+
+    @Test
     fun acceptingReceivedRequestOpensTheCoordinatedRide() {
         loginWithDefaultAccount()
         composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
@@ -148,6 +186,26 @@ class RutaUAppNavigationTest {
 
         assertScreenVisible("Viaje coordinado")
         assertScreenVisible("Pasajeros confirmados")
+    }
+
+    @Test
+    fun contactIsHiddenUntilARequestIsAccepted() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+        composeRule.onNodeWithTag("RequestCard-request-received-join").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                0,
+                composeRule.onAllNodesWithText("+502 5551-2004", substring = true)
+                    .fetchSemanticsNodes()
+                    .size,
+            )
+        }
+        composeRule.onNodeWithText("Aceptar solicitud").performClick()
+        composeRule.onNodeWithTag("ConfirmationDialogConfirmButton").performClick()
+
+        assertScreenVisible("Teléfono y WhatsApp: +502 5551-2004")
     }
 
     private fun loginWithDefaultAccount() {

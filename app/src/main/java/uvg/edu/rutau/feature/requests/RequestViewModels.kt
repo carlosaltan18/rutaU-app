@@ -2,7 +2,11 @@ package uvg.edu.rutau.feature.requests
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -43,9 +47,14 @@ data class RequestsUiState(
 class RequestsViewModel(
     rideRequestRepository: RideRequestRepository,
     userRepository: UserRepository,
+    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
 ) : ViewModel() {
-    private val tab = MutableStateFlow(RequestTab.RECEIVED)
-    private val filter = MutableStateFlow(RequestFilter.ALL)
+    private val tab = MutableStateFlow(
+        savedStateHandle.get<String>(SelectedTabKey)?.let(RequestTab::valueOf) ?: RequestTab.RECEIVED,
+    )
+    private val filter = MutableStateFlow(
+        savedStateHandle.get<String>(SelectedFilterKey)?.let(RequestFilter::valueOf) ?: RequestFilter.ALL,
+    )
 
     val uiState: StateFlow<RequestsUiState> = combine(
         rideRequestRepository.observeRequestDetails(),
@@ -80,10 +89,12 @@ class RequestsViewModel(
 
     fun selectTab(value: RequestTab) {
         tab.value = value
+        savedStateHandle[SelectedTabKey] = value.name
     }
 
     fun selectFilter(value: RequestFilter) {
         filter.value = value
+        savedStateHandle[SelectedFilterKey] = value.name
     }
 
     companion object {
@@ -91,9 +102,18 @@ class RequestsViewModel(
         fun factory(
             rideRequestRepository: RideRequestRepository,
             userRepository: UserRepository,
-        ) = requestViewModelFactory {
-            RequestsViewModel(rideRequestRepository, userRepository)
+        ) = viewModelFactory {
+            initializer {
+                RequestsViewModel(
+                    rideRequestRepository,
+                    userRepository,
+                    createSavedStateHandle(),
+                )
+            }
         }
+
+        private const val SelectedTabKey = "requests_selected_tab"
+        private const val SelectedFilterKey = "requests_selected_filter"
     }
 }
 

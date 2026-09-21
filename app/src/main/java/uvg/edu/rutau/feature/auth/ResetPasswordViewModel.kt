@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
+import uvg.edu.rutau.core.model.PasswordRules
 
 /** Guarda lo que se muestra al cambiar una contraseña. */
 data class ResetPasswordUiState(
@@ -46,8 +47,9 @@ class ResetPasswordViewModel(
 
     fun resetPassword() {
         val state = uiState.value
+        val passwordError = PasswordRules.validationError(state.newPassword)
         val validationError = when {
-            state.newPassword.length < 8 -> "La contraseña debe tener al menos 8 caracteres."
+            passwordError != null -> passwordError
             state.newPassword != state.confirmPassword -> "Las contraseñas no coinciden."
             else -> null
         }

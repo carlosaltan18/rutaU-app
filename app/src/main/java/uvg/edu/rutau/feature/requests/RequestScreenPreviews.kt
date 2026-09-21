@@ -40,6 +40,7 @@ private fun RequestDetailScreenPreview() {
             onReject = {},
             onCancel = {},
             onOpenCoordinatedRide = {},
+            onSearchAgain = {},
         )
     }
 }

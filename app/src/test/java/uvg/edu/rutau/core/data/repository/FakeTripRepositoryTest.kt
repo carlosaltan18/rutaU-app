@@ -130,6 +130,16 @@ class FakeTripRepositoryTest {
     }
 
     @Test
+    fun `cannot delete a trip that is part of a request`() = runBlocking {
+        val repository = FakeTripRepository(MockRutaUStore())
+
+        val failure = runCatching { repository.deleteTrip("trip-mateo-driver") }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertTrue(repository.observeTrip("trip-mateo-driver").first() != null)
+    }
+
+    @Test
     fun `pending request does not reduce available seats`() = runBlocking {
         val store = MockRutaUStore()
         val trips = FakeTripRepository(store)
