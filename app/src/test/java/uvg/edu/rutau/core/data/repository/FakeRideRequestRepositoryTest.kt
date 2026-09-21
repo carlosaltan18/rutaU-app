@@ -3,6 +3,7 @@ package uvg.edu.rutau.core.data.repository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,6 +13,19 @@ import uvg.edu.rutau.core.model.RequestType
 
 /** Comprueba los cambios de estado de una solicitud. */
 class FakeRideRequestRepositoryTest {
+    @Test
+    fun `mock data includes every request state and both pending directions`() = runBlocking {
+        val store = MockRutaUStore()
+        val requests = FakeRideRequestRepository(store).observeRequestDetails().first()
+
+        assertTrue(requests.any { it.request.id == "request-pending" })
+        assertTrue(requests.any { it.request.id == "request-invitation-pending" })
+        assertTrue(requests.any { it.request.id == "request-received-join" })
+        assertTrue(requests.any { it.request.id == "request-received-invitation" })
+        assertTrue(RequestStatus.entries.all { status -> requests.any { it.request.status == status } })
+        assertTrue(requests.all { it.request.createdAt.year == 2026 })
+    }
+
     @Test
     fun `accepting a request creates a coordination and occupies one driver seat`() = runBlocking {
         val store = MockRutaUStore()
@@ -86,6 +100,44 @@ class FakeRideRequestRepositoryTest {
         assertEquals(RequestStatus.CANCELLED, requests.observeRequest(requestId).first()?.status)
         assertEquals(seatsBefore, store.trips.value.first { it.id == "trip-andrea-driver" }.availableSeats)
         assertNull(coordinations.observeCoordination(requestId).first())
+    }
+
+    @Test
+    fun `cancelling a driver ride frees every confirmed seat for that ride`() = runBlocking {
+        val store = MockRutaUStore()
+        val coordinations = FakeCoordinationRepository(store)
+
+        coordinations.cancelRide("coord-mateo-sofia")
+
+        val driver = store.trips.value.first { it.id == "trip-mateo-driver" }
+        assertEquals(0, driver.occupiedSeats)
+        assertEquals(RequestStatus.CANCELLED, store.requests.value.first { it.id == "request-accepted-sofia" }.status)
+        assertEquals(RequestStatus.CANCELLED, store.requests.value.first { it.id == "request-accepted-carlos" }.status)
+        assertFalse(store.coordinations.value.any { it.driverTripId == "trip-mateo-driver" })
+    }
+
+    @Test
+    fun `full ride keeps three confirmed passengers and rejects new acceptances`() = runBlocking {
+        val store = MockRutaUStore()
+        val requests = FakeRideRequestRepository(store)
+        val creator = FakeCoordinationRepository(store)
+        val fullDriver = store.trips.value.first { it.id == "trip-andrea-driver-full" }
+
+        assertEquals(3, fullDriver.occupiedSeats)
+        assertEquals(0, fullDriver.availableSeats)
+        assertEquals(3, store.coordinations.value.count { it.driverTripId == fullDriver.id })
+
+        val requestId = creator.createPendingCoordination(
+            "trip-lucia-passenger",
+            fullDriver.id,
+            RequestType.JOIN_REQUEST,
+            null,
+            1_000,
+        )
+        val failure = runCatching { requests.accept(requestId) }.exceptionOrNull()
+
+        assertTrue(failure is IllegalStateException)
+        assertEquals(RequestStatus.PENDING, requests.observeRequest(requestId).first()?.status)
     }
 
     @Test

@@ -69,6 +69,17 @@ private fun CoordinatedRideScreenPreview() {
     }
 }
 
+/** Muestra el estado visual de un vehículo con todas sus plazas ocupadas. */
+@Preview(showBackground = true)
+@Composable
+private fun VehicleCapacityFullPreview() {
+    RutaUTheme {
+        VehicleCapacityCard(
+            driver = previewDetail.targetTrip.copy(occupiedSeats = 3),
+        )
+    }
+}
+
 /** Reúne datos cortos para mostrar los ejemplos visuales. */
 private val previewDetail = RideRequestDetails(
     request = RideRequest(

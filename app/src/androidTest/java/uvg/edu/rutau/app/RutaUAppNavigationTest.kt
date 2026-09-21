@@ -3,6 +3,7 @@ package uvg.edu.rutau.app
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -120,6 +121,33 @@ class RutaUAppNavigationTest {
         composeRule.runOnIdle {
             assertEquals("Mateo Actualizado", RutaUAppDependencies.currentUserForTesting()?.fullName)
         }
+    }
+
+    @Test
+    fun requestsKeepTheSelectedTabAfterReturningFromDetail() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+
+        composeRule.onNodeWithTag("RequestsTab-SENT").performClick()
+        composeRule.onNodeWithTag("RequestCard-request-pending").performClick()
+        assertScreenVisible("Detalle de solicitud")
+
+        composeRule.onNodeWithText("Volver a solicitudes").performClick()
+        composeRule.onNodeWithTag("RequestsTab-SENT").assertIsSelected()
+    }
+
+    @Test
+    fun acceptingReceivedRequestOpensTheCoordinatedRide() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+        composeRule.onNodeWithTag("RequestCard-request-received-join").performClick()
+        assertScreenVisible("Detalle de solicitud")
+
+        composeRule.onNodeWithText("Aceptar solicitud").performClick()
+        composeRule.onNodeWithTag("ConfirmationDialogConfirmButton").performClick()
+
+        assertScreenVisible("Viaje coordinado")
+        assertScreenVisible("Pasajeros confirmados")
     }
 
     private fun loginWithDefaultAccount() {

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -21,8 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import java.util.Locale
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
@@ -32,6 +34,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.model.RequestStatus
+import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
 
@@ -69,7 +72,12 @@ fun RequestsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item {
-                RequestTabSelector(state.selectedTab, onTabSelected)
+                RequestTabSelector(
+                    selected = state.selectedTab,
+                    receivedCount = state.receivedCount,
+                    sentCount = state.sentCount,
+                    onSelected = onTabSelected,
+                )
             }
             item {
                 RequestFilterSelector(state.selectedFilter, onFilterSelected)
@@ -158,6 +166,12 @@ fun RequestDetailScreen(
                         style = MaterialTheme.typography.titleSmall,
                     )
                 }
+                if (detail.request.status == RequestStatus.PENDING) {
+                    item { PendingRequestNotice(detail, isReceived) }
+                }
+                if (detail.request.status in setOf(RequestStatus.REJECTED, RequestStatus.CANCELLED, RequestStatus.EXPIRED)) {
+                    item { TerminalRequestCard(detail.request.status) }
+                }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
                 }
@@ -221,6 +235,7 @@ fun CoordinatedRideScreen(
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     RutaUScreenContainer(
         modifier = modifier,
         topBar = {
@@ -238,6 +253,11 @@ fun CoordinatedRideScreen(
         } else {
             val driver = listOf(detail.senderTrip, detail.targetTrip).first { it.role == TripRole.DRIVER }
             val currentUserIsDriver = driver.ownerId == state.currentUserId
+            val otherPerson = if (currentUserIsDriver) {
+                if (detail.senderTrip.role == TripRole.PASSENGER) detail.sender else detail.target
+            } else {
+                if (detail.senderTrip.role == TripRole.DRIVER) detail.sender else detail.target
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -245,13 +265,37 @@ fun CoordinatedRideScreen(
             ) {
                 item { RequestStatusChip(RequestStatus.ACCEPTED) }
                 item { RequestTripSummary(detail) }
-                item { ContactNoticeCard() }
-                item {
-                    RutaUInfoCard(
-                        title = "Punto de encuentro",
-                        message = "Acuerda el punto de encuentro directamente con la otra persona.",
-                    )
+                item { VehicleCapacityCard(driver) }
+                if (currentUserIsDriver) {
+                    item { Text("Pasajeros confirmados", style = MaterialTheme.typography.titleMedium) }
+                    items(state.confirmedRequests, key = { it.request.id }) { confirmed ->
+                        ConfirmedPassengerCard(confirmed)
+                    }
+                } else {
+                    item { Text("Plaza confirmada", style = MaterialTheme.typography.titleMedium) }
+                    item { AuthorizedContactCard(otherPerson.fullName, otherPerson.phone) }
+                    item {
+                        ExternalContactActions(
+                            phone = otherPerson.phone,
+                            onCall = {
+                                otherPerson.phone?.let { phone ->
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+                                }
+                            },
+                            onWhatsApp = {
+                                otherPerson.phone?.let { phone ->
+                                    val number = phone.filter(Char::isDigit)
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number")),
+                                    )
+                                }
+                            },
+                        )
+                    }
                 }
+                item { ContactNoticeCard() }
+                item { MeetingPointCard() }
+                item { CoordinationTimeline() }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
                 }
@@ -308,10 +352,20 @@ private fun RequestActions(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         when (detail.request.status) {
             RequestStatus.PENDING -> if (isReceived) {
-                RutaUPrimaryButton("Aceptar solicitud", onAccept, Modifier.fillMaxWidth(), enabled = !isSaving)
+                RutaUPrimaryButton(
+                    text = if (detail.request.type == RequestType.JOIN_REQUEST) "Aceptar solicitud" else "Aceptar invitación",
+                    onClick = onAccept,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
                 RutaUDestructiveButton("Rechazar", onReject, Modifier.fillMaxWidth(), enabled = !isSaving)
             } else {
-                RutaUDestructiveButton("Cancelar solicitud", onCancel, Modifier.fillMaxWidth(), enabled = !isSaving)
+                RutaUDestructiveButton(
+                    text = if (detail.request.type == RequestType.JOIN_REQUEST) "Cancelar solicitud" else "Cancelar invitación",
+                    onClick = onCancel,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
             }
             RequestStatus.ACCEPTED -> if (hasCoordination) {
                 RutaUPrimaryButton("Ver viaje coordinado", onOpenCoordinatedRide, Modifier.fillMaxWidth())
@@ -322,6 +376,20 @@ private fun RequestActions(
         }
         RutaUSecondaryButton("Volver a solicitudes", onBack, Modifier.fillMaxWidth())
     }
+}
+
+/** Explica lo que ocurrirá mientras una solicitud esté pendiente. */
+@Composable
+private fun PendingRequestNotice(detail: RideRequestDetails, isReceived: Boolean) {
+    val message = when {
+        isReceived && detail.request.type == RequestType.JOIN_REQUEST ->
+            "Al aceptar, se ocupará 1 plaza."
+        isReceived -> "El contacto se habilitará después de aceptar."
+        detail.request.type == RequestType.DRIVER_INVITATION ->
+            "Esta invitación no reserva una plaza mientras está pendiente."
+        else -> "Todavía no tienes una plaza confirmada."
+    }
+    RutaUInfoCard("Solicitud pendiente", message)
 }
 
 /** Muestra un indicador mientras llegan los datos de la pantalla. */
@@ -346,6 +414,3 @@ private enum class RequestAction(
     REJECT("Rechazar solicitud", "La otra persona verá que la solicitud fue rechazada.", "Rechazar"),
     CANCEL("Cancelar solicitud", "La solicitud dejará de estar disponible.", "Cancelar solicitud"),
 }
-
-/** Convierte una cantidad de centavos a quetzales para mostrarla en pantalla. */
-private fun Long.asQuetzales(): String = "Q %.2f".format(Locale.US, this / 100.0)

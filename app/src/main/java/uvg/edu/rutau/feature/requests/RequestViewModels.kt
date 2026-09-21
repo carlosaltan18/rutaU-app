@@ -15,6 +15,7 @@ import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RideRequestDetails
+import uvg.edu.rutau.core.data.repository.driverAndPassengerTripIds
 
 /** Indica si se muestran las solicitudes recibidas o enviadas. */
 enum class RequestTab {
@@ -34,6 +35,8 @@ data class RequestsUiState(
     val selectedTab: RequestTab = RequestTab.RECEIVED,
     val selectedFilter: RequestFilter = RequestFilter.ALL,
     val requests: List<RideRequestDetails> = emptyList(),
+    val receivedCount: Int = 0,
+    val sentCount: Int = 0,
 )
 
 /** Maneja las solicitudes que aparecen para la persona que inició sesión. */
@@ -51,10 +54,11 @@ class RequestsViewModel(
         filter,
     ) { details, user, selectedTab, selectedFilter ->
         val userId = user?.id
-        val requests = details.filter { detail ->
-            val isReceived = detail.targetTrip.ownerId == userId
+        val received = details.filter { it.targetTrip.ownerId == userId }
+        val sent = details.filter { it.senderTrip.ownerId == userId }
+        val requests = (if (selectedTab == RequestTab.RECEIVED) received else sent).filter { detail ->
             val belongsToSelectedTab = if (selectedTab == RequestTab.RECEIVED) {
-                isReceived
+                detail.targetTrip.ownerId == userId
             } else {
                 detail.senderTrip.ownerId == userId
             }
@@ -65,7 +69,13 @@ class RequestsViewModel(
             }
             belongsToSelectedTab && belongsToSelectedFilter
         }.sortedByDescending { it.request.rideDate }
-        RequestsUiState(selectedTab, selectedFilter, requests)
+        RequestsUiState(
+            selectedTab = selectedTab,
+            selectedFilter = selectedFilter,
+            requests = requests,
+            receivedCount = received.size,
+            sentCount = sent.size,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RequestsUiState())
 
     fun selectTab(value: RequestTab) {
@@ -158,6 +168,7 @@ class RequestDetailViewModel(
 data class CoordinatedRideUiState(
     val detail: RideRequestDetails? = null,
     val coordination: Coordination? = null,
+    val confirmedRequests: List<RideRequestDetails> = emptyList(),
     val currentUserId: String? = null,
     val isSaving: Boolean = false,
     val error: String? = null,
@@ -172,14 +183,36 @@ class CoordinatedRideViewModel(
 ) : ViewModel() {
     private val saving = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
-    val uiState: StateFlow<CoordinatedRideUiState> = combine(
+    private val rideInfo = combine(
         rideRequestRepository.observeRequestDetail(requestId),
+        rideRequestRepository.observeRequestDetails(),
         coordinationRepository.observeCoordination(requestId),
+    ) { detail, allDetails, coordination ->
+        CoordinatedRideInfo(detail, allDetails, coordination)
+    }
+
+    val uiState: StateFlow<CoordinatedRideUiState> = combine(
+        rideInfo,
         userRepository.observeCurrentUser(),
         saving,
         error,
-    ) { detail, foundCoordination, user, isSaving, message ->
-        CoordinatedRideUiState(detail, foundCoordination, user?.id, isSaving, message)
+    ) { info, user, isSaving, message ->
+        val confirmedRequests = info.coordination?.let { coordination ->
+            info.allDetails.filter { requestDetail ->
+                val (driverTripId, _) = requestDetail.request.driverAndPassengerTripIds()
+                requestDetail.request.status == RequestStatus.ACCEPTED &&
+                    requestDetail.request.rideDate == coordination.rideDate &&
+                    driverTripId == coordination.driverTripId
+            }
+        }.orEmpty()
+        CoordinatedRideUiState(
+            detail = info.detail,
+            coordination = info.coordination,
+            confirmedRequests = confirmedRequests,
+            currentUserId = user?.id,
+            isSaving = isSaving,
+            error = message,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CoordinatedRideUiState())
 
     fun cancelRide(onCancelled: () -> Unit) {
@@ -225,6 +258,13 @@ class CoordinatedRideViewModel(
         }
     }
 }
+
+/** Agrupa los datos necesarios para mostrar un viaje aceptado. */
+private data class CoordinatedRideInfo(
+    val detail: RideRequestDetails?,
+    val allDetails: List<RideRequestDetails>,
+    val coordination: Coordination?,
+)
 
 /** Crea modelos de pantalla sin depender de una biblioteca adicional. */
 private inline fun <reified T : ViewModel> requestViewModelFactory(

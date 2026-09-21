@@ -1,6 +1,7 @@
 package uvg.edu.rutau.core.model
 
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** El rol pertenece a un trayecto, nunca a la cuenta del estudiante. */
@@ -31,6 +32,7 @@ data class Student(
     val university: String,
     val campus: String,
     val photoUrl: String?,
+    val phone: String? = null,
 )
 
 /** Guarda los datos privados de la cuenta de un estudiante. */
@@ -41,6 +43,7 @@ data class UserAccount(
     val campus: String,
     val email: String,
     val photoUrl: String?,
+    val phone: String? = null,
 )
 
 /** Reúne los datos que una persona escribe al crear su cuenta. */
@@ -126,6 +129,7 @@ data class RideRequest(
     val rideDate: LocalDate,
     val message: String?,
     val contributionCents: Long,
+    val createdAt: LocalDateTime = LocalDateTime.now(),
 )
 
 /** Guarda un viaje aceptado entre un conductor y un pasajero. */

@@ -18,14 +18,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import uvg.edu.rutau.core.designsystem.component.RutaUAvatar
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
+import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
+import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
 import uvg.edu.rutau.core.model.RequestStatus
+import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripRole
@@ -40,6 +44,8 @@ internal fun RideRequestDetails.asRequestDate(): String = request.rideDate.forma
 @Composable
 fun RequestTabSelector(
     selected: RequestTab,
+    receivedCount: Int,
+    sentCount: Int,
     onSelected: (RequestTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -48,8 +54,11 @@ fun RequestTabSelector(
             FilterChip(
                 selected = selected == tab,
                 onClick = { onSelected(tab) },
-                label = { Text(if (tab == RequestTab.RECEIVED) "Recibidas" else "Enviadas") },
-                modifier = Modifier.weight(1f),
+                label = {
+                    val count = if (tab == RequestTab.RECEIVED) receivedCount else sentCount
+                    Text("${if (tab == RequestTab.RECEIVED) "Recibidas" else "Enviadas"} ($count)")
+                },
+                modifier = Modifier.weight(1f).testTag("RequestsTab-${tab.name}"),
             )
         }
     }
@@ -76,6 +85,7 @@ fun RequestFilterSelector(
                         },
                     )
                 },
+                modifier = Modifier.testTag("RequestsFilter-${filter.name}"),
             )
         }
     }
@@ -93,16 +103,13 @@ fun RequestCard(
     val otherTrip = if (isReceived) detail.senderTrip else detail.targetTrip
     Card(
         onClick = onOpen,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().testTag("RequestCard-${detail.request.id}"),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 RequestStatusChip(detail.request.status)
-                Text(
-                    if (detail.request.type.name == "JOIN_REQUEST") "Solicitud" else "Invitación",
-                    style = MaterialTheme.typography.labelMedium,
-                )
+                RequestTypeLabel(detail.request.type)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 RutaUAvatar(otherStudent.fullName, otherStudent.photoUrl, size = 44.dp)
@@ -116,9 +123,20 @@ fun RequestCard(
             if (otherTrip.role == TripRole.DRIVER) {
                 Text("${otherTrip.availableSeats} plazas disponibles")
             }
+            Text("Contribución sugerida: ${detail.request.contributionCents.asQuetzales()}")
             Text("Ver detalle", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
         }
     }
+}
+
+/** Muestra si el elemento es una solicitud o una invitación. */
+@Composable
+fun RequestTypeLabel(type: RequestType, modifier: Modifier = Modifier) {
+    Text(
+        text = if (type == RequestType.JOIN_REQUEST) "Solicitud" else "Invitación",
+        modifier = modifier,
+        style = MaterialTheme.typography.labelMedium,
+    )
 }
 
 /** Muestra el estado de una solicitud con un color fácil de reconocer. */
@@ -165,12 +183,123 @@ fun ContactNoticeCard(modifier: Modifier = Modifier) {
     )
 }
 
+/** Muestra el contacto de una persona cuando el viaje ya fue aceptado. */
+@Composable
+fun AuthorizedContactCard(
+    fullName: String,
+    phone: String?,
+    modifier: Modifier = Modifier,
+) {
+    RutaUInfoCard(
+        title = "Contacto autorizado",
+        message = if (phone == null) {
+            "${fullName} no agregó un teléfono. Pueden acordar el punto de encuentro en persona."
+        } else {
+            "$fullName\nTeléfono y WhatsApp: $phone"
+        },
+        modifier = modifier,
+        icon = Icons.Default.CheckCircle,
+    )
+}
+
+/** Muestra acciones para comunicarse después de aceptar un viaje. */
+@Composable
+fun ExternalContactActions(
+    phone: String?,
+    onCall: () -> Unit,
+    onWhatsApp: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (phone == null) return
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RutaUOutlinedButton("Llamar", onCall, Modifier.weight(1f))
+        RutaUPrimaryButton("WhatsApp", onWhatsApp, Modifier.weight(1f))
+    }
+}
+
+/** Muestra que el punto de encuentro se acuerda entre las personas. */
+@Composable
+fun MeetingPointCard(modifier: Modifier = Modifier) {
+    RutaUInfoCard(
+        title = "Punto de encuentro",
+        message = "Por acordar directamente con la otra persona.",
+        modifier = modifier,
+        icon = Icons.Default.Info,
+    )
+}
+
+/** Muestra el cambio de pendiente a viaje aceptado. */
+@Composable
+fun CoordinationTimeline(modifier: Modifier = Modifier) {
+    RutaUInfoCard(
+        title = "Viaje confirmado",
+        message = "La solicitud fue aceptada y la plaza quedó confirmada.",
+        modifier = modifier,
+        icon = Icons.Default.CheckCircle,
+    )
+}
+
+/** Muestra la ocupación actual de un vehículo. */
+@Composable
+fun VehicleCapacityCard(driver: Trip, modifier: Modifier = Modifier) {
+    val isFull = driver.occupiedSeats == driver.offeredSeats
+    RutaUInfoCard(
+        title = if (isFull) "Viaje completo" else "Capacidad del viaje",
+        message = buildString {
+            append("${driver.occupiedSeats} de ${driver.offeredSeats} plazas ocupadas\n")
+            append("${driver.occupiedSeats + 1} ocupantes totales")
+            if (isFull) append("\nNo se permiten nuevas aceptaciones.")
+            else append("\n${driver.availableSeats} plazas disponibles")
+        },
+        modifier = modifier,
+        icon = if (isFull) Icons.Default.CheckCircle else Icons.Default.Info,
+    )
+}
+
+/** Muestra una persona que ya tiene una plaza confirmada. */
+@Composable
+fun ConfirmedPassengerCard(detail: RideRequestDetails, modifier: Modifier = Modifier) {
+    val passenger = if (detail.senderTrip.role == TripRole.PASSENGER) detail.sender else detail.target
+    Card(modifier.fillMaxWidth()) {
+        Row(
+            Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            RutaUAvatar(passenger.fullName, passenger.photoUrl, size = 40.dp)
+            Column(Modifier.weight(1f)) {
+                Text(passenger.fullName, style = MaterialTheme.typography.titleSmall)
+                Text("Contribución: ${detail.request.contributionCents.asQuetzales()}")
+                passenger.phone?.let { Text("Teléfono y WhatsApp: $it") }
+            }
+            Text("Confirmada", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
 /** Muestra un aviso cuando no hay solicitudes para el filtro elegido. */
 @Composable
 fun EmptyRequestsCard(modifier: Modifier = Modifier) {
     RutaUInfoCard(
         title = "No hay solicitudes aquí",
         message = "Cuando recibas o envíes una, aparecerá en esta lista.",
+        modifier = modifier,
+        icon = Icons.Default.Info,
+    )
+}
+
+/** Explica qué significa una solicitud que ya terminó. */
+@Composable
+fun TerminalRequestCard(status: RequestStatus, modifier: Modifier = Modifier) {
+    val message = when (status) {
+        RequestStatus.REJECTED -> "La otra persona no aceptó esta solicitud."
+        RequestStatus.CANCELLED -> "Esta solicitud fue cancelada y no ocupa ninguna plaza."
+        RequestStatus.EXPIRED -> "La fecha pasó antes de que la solicitud fuera aceptada."
+        else -> return
+    }
+    RutaUInfoCard(
+        title = "Solicitud ${status.asUiStatus().lowercase()}",
+        message = message,
         modifier = modifier,
         icon = Icons.Default.Info,
     )
@@ -183,3 +312,15 @@ private fun RideRequestDetails.timeDifferenceMinutes(): Long = kotlin.math.abs(
 
 private val requestDateFormatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.forLanguageTag("es-GT"))
 private val requestTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.forLanguageTag("es-GT"))
+
+/** Convierte una contribución a texto con quetzales. */
+internal fun Long.asQuetzales(): String = "Q %.2f".format(Locale.US, this / 100.0)
+
+/** Convierte el estado de una solicitud en un texto corto. */
+private fun RequestStatus.asUiStatus(): String = when (this) {
+    RequestStatus.PENDING -> "Pendiente"
+    RequestStatus.ACCEPTED -> "Aceptada"
+    RequestStatus.REJECTED -> "Rechazada"
+    RequestStatus.CANCELLED -> "Cancelada"
+    RequestStatus.EXPIRED -> "Vencida"
+}

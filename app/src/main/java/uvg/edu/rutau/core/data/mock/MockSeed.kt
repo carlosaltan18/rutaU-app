@@ -1,6 +1,7 @@
 package uvg.edu.rutau.core.data.mock
 
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
@@ -22,13 +23,17 @@ object MockSeed {
         campus = "Campus Central",
         email = "mateo@ejemplo.com",
         photoUrl = null,
+        phone = "+502 5551-1000",
     )
 
     val students = listOf(
-        Student("user-andrea", "Andrea López", "Universidad San Carlos", "Campus Central", null),
-        Student("user-diego", "Diego Pérez", "Universidad San Carlos", "Campus Central", null),
-        Student("user-sofia", "Sofía Ramírez", "Universidad San Carlos", "Campus Central", null),
-        Student("user-carlos", "Carlos Méndez", "Universidad San Carlos", "Campus Central", null),
+        Student("user-andrea", "Andrea López", "Universidad San Carlos", "Campus Central", null, "+502 5551-2001"),
+        Student("user-diego", "Diego Pérez", "Universidad San Carlos", "Campus Central", null, "+502 5551-2002"),
+        Student("user-sofia", "Sofía Ramírez", "Universidad San Carlos", "Campus Central", null, "+502 5551-2003"),
+        Student("user-carlos", "Carlos Méndez", "Universidad San Carlos", "Campus Central", null, "+502 5551-2004"),
+        Student("user-lucia", "Lucía Torres", "Universidad San Carlos", "Campus Central", null, "+502 5551-2005"),
+        Student("user-maria", "María Pérez", "Universidad San Carlos", "Campus Central", null, "+502 5551-2006"),
+        Student("user-pablo", "Pablo García", "Universidad San Carlos", "Campus Central", null, "+502 5551-2007"),
     )
 
     val trips = listOf(
@@ -116,6 +121,42 @@ object MockSeed {
             occupiedSeats = 3,
             active = true,
         ),
+        Trip(
+            id = "trip-lucia-passenger",
+            ownerId = "user-lucia",
+            originZone = "Zona 10",
+            destinationCampus = "Campus Central",
+            dayOfWeek = "Miércoles",
+            departureTime = LocalTime.of(6, 45),
+            role = TripRole.PASSENGER,
+            offeredSeats = 0,
+            occupiedSeats = 0,
+            active = true,
+        ),
+        Trip(
+            id = "trip-maria-passenger",
+            ownerId = "user-maria",
+            originZone = "Zona 10",
+            destinationCampus = "Campus Central",
+            dayOfWeek = "Miércoles",
+            departureTime = LocalTime.of(7, 0),
+            role = TripRole.PASSENGER,
+            offeredSeats = 0,
+            occupiedSeats = 0,
+            active = true,
+        ),
+        Trip(
+            id = "trip-pablo-passenger",
+            ownerId = "user-pablo",
+            originZone = "Zona 10",
+            destinationCampus = "Campus Central",
+            dayOfWeek = "Miércoles",
+            departureTime = LocalTime.of(7, 15),
+            role = TripRole.PASSENGER,
+            offeredSeats = 0,
+            occupiedSeats = 0,
+            active = true,
+        ),
     )
 
     val requests = listOf(
@@ -128,6 +169,7 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 21),
             message = "Hola Andrea, ¿podemos coordinar este lunes?",
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 18, 8, 15),
         ),
         RideRequest(
             id = "request-invitation-pending",
@@ -138,6 +180,7 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 22),
             message = "Hola Sofía, todavía tengo una plaza disponible.",
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 18, 9, 0),
         ),
         RideRequest(
             id = "request-received-join",
@@ -148,6 +191,18 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 22),
             message = "Hola Mateo, ¿puedo unirme a tu viaje?",
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 18, 9, 30),
+        ),
+        RideRequest(
+            id = "request-received-invitation",
+            senderTripId = "trip-andrea-driver",
+            targetTripId = "trip-mateo-passenger",
+            type = RequestType.DRIVER_INVITATION,
+            status = RequestStatus.PENDING,
+            rideDate = LocalDate.of(2026, 9, 21),
+            message = "Hola Mateo, todavía tengo una plaza disponible.",
+            contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 18, 10, 0),
         ),
         RideRequest(
             id = "request-accepted-sofia",
@@ -158,6 +213,7 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 22),
             message = "Nos vemos mañana.",
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 17, 15, 0),
         ),
         RideRequest(
             id = "request-accepted-carlos",
@@ -168,6 +224,7 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 22),
             message = null,
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 17, 16, 0),
         ),
         RideRequest(
             id = "request-rejected",
@@ -178,6 +235,7 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 21),
             message = "¿Aún tienes espacio?",
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 16, 9, 0),
         ),
         RideRequest(
             id = "request-cancelled",
@@ -188,6 +246,7 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 21),
             message = null,
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 15, 12, 0),
         ),
         RideRequest(
             id = "request-expired",
@@ -198,6 +257,40 @@ object MockSeed {
             rideDate = LocalDate.of(2026, 9, 24),
             message = "¿Podemos coordinar este viaje?",
             contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 14, 10, 0),
+        ),
+        RideRequest(
+            id = "request-full-lucia",
+            senderTripId = "trip-lucia-passenger",
+            targetTripId = "trip-andrea-driver-full",
+            type = RequestType.JOIN_REQUEST,
+            status = RequestStatus.ACCEPTED,
+            rideDate = LocalDate.of(2026, 9, 23),
+            message = null,
+            contributionCents = 1000,
+            createdAt = LocalDateTime.of(2026, 9, 16, 10, 0),
+        ),
+        RideRequest(
+            id = "request-full-maria",
+            senderTripId = "trip-maria-passenger",
+            targetTripId = "trip-andrea-driver-full",
+            type = RequestType.JOIN_REQUEST,
+            status = RequestStatus.ACCEPTED,
+            rideDate = LocalDate.of(2026, 9, 23),
+            message = null,
+            contributionCents = 1200,
+            createdAt = LocalDateTime.of(2026, 9, 16, 10, 10),
+        ),
+        RideRequest(
+            id = "request-full-pablo",
+            senderTripId = "trip-pablo-passenger",
+            targetTripId = "trip-andrea-driver-full",
+            type = RequestType.JOIN_REQUEST,
+            status = RequestStatus.ACCEPTED,
+            rideDate = LocalDate.of(2026, 9, 23),
+            message = null,
+            contributionCents = 1500,
+            createdAt = LocalDateTime.of(2026, 9, 16, 10, 20),
         ),
     )
 
@@ -209,6 +302,30 @@ object MockSeed {
             passengerTripId = "trip-sofia-passenger",
             rideDate = LocalDate.of(2026, 9, 22),
             contributionCents = 1000,
+        ),
+        Coordination(
+            id = "coord-full-lucia",
+            requestId = "request-full-lucia",
+            driverTripId = "trip-andrea-driver-full",
+            passengerTripId = "trip-lucia-passenger",
+            rideDate = LocalDate.of(2026, 9, 23),
+            contributionCents = 1000,
+        ),
+        Coordination(
+            id = "coord-full-maria",
+            requestId = "request-full-maria",
+            driverTripId = "trip-andrea-driver-full",
+            passengerTripId = "trip-maria-passenger",
+            rideDate = LocalDate.of(2026, 9, 23),
+            contributionCents = 1200,
+        ),
+        Coordination(
+            id = "coord-full-pablo",
+            requestId = "request-full-pablo",
+            driverTripId = "trip-andrea-driver-full",
+            passengerTripId = "trip-pablo-passenger",
+            rideDate = LocalDate.of(2026, 9, 23),
+            contributionCents = 1500,
         ),
         Coordination(
             id = "coord-mateo-carlos",

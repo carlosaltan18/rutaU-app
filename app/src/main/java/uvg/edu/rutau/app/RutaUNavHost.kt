@@ -11,13 +11,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import uvg.edu.rutau.core.navigation.AccountRoute as AccountDestination
 import uvg.edu.rutau.core.navigation.CandidateProfileRoute
 import uvg.edu.rutau.core.navigation.ConfirmCoordinationRoute
-import uvg.edu.rutau.core.navigation.CoordinatedRideRoute
 import uvg.edu.rutau.core.navigation.EmailSentRoute as EmailSentDestination
 import uvg.edu.rutau.core.navigation.LoginRoute as LoginDestination
 import uvg.edu.rutau.core.navigation.MatchesRoute
 import uvg.edu.rutau.core.navigation.RecoverAccessRoute as RecoverAccessDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute
-import uvg.edu.rutau.core.navigation.RequestsRoute
 import uvg.edu.rutau.core.navigation.ResetPasswordRoute as ResetPasswordDestination
 import uvg.edu.rutau.core.navigation.SignUpRoute as SignUpDestination
 import uvg.edu.rutau.core.navigation.TripEditorRoute
@@ -39,12 +37,7 @@ import uvg.edu.rutau.feature.trips.TripEditorRoute as TripEditorScreen
 import uvg.edu.rutau.feature.trips.TripEditorViewModel
 import uvg.edu.rutau.feature.trips.TripsRoute as TripsScreen
 import uvg.edu.rutau.feature.trips.TripsViewModel
-import uvg.edu.rutau.feature.requests.CoordinatedRideRoute as CoordinatedRideScreen
-import uvg.edu.rutau.feature.requests.CoordinatedRideViewModel
-import uvg.edu.rutau.feature.requests.RequestDetailRoute as RequestDetailScreen
-import uvg.edu.rutau.feature.requests.RequestDetailViewModel
-import uvg.edu.rutau.feature.requests.RequestsRoute as RequestsScreen
-import uvg.edu.rutau.feature.requests.RequestsViewModel
+import uvg.edu.rutau.feature.requests.requestGraph
 
 /** Conecta las pantallas de RutaU y permite pasar de una a otra. */
 @Composable
@@ -169,50 +162,7 @@ fun RutaUNavHost(
                 ),
             )
         }
-        composable<RequestsRoute> {
-            RequestsScreen(
-                onOpenRequest = { requestId -> navController.navigate(RequestDetailRoute(requestId)) },
-                viewModel = viewModel(
-                    factory = RequestsViewModel.factory(
-                        RutaUAppDependencies.rideRequestRepository,
-                        RutaUAppDependencies.userRepository,
-                    ),
-                ),
-            )
-        }
-        composable<RequestDetailRoute> { entry ->
-            val route = entry.toRoute<RequestDetailRoute>()
-            RequestDetailScreen(
-                onBack = { navController.popBackStack() },
-                onOpenCoordinatedRide = {
-                    navController.navigate(CoordinatedRideRoute(route.requestId))
-                },
-                viewModel = viewModel(
-                    key = "request-detail-${route.requestId}",
-                    factory = RequestDetailViewModel.factory(
-                        route.requestId,
-                        RutaUAppDependencies.rideRequestRepository,
-                        RutaUAppDependencies.coordinationRepository,
-                        RutaUAppDependencies.userRepository,
-                    ),
-                ),
-            )
-        }
-        composable<CoordinatedRideRoute> { entry ->
-            val route = entry.toRoute<CoordinatedRideRoute>()
-            CoordinatedRideScreen(
-                onBack = { navController.popBackStack() },
-                viewModel = viewModel(
-                    key = "coordinated-ride-${route.requestId}",
-                    factory = CoordinatedRideViewModel.factory(
-                        route.requestId,
-                        RutaUAppDependencies.coordinationRepository,
-                        RutaUAppDependencies.userRepository,
-                        RutaUAppDependencies.rideRequestRepository,
-                    ),
-                ),
-            )
-        }
+        requestGraph(navController)
         composable<AccountDestination> {
             AccountRoute(
                 onSignedOut = {

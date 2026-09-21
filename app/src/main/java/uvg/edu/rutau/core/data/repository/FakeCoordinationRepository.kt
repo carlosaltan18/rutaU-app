@@ -20,11 +20,31 @@ class FakeCoordinationRepository(
         }
 
     override suspend fun cancelRide(coordinationId: String) {
-        cancelConfirmedCoordination(coordinationId)
+        synchronized(store) {
+            val coordination = findAcceptedCoordination(coordinationId)
+            val related = store.coordinations.value.filter {
+                it.driverTripId == coordination.driverTripId && it.rideDate == coordination.rideDate
+            }
+            val requestIds = related.map(Coordination::requestId).toSet()
+            store.requests.value = store.requests.value.map { request ->
+                if (request.id in requestIds) request.copy(status = RequestStatus.CANCELLED) else request
+            }
+            store.trips.value = store.trips.value.map { trip ->
+                if (trip.id == coordination.driverTripId) {
+                    trip.copy(occupiedSeats = (trip.occupiedSeats - related.size).coerceAtLeast(0))
+                } else {
+                    trip
+                }
+            }
+            store.coordinations.value = store.coordinations.value.filterNot { it in related }
+        }
     }
 
     override suspend fun cancelParticipation(coordinationId: String) {
-        cancelConfirmedCoordination(coordinationId)
+        synchronized(store) {
+            val coordination = findAcceptedCoordination(coordinationId)
+            cancelOneCoordination(coordination)
+        }
     }
 
     override suspend fun createPendingCoordination(
@@ -52,25 +72,26 @@ class FakeCoordinationRepository(
         return id
     }
 
-    private fun cancelConfirmedCoordination(coordinationId: String) {
-        synchronized(store) {
-            val coordination = store.coordinations.value.firstOrNull { it.id == coordinationId }
-                ?: error("El viaje coordinado no existe.")
-            val request = store.requests.value.firstOrNull { it.id == coordination.requestId }
-                ?: error("La solicitud no existe.")
-            check(request.status == RequestStatus.ACCEPTED) { "Solo los viajes aceptados se pueden cancelar." }
+    private fun findAcceptedCoordination(coordinationId: String): Coordination {
+        val coordination = store.coordinations.value.firstOrNull { it.id == coordinationId }
+            ?: error("El viaje coordinado no existe.")
+        val request = store.requests.value.firstOrNull { it.id == coordination.requestId }
+            ?: error("La solicitud no existe.")
+        check(request.status == RequestStatus.ACCEPTED) { "Solo los viajes aceptados se pueden cancelar." }
+        return coordination
+    }
 
-            store.requests.value = store.requests.value.map { existing ->
-                if (existing.id == request.id) existing.copy(status = RequestStatus.CANCELLED) else existing
-            }
-            store.trips.value = store.trips.value.map { trip ->
-                if (trip.id == coordination.driverTripId) {
-                    trip.copy(occupiedSeats = (trip.occupiedSeats - 1).coerceAtLeast(0))
-                } else {
-                    trip
-                }
-            }
-            store.coordinations.value = store.coordinations.value.filterNot { it.id == coordinationId }
+    private fun cancelOneCoordination(coordination: Coordination) {
+        store.requests.value = store.requests.value.map { request ->
+            if (request.id == coordination.requestId) request.copy(status = RequestStatus.CANCELLED) else request
         }
+        store.trips.value = store.trips.value.map { trip ->
+            if (trip.id == coordination.driverTripId) {
+                trip.copy(occupiedSeats = (trip.occupiedSeats - 1).coerceAtLeast(0))
+            } else {
+                trip
+            }
+        }
+        store.coordinations.value = store.coordinations.value.filterNot { it.id == coordination.id }
     }
 }

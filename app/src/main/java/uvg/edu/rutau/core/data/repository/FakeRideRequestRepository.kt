@@ -98,6 +98,7 @@ private fun uvg.edu.rutau.core.model.UserAccount.toStudent() = Student(
     university = university,
     campus = campus,
     photoUrl = photoUrl,
+    phone = phone,
 )
 
 /** Indica cuál trayecto conduce y cuál viaja como pasajero. */
