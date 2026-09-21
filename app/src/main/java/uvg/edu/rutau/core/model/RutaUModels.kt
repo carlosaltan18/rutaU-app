@@ -123,3 +123,13 @@ data class RideRequest(
     val message: String?,
     val contributionCents: Long,
 )
+
+/** A confirmed ride between one driver trip and one passenger trip. */
+data class Coordination(
+    val id: String,
+    val requestId: String,
+    val driverTripId: String,
+    val passengerTripId: String,
+    val rideDate: LocalDate,
+    val contributionCents: Long,
+)

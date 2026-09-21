@@ -1,6 +1,7 @@
 package uvg.edu.rutau.core.data.mock
 
 import kotlinx.coroutines.flow.MutableStateFlow
+import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.RideRequest
 import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
@@ -12,6 +13,7 @@ class MockRutaUStore {
     val students = MutableStateFlow<List<Student>>(MockSeed.students)
     val trips = MutableStateFlow<List<Trip>>(MockSeed.trips)
     val requests = MutableStateFlow<List<RideRequest>>(MockSeed.requests)
+    val coordinations = MutableStateFlow<List<Coordination>>(emptyList())
 
     private var password: String = MockSeed.DefaultPassword
 
