@@ -26,7 +26,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Pantalla pura de inicio de sesión; la Route administra el estado y la navegación. */
+/** Muestra el formulario para iniciar sesión. */
 @Composable
 fun LoginScreen(
     email: String,

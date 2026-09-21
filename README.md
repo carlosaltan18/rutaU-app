@@ -2,7 +2,7 @@
 
 Aplicación Android nativa para que estudiantes universitarios encuentren compañeros compatibles y coordinen trayectos habituales hacia su campus.
 
-> Estado: MVP de frontend en desarrollo. La infraestructura, autenticación y cuenta del integrante 1 están implementadas. Los módulos de Trayectos, compatibilidad y Solicitudes se integrarán desde los trabajos de los integrantes 2 y 3.
+> Estado: MVP de frontend integrado. Todas las pantallas y flujos definidos para el proyecto funcionan con datos locales en memoria.
 
 ## Funcionalidades disponibles
 
@@ -17,6 +17,9 @@ Aplicación Android nativa para que estudiantes universitarios encuentren compa�
 - Publicación y edición de trayectos como pasajero o conductor (de 1 a 3 plazas).
 - Compatibilidad por zona, campus, día, diferencia máxima de 30 minutos y roles complementarios.
 - Perfiles públicos de candidatos y confirmación de solicitudes o invitaciones pendientes.
+- Bandeja de solicitudes recibidas y enviadas, con filtros por estado.
+- Detalle de solicitudes, aceptación, rechazo, cancelación y vencimiento simulado.
+- Viajes coordinados con capacidad, pasajeros confirmados y contacto protegido hasta la aceptación.
 
 ## Alcance actual
 
@@ -27,7 +30,7 @@ Aplicación Android nativa para que estudiantes universitarios encuentren compa�
 | Autenticación y recuperación de contraseña | Implementado con datos locales |
 | Cuenta y configuración | Implementado con datos locales |
 | Trayectos y compatibilidad | Implementado con datos locales |
-| Solicitudes y viajes coordinados | Pendiente de integración del integrante 3 |
+| Solicitudes y viajes coordinados | Implementado con datos locales |
 | Persistencia remota, backend y notificaciones reales | Fuera del alcance actual del frontend MVP |
 
 ## Tecnologías
@@ -105,6 +108,8 @@ Las pruebas de interfaz cubren estos recorridos:
 - Cierre de sesión que limpia el historial.
 - Restauración de estado al cambiar en la barra inferior.
 - Actualización de datos de Cuenta en el mock compartido.
+- Conservación de pestaña y filtro de Solicitudes al cambiar de sección.
+- Aceptación de solicitud hacia el viaje coordinado.
 
 ## Estructura del proyecto
 
@@ -119,6 +124,7 @@ app/src/main/java/uvg/edu/rutau/
 ├── feature/
 │   ├── account/          # Cuenta y configuración
 │   ├── auth/             # Inicio de sesión, registro y recuperación
+│   ├── requests/         # Solicitudes, detalle y viajes coordinados
 │   └── trips/            # Trayectos, compatibilidad, perfiles y confirmación
 └── ui/theme/             # Colores, tipografía, espaciado y formas
 ```
@@ -127,14 +133,12 @@ app/src/main/java/uvg/edu/rutau/
 
 - El código fuente usa identificadores en inglés; la interfaz visible permanece en español.
 - Las rutas de navegación transportan solo IDs, nunca objetos completos.
+- Cada módulo agrega sus rutas mediante `authGraph`, `tripGraph`, `requestGraph` y `accountGraph`.
 - Los módulos nuevos deben usar los modelos y componentes de `core/` antes de crear duplicados.
 - Durante el MVP, los repositorios fake comparten `MockRutaUStore` como fuente de verdad.
-- La adopción de Hilt queda pendiente de acuerdo del equipo, para no romper la integración actual.
 
 ## Limitaciones conocidas del MVP
 
 - No hay backend ni persistencia entre sesiones.
 - El enlace de recuperación es una simulación visible en la pantalla “Revisa tu correo”.
 - Las fotos seleccionadas se manejan como URI local mientras la app está activa.
-- Las pantallas de Trayectos y Solicitudes son destinos temporales hasta integrar los módulos correspondientes.
-

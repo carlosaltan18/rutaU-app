@@ -14,7 +14,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUBottomBar
 import uvg.edu.rutau.core.designsystem.component.RutaUBottomNavigationItem
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** App-level bottom navigation for the three authenticated destinations. */
+/** Muestra la navegación inferior de las tres secciones principales. */
 @Composable
 fun RutaUBottomNavigation(
     selectedDestination: RutaUTopLevelDestination,

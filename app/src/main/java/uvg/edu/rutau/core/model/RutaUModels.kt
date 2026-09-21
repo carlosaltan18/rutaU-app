@@ -1,6 +1,7 @@
 package uvg.edu.rutau.core.model
 
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.LocalTime
 
 /** El rol pertenece a un trayecto, nunca a la cuenta del estudiante. */
@@ -31,9 +32,10 @@ data class Student(
     val university: String,
     val campus: String,
     val photoUrl: String?,
+    val phone: String? = null,
 )
 
-/** Private account data that must not be exposed from public candidate profiles. */
+/** Guarda los datos privados de la cuenta de un estudiante. */
 data class UserAccount(
     val id: String,
     val fullName: String,
@@ -41,8 +43,10 @@ data class UserAccount(
     val campus: String,
     val email: String,
     val photoUrl: String?,
+    val phone: String? = null,
 )
 
+/** Reúne los datos que una persona escribe al crear su cuenta. */
 data class SignUpInput(
     val fullName: String,
     val university: String,
@@ -52,6 +56,7 @@ data class SignUpInput(
     val photoUrl: String? = null,
 )
 
+/** Reúne los datos que una persona puede cambiar en su perfil. */
 data class UpdateProfileInput(
     val fullName: String,
     val university: String,
@@ -59,11 +64,13 @@ data class UpdateProfileInput(
     val photoUrl: String?,
 )
 
+/** Reúne los datos necesarios para cambiar el correo. */
 data class UpdateEmailInput(
     val email: String,
     val currentPassword: String,
 )
 
+/** Reúne los datos necesarios para cambiar la contraseña. */
 data class UpdatePasswordInput(
     val currentPassword: String,
     val newPassword: String,
@@ -122,4 +129,24 @@ data class RideRequest(
     val rideDate: LocalDate,
     val message: String?,
     val contributionCents: Long,
+    val createdAt: LocalDateTime = LocalDateTime.now(),
+)
+
+/** Guarda un viaje aceptado entre un conductor y un pasajero. */
+data class Coordination(
+    val id: String,
+    val requestId: String,
+    val driverTripId: String,
+    val passengerTripId: String,
+    val rideDate: LocalDate,
+    val contributionCents: Long,
+)
+
+/** Une una solicitud con los trayectos y personas que participan. */
+data class RideRequestDetails(
+    val request: RideRequest,
+    val senderTrip: Trip,
+    val targetTrip: Trip,
+    val sender: Student,
+    val target: Student,
 )

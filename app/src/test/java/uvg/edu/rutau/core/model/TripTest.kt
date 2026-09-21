@@ -4,6 +4,7 @@ import java.time.LocalTime
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** Comprueba los datos básicos de un trayecto. */
 class TripTest {
     @Test
     fun `available seats subtract occupied seats from offered seats`() {

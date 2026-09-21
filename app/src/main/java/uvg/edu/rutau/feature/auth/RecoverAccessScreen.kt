@@ -24,7 +24,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Pantalla pura para solicitar instrucciones de recuperación de contraseña. */
+/** Muestra el formulario para recuperar el acceso. */
 @Composable
 fun RecoverAccessScreen(
     email: String,

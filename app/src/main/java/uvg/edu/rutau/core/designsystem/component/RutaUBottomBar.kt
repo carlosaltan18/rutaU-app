@@ -19,10 +19,7 @@ data class RutaUBottomNavigationItem(
     val selectedIcon: ImageVector = icon,
 )
 
-/**
- * Barra inferior sin dependencia de Navigation Compose.
- * El contenedor de la app define el destino seleccionado y realiza la navegación.
- */
+/** Muestra los botones de la navegación inferior. */
 @Composable
 fun RutaUBottomBar(
     items: List<RutaUBottomNavigationItem>,

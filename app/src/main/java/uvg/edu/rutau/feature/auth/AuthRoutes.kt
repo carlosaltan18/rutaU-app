@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.collectLatest
 import uvg.edu.rutau.app.RutaUAppDependencies
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Route that connects [LoginScreen] to its state holder and navigation callbacks. */
+/** Conecta el inicio de sesión con sus datos y acciones. */
 @Composable
 fun LoginRoute(
     onLoginSuccess: () -> Unit,
@@ -41,7 +41,7 @@ fun LoginRoute(
     )
 }
 
-/** Route that connects [SignUpScreen] to its state holder and navigation callbacks. */
+/** Conecta el registro con sus datos y acciones. */
 @Composable
 fun SignUpRoute(
     onAccountCreated: () -> Unit,
@@ -82,7 +82,7 @@ fun SignUpRoute(
     )
 }
 
-/** Route that connects [RecoverAccessScreen] to password recovery state and navigation. */
+/** Conecta la recuperación de acceso con sus datos y acciones. */
 @Composable
 fun RecoverAccessRoute(
     onInstructionsSent: () -> Unit,
@@ -109,7 +109,7 @@ fun RecoverAccessRoute(
     )
 }
 
-/** Route that lets a student resend password recovery instructions. */
+/** Permite reenviar las instrucciones para recuperar la contraseña. */
 @Composable
 fun EmailSentRoute(
     onOpenResetLink: () -> Unit,
@@ -125,7 +125,7 @@ fun EmailSentRoute(
     )
 }
 
-/** Route that connects the password reset form to its state holder. */
+/** Conecta el cambio de contraseña con sus datos y acciones. */
 @Composable
 fun ResetPasswordRoute(
     onPasswordReset: () -> Unit,

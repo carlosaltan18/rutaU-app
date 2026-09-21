@@ -31,7 +31,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Pantalla pura de creación de cuenta, sin verificación institucional. */
+/** Muestra el formulario para crear una cuenta. */
 @Composable
 fun SignUpScreen(
     fullName: String,

@@ -11,6 +11,7 @@ import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
 
+/** Maneja los trayectos de ejemplo mientras la aplicación está abierta. */
 class FakeTripRepository(
     private val store: MockRutaUStore,
 ) : TripRepository {
@@ -32,12 +33,25 @@ class FakeTripRepository(
 
     override suspend fun updateTrip(tripId: String, input: TripInput) {
         validate(input)
+        val existingTrip = store.trips.value.firstOrNull { it.id == tripId }
+            ?: error("El trayecto no existe.")
+        require(existingTrip.ownerId == store.currentUser.value?.id) {
+            "Solo quien creó el trayecto puede editarlo."
+        }
+        if (existingTrip.occupiedSeats > 0) {
+            require(input.role == TripRole.DRIVER) {
+                "No puedes cambiar a pasajero un trayecto con pasajeros confirmados."
+            }
+            require(input.offeredSeats >= existingTrip.occupiedSeats) {
+                "No puedes reducir las plazas por debajo de los pasajeros confirmados."
+            }
+        }
         store.trips.value = store.trips.value.map { existing ->
             if (existing.id == tripId) {
                 input.toTrip(
                     id = existing.id,
                     ownerId = existing.ownerId,
-                    occupiedSeats = existing.occupiedSeats.coerceAtMost(input.offeredSeats),
+                    occupiedSeats = existing.occupiedSeats,
                     active = existing.active,
                 )
             } else {
@@ -47,10 +61,24 @@ class FakeTripRepository(
     }
 
     override suspend fun deleteTrip(tripId: String) {
+        val trip = store.trips.value.firstOrNull { it.id == tripId } ?: return
+        require(trip.ownerId == store.currentUser.value?.id) {
+            "Solo quien creó el trayecto puede eliminarlo."
+        }
+        require(store.requests.value.none { request ->
+            request.senderTripId == tripId || request.targetTripId == tripId
+        }) {
+            "No puedes eliminar un trayecto que tiene solicitudes. Desactívalo o cancela sus coordinaciones primero."
+        }
         store.trips.value = store.trips.value.filterNot { it.id == tripId }
     }
 
     override suspend fun deactivateTrip(tripId: String) {
+        val trip = store.trips.value.firstOrNull { it.id == tripId }
+            ?: error("El trayecto no existe.")
+        require(trip.ownerId == store.currentUser.value?.id) {
+            "Solo quien creó el trayecto puede desactivarlo."
+        }
         store.trips.value = store.trips.value.map { trip ->
             if (trip.id == tripId) trip.copy(active = false) else trip
         }

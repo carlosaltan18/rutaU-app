@@ -5,13 +5,15 @@ import uvg.edu.rutau.core.data.repository.FakeSessionRepository
 import uvg.edu.rutau.core.data.repository.FakeUserRepository
 import uvg.edu.rutau.core.data.repository.FakeTripRepository
 import uvg.edu.rutau.core.data.repository.FakeCoordinationRepository
+import uvg.edu.rutau.core.data.repository.FakeRideRequestRepository
 import uvg.edu.rutau.core.data.repository.TripRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
+import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.data.repository.SessionRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.UserAccount
 
-/** Temporary manual dependency container for the local frontend MVP. */
+/** Reúne los datos compartidos que usa la aplicación. */
 object RutaUAppDependencies {
     private var store = MockRutaUStore()
 
@@ -23,14 +25,17 @@ object RutaUAppDependencies {
         private set
     var coordinationRepository: CoordinationRepository = FakeCoordinationRepository(store)
         private set
+    var rideRequestRepository: RideRequestRepository = FakeRideRequestRepository(store)
+        private set
 
-    /** Recreates the in-memory dependencies for isolated instrumentation tests. */
+    /** Reinicia los datos de ejemplo para las pruebas. */
     internal fun resetForTesting() {
         store = MockRutaUStore()
         sessionRepository = FakeSessionRepository(store)
         userRepository = FakeUserRepository(store)
         tripRepository = FakeTripRepository(store)
         coordinationRepository = FakeCoordinationRepository(store)
+        rideRequestRepository = FakeRideRequestRepository(store)
     }
 
     internal fun currentUserForTesting(): UserAccount? = store.currentUser.value

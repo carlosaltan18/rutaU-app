@@ -5,6 +5,7 @@ import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
 
+/** Indica las acciones disponibles para los trayectos. */
 interface TripRepository {
     fun observeTrips(): Flow<List<Trip>>
     fun observeTrip(tripId: String): Flow<Trip?>

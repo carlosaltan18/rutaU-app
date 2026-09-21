@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -17,6 +19,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -29,7 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
+import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
+import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
+import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.model.Trip
@@ -43,8 +50,29 @@ fun TripsRoute(
     viewModel: TripsViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    TripsScreen(
+        state = state,
+        onCreateTrip = onCreateTrip,
+        onEditTrip = onEditTrip,
+        onOpenMatches = onOpenMatches,
+        onDeactivateTrip = { viewModel.deactivate(it) },
+        onRemoveTrip = { viewModel.remove(it) },
+    )
+}
+
+@Composable
+fun TripsScreen(
+    state: TripsUiState,
+    onCreateTrip: () -> Unit,
+    onEditTrip: (String) -> Unit,
+    onOpenMatches: (String) -> Unit,
+    onDeactivateTrip: (String) -> Unit,
+    onRemoveTrip: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var pendingRemoval by remember { mutableStateOf<Trip?>(null) }
     RutaUScreenContainer(
+        modifier = modifier,
         topBar = { RutaUTopAppBar("Mis trayectos") },
         bottomBar = {
             Column(Modifier.padding(16.dp)) {
@@ -71,11 +99,15 @@ fun TripsRoute(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item { Text("Publica como pasajero o conductor. Cada trayecto mantiene un único rol.") }
+                state.error?.let { message ->
+                    item { Text(message, color = MaterialTheme.colorScheme.error) }
+                }
                 items(state.trips, key = Trip::id) { trip ->
                     TripCard(
                         trip,
                         onEdit = { onEditTrip(trip.id) },
                         onMatches = { onOpenMatches(trip.id) },
+                        onDeactivate = { onDeactivateTrip(trip.id) },
                         onRemove = { pendingRemoval = trip },
                     )
                 }
@@ -89,7 +121,7 @@ fun TripsRoute(
             title = { Text("Eliminar trayecto") },
             text = { Text("Esta acción quitará el trayecto de tu lista.") },
             confirmButton = {
-                TextButton(onClick = { viewModel.remove(trip.id); pendingRemoval = null }) { Text("Eliminar") }
+                TextButton(onClick = { onRemoveTrip(trip.id); pendingRemoval = null }) { Text("Eliminar") }
             },
             dismissButton = { TextButton(onClick = { pendingRemoval = null }) { Text("Cancelar") } },
         )
@@ -99,7 +131,37 @@ fun TripsRoute(
 @Composable
 fun TripEditorRoute(onBack: () -> Unit, viewModel: TripEditorViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    TripEditorScreen(
+        state = state,
+        onOriginChange = viewModel::setOrigin,
+        onCampusChange = viewModel::setCampus,
+        onDayChange = viewModel::setDay,
+        onTimeChange = viewModel::setTime,
+        onRoleChange = viewModel::setRole,
+        onSeatsChange = viewModel::setSeats,
+        onSave = { viewModel.save { onBack() } },
+        onDelete = { viewModel.delete(onBack) },
+        onBack = onBack,
+    )
+}
+
+@Composable
+fun TripEditorScreen(
+    state: TripEditorUiState,
+    onOriginChange: (String) -> Unit,
+    onCampusChange: (String) -> Unit,
+    onDayChange: (String) -> Unit,
+    onTimeChange: (java.time.LocalTime) -> Unit,
+    onRoleChange: (TripRole) -> Unit,
+    onSeatsChange: (Int) -> Unit,
+    onSave: () -> Unit,
+    onDelete: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     RutaUScreenContainer(
+        modifier = modifier,
         topBar = {
             RutaUTopAppBar(
                 if (state.isEditing) "Editar trayecto" else "Crear trayecto",
@@ -117,32 +179,71 @@ fun TripEditorRoute(onBack: () -> Unit, viewModel: TripEditorViewModel) {
             item {
                 TripEditorForm(
                     state,
-                    viewModel::setOrigin,
-                    viewModel::setCampus,
-                    viewModel::setDay,
-                    viewModel::setTime,
-                    viewModel::setRole,
-                    viewModel::setSeats,
+                    onOriginChange,
+                    onCampusChange,
+                    onDayChange,
+                    onTimeChange,
+                    onRoleChange,
+                    onSeatsChange,
                 )
             }
             item {
                 RutaUPrimaryButton(
                     if (state.isEditing) "Guardar cambios" else "Publicar trayecto",
-                    onClick = { viewModel.save { onBack() } },
+                    onClick = onSave,
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !state.isSaving,
                 )
             }
+            item {
+                RutaUSecondaryButton(
+                    text = "Cancelar",
+                    onClick = onBack,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            if (state.isEditing) {
+                item {
+                    RutaUDestructiveButton(
+                        text = "Eliminar este trayecto",
+                        onClick = { showDeleteConfirmation = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
         }
+    }
+    if (showDeleteConfirmation) {
+        RutaUConfirmationDialog(
+            title = "¿Eliminar este trayecto?",
+            message = "Se eliminará de tu lista y dejará de aparecer en resultados compatibles.",
+            confirmLabel = "Eliminar trayecto",
+            onConfirm = onDelete,
+            onDismiss = { showDeleteConfirmation = false },
+            isDestructive = true,
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MatchesRoute(onBack: () -> Unit, onOpenCandidate: (String) -> Unit, viewModel: MatchesViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    MatchesScreen(state = state, onBack = onBack, onOpenCandidate = onOpenCandidate)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MatchesScreen(
+    state: MatchesUiState,
+    onBack: () -> Unit,
+    onOpenCandidate: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var showRules by remember { mutableStateOf(false) }
     val title = if (state.sourceTrip?.role == TripRole.PASSENGER) "Conductores compatibles" else "Pasajeros compatibles"
     RutaUScreenContainer(
+        modifier = modifier,
         topBar = {
             RutaUTopAppBar(title, navigationIcon = Icons.AutoMirrored.Filled.ArrowBack, navigationIconContentDescription = "Volver", onNavigationClick = onBack)
         },
@@ -155,19 +256,8 @@ fun MatchesRoute(onBack: () -> Unit, onOpenCandidate: (String) -> Unit, viewMode
             state.sourceTrip?.let { trip -> item { TripSummaryCard(trip) } }
             item { CompatibilitySummaryCard(state.matches.size) }
             item {
-                TextButton(onClick = { showRules = !showRules }) {
-                    Text(if (showRules) "Ocultar cómo calculamos" else "Cómo calculamos la compatibilidad")
-                }
-            }
-            if (showRules) {
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        CompatibilityRuleItem("Misma zona de origen")
-                        CompatibilityRuleItem("Mismo campus y día")
-                        CompatibilityRuleItem("Hasta 30 minutos de diferencia")
-                        CompatibilityRuleItem("Roles complementarios")
-                        CompatibilityRuleItem("Conductor con plazas disponibles")
-                    }
+                TextButton(onClick = { showRules = true }) {
+                    Text("Cómo calculamos la compatibilidad")
                 }
             }
             if (state.matches.isEmpty()) {
@@ -179,13 +269,35 @@ fun MatchesRoute(onBack: () -> Unit, onOpenCandidate: (String) -> Unit, viewMode
             }
         }
     }
+    if (showRules) {
+        ModalBottomSheet(onDismissRequest = { showRules = false }) {
+            CompatibilityInfoSheet(onDismiss = { showRules = false })
+        }
+    }
 }
 
 @Composable
 fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: () -> Unit, viewModel: CandidateProfileViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    CandidateProfileScreen(
+        state = state,
+        onBack = onBack,
+        onCoordinate = onCoordinate,
+        onContributionChange = viewModel::setContribution,
+    )
+}
+
+@Composable
+fun CandidateProfileScreen(
+    state: CandidateProfileUiState,
+    onBack: () -> Unit,
+    onCoordinate: () -> Unit,
+    onContributionChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val title = if (state.candidateTrip?.role == TripRole.DRIVER) "Perfil del conductor" else "Perfil del pasajero"
     RutaUScreenContainer(
+        modifier = modifier,
         topBar = {
             RutaUTopAppBar(title, navigationIcon = Icons.AutoMirrored.Filled.ArrowBack, navigationIconContentDescription = "Volver", onNavigationClick = onBack)
         },
@@ -204,12 +316,28 @@ fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: () -> Unit, viewMode
             ) {
                 item { CandidateProfileHeader(student) }
                 item { CandidateTripCard(trip) }
+                state.sourceTrip?.let { source ->
+                    item { CompatibilityReasonsCard(source, trip) }
+                }
+                item {
+                    ContributionEditor(
+                        value = state.contributionQuetzales,
+                        onValueChange = onContributionChange,
+                    )
+                }
                 item { PrivacyNoticeCard() }
                 item {
                     RutaUPrimaryButton(
                         if (state.sourceTrip?.role == TripRole.PASSENGER) "Solicitar unirme" else "Invitar a mi trayecto",
                         onCoordinate,
                         Modifier.fillMaxWidth(),
+                    )
+                }
+                item {
+                    RutaUSecondaryButton(
+                        text = "Volver a resultados",
+                        onClick = onBack,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -220,20 +348,48 @@ fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: () -> Unit, viewMode
 @Composable
 fun ConfirmCoordinationRoute(onBack: () -> Unit, onConfirmed: (String) -> Unit, viewModel: ConfirmCoordinationViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    ConfirmCoordinationScreen(
+        state = state,
+        onMessageChange = viewModel::setMessage,
+        onContributionChange = viewModel::setContribution,
+        onConfirm = { viewModel.confirm(onConfirmed) },
+        onBack = onBack,
+    )
+}
+
+@Composable
+fun ConfirmCoordinationScreen(
+    state: ConfirmCoordinationUiState,
+    onMessageChange: (String) -> Unit,
+    onContributionChange: (Int) -> Unit,
+    onConfirm: () -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     RutaUScreenContainer(
+        modifier = modifier,
         topBar = {
             RutaUTopAppBar("Confirmar coordinación", navigationIcon = Icons.AutoMirrored.Filled.ArrowBack, navigationIconContentDescription = "Volver", onNavigationClick = onBack)
         },
     ) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.Center,
+            Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             ConfirmCoordinationSheet(
                 state,
-                viewModel::setMessage,
-                viewModel::setContribution,
-                onConfirm = { viewModel.confirm(onConfirmed) },
+                onMessageChange,
+                onContributionChange,
+                onConfirm,
+            )
+            RutaUSecondaryButton(
+                text = "Cancelar",
+                onClick = onBack,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }

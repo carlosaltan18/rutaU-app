@@ -3,6 +3,7 @@ package uvg.edu.rutau.app
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -21,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
+/** Comprueba que las pantallas principales se conecten correctamente. */
 @RunWith(AndroidJUnit4::class)
 class RutaUAppNavigationTest {
     @get:Rule
@@ -79,6 +81,29 @@ class RutaUAppNavigationTest {
     }
 
     @Test
+    fun resettingThePasswordReturnsToLogin() {
+        composeRule.onNodeWithTag("LoginForgotPasswordButton").performClick()
+        composeRule.onNodeWithTag("RecoveryEmailInput").performTextInput("mateo@ejemplo.com")
+        composeRule.onNodeWithTag("RecoverySubmitButton").performClick()
+        composeRule.onNodeWithTag("RecoveryOpenDemoLinkButton").performClick()
+
+        composeRule.onNodeWithTag("ResetPasswordInput").performTextInput("NuevaRutaU123")
+        composeRule.onNodeWithTag("ResetConfirmPasswordInput").performTextInput("NuevaRutaU123")
+        composeRule.onNodeWithTag("ResetSubmitButton").performClick()
+
+        assertScreenVisible("Bienvenido a RutaU")
+    }
+
+    @Test
+    fun backFromTripsDoesNotReturnToLogin() {
+        loginWithDefaultAccount()
+
+        composeRule.runOnIdle {
+            assertFalse(appState.navController.popBackStack())
+        }
+    }
+
+    @Test
     fun logoutClearsNavigationHistory() {
         loginWithDefaultAccount()
         openAccount()
@@ -119,6 +144,68 @@ class RutaUAppNavigationTest {
         composeRule.runOnIdle {
             assertEquals("Mateo Actualizado", RutaUAppDependencies.currentUserForTesting()?.fullName)
         }
+    }
+
+    @Test
+    fun requestsKeepTheSelectedTabAfterReturningFromDetail() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+
+        composeRule.onNodeWithTag("RequestsTab-SENT").performClick()
+        composeRule.onNodeWithTag("RequestCard-request-pending").performClick()
+        assertScreenVisible("Detalle de solicitud")
+
+        composeRule.onNodeWithText("Volver a solicitudes").performClick()
+        composeRule.onNodeWithTag("RequestsTab-SENT").assertIsSelected()
+    }
+
+    @Test
+    fun bottomNavigationKeepsTheRequestsTabAndFilter() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+
+        composeRule.onNodeWithTag("RequestsTab-SENT").performClick()
+        composeRule.onNodeWithTag("RequestsFilter-PENDING").performClick()
+        composeRule.onNodeWithTag("BottomNavigation-TRIPS").performClick()
+        assertScreenVisible("Mis trayectos")
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+
+        composeRule.onNodeWithTag("RequestsTab-SENT").assertIsSelected()
+        composeRule.onNodeWithTag("RequestsFilter-PENDING").assertIsSelected()
+    }
+
+    @Test
+    fun acceptingReceivedRequestOpensTheCoordinatedRide() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+        composeRule.onNodeWithTag("RequestCard-request-received-join").performClick()
+        assertScreenVisible("Detalle de solicitud")
+
+        composeRule.onNodeWithText("Aceptar solicitud").performClick()
+        composeRule.onNodeWithTag("ConfirmationDialogConfirmButton").performClick()
+
+        assertScreenVisible("Viaje coordinado")
+        assertScreenVisible("Pasajeros confirmados")
+    }
+
+    @Test
+    fun contactIsHiddenUntilARequestIsAccepted() {
+        loginWithDefaultAccount()
+        composeRule.onNodeWithTag("BottomNavigation-REQUESTS").performClick()
+        composeRule.onNodeWithTag("RequestCard-request-received-join").performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                0,
+                composeRule.onAllNodesWithText("+502 5551-2004", substring = true)
+                    .fetchSemanticsNodes()
+                    .size,
+            )
+        }
+        composeRule.onNodeWithText("Aceptar solicitud").performClick()
+        composeRule.onNodeWithTag("ConfirmationDialogConfirmButton").performClick()
+
+        assertScreenVisible("Teléfono y WhatsApp: +502 5551-2004")
     }
 
     private fun loginWithDefaultAccount() {

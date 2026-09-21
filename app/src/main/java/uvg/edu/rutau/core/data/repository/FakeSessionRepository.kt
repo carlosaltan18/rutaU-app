@@ -4,8 +4,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.model.SignUpInput
+import uvg.edu.rutau.core.model.PasswordRules
 import uvg.edu.rutau.core.model.UserAccount
 
+/** Maneja la sesión de ejemplo mientras la aplicación está abierta. */
 class FakeSessionRepository(
     private val store: MockRutaUStore,
 ) : SessionRepository {
@@ -20,7 +22,7 @@ class FakeSessionRepository(
     }
 
     override suspend fun register(input: SignUpInput): Boolean {
-        if (input.email.isBlank() || input.password.isBlank()) return false
+        if (input.email.isBlank() || PasswordRules.validationError(input.password) != null) return false
         val account = UserAccount(
             id = "user-${input.email.trim().lowercase().hashCode()}",
             fullName = input.fullName.trim(),
@@ -38,6 +40,7 @@ class FakeSessionRepository(
     override suspend fun requestPasswordRecovery(email: String) = Unit
 
     override suspend fun resetPassword(newPassword: String) {
+        if (PasswordRules.validationError(newPassword) != null) return
         store.updatePassword(newPassword)
         mutableSessionState.value = SessionState.SignedOut
     }

@@ -13,16 +13,19 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
 
+/** Guarda el correo usado para recuperar la contraseña. */
 data class PasswordRecoveryUiState(
     val email: String = "",
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
 )
 
+/** Indica los resultados posibles al pedir recuperación de contraseña. */
 sealed interface PasswordRecoveryEvent {
     data object InstructionsSent : PasswordRecoveryEvent
 }
 
+/** Maneja la recuperación de contraseña. */
 class PasswordRecoveryViewModel(
     private val sessionRepository: SessionRepository,
 ) : ViewModel() {

@@ -24,7 +24,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Confirmation view shown after a password recovery request. */
+/** Muestra la confirmación después de pedir recuperar el acceso. */
 @Composable
 fun EmailSentScreen(
     onResend: () -> Unit,

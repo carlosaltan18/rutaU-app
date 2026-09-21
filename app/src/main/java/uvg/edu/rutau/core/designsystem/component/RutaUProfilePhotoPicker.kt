@@ -23,7 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
-/** Lets the user select an optional profile image through the system photo picker. */
+/** Permite elegir una foto opcional para el perfil. */
 @Composable
 fun RutaUProfilePhotoPicker(
     fullName: String,

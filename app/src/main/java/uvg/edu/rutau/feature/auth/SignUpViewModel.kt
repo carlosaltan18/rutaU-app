@@ -12,8 +12,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
+import uvg.edu.rutau.core.model.PasswordRules
 import uvg.edu.rutau.core.model.SignUpInput
 
+/** Guarda lo que se muestra al crear una cuenta. */
 data class SignUpUiState(
     val fullName: String = "",
     val university: String = "",
@@ -27,10 +29,12 @@ data class SignUpUiState(
     val errorMessage: String? = null,
 )
 
+/** Indica los resultados posibles al crear una cuenta. */
 sealed interface SignUpEvent {
     data object AccountCreated : SignUpEvent
 }
 
+/** Maneja la creación de cuentas nuevas. */
 class SignUpViewModel(
     private val sessionRepository: SessionRepository,
 ) : ViewModel() {
@@ -53,11 +57,12 @@ class SignUpViewModel(
 
     fun createAccount() {
         val state = uiState.value
+        val passwordError = PasswordRules.validationError(state.password)
         val validationError = when {
             state.fullName.isBlank() || state.university.isBlank() || state.campus.isBlank() ->
                 "Completa tus datos personales y académicos."
             state.email.isBlank() || !state.email.contains('@') -> "Ingresa un correo válido."
-            state.password.length < 8 -> "La contraseña debe tener al menos 8 caracteres."
+            passwordError != null -> passwordError
             state.password != state.confirmPassword -> "Las contraseñas no coinciden."
             !state.termsAccepted -> "Debes aceptar los términos y condiciones."
             else -> null

@@ -3,7 +3,7 @@ package uvg.edu.rutau.ui.theme
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-/** Colores de estado que Material 3 no representa como roles de color propios. */
+/** Guarda los colores usados para mostrar estados. */
 data class RutaUSemanticColors(
     val success: Color,
     val successContainer: Color,

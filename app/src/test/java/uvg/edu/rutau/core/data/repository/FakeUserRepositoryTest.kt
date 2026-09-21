@@ -10,6 +10,7 @@ import uvg.edu.rutau.core.model.UpdateEmailInput
 import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
 
+/** Comprueba los cambios que se pueden hacer en una cuenta. */
 class FakeUserRepositoryTest {
     @Test
     fun `profile updates are reflected in the shared store`() = runBlocking {
@@ -57,5 +58,34 @@ class FakeUserRepositoryTest {
 
         assertTrue(didUpdate)
         assertTrue(store.passwordMatches("NuevaRutaU123"))
+    }
+
+    @Test
+    fun `password and email updates reject invalid new values`() = runBlocking {
+        val store = MockRutaUStore()
+        val repository = FakeUserRepository(store)
+
+        val passwordUpdated = repository.updatePassword(
+            UpdatePasswordInput("RutaU123", "solo1234"),
+        )
+        val emailUpdated = repository.updateEmail(
+            UpdateEmailInput("correo-invalido", "RutaU123"),
+        )
+
+        assertFalse(passwordUpdated)
+        assertFalse(emailUpdated)
+        assertTrue(store.passwordMatches("RutaU123"))
+    }
+
+    @Test
+    fun `deleting the account also clears coordinated rides`() = runBlocking {
+        val store = MockRutaUStore()
+        val repository = FakeUserRepository(store)
+
+        repository.deleteAccount()
+
+        assertTrue(store.coordinations.value.isEmpty())
+        assertTrue(store.requests.value.isEmpty())
+        assertTrue(store.trips.value.isEmpty())
     }
 }

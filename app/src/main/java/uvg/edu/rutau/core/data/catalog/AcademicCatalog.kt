@@ -1,6 +1,6 @@
 package uvg.edu.rutau.core.data.catalog
 
-/** Academic institutions and campuses available during the frontend MVP. */
+/** Reúne las universidades y campus disponibles en los formularios. */
 object AcademicCatalog {
     private val campusesByUniversity = linkedMapOf(
         "Universidad de San Carlos de Guatemala" to listOf(

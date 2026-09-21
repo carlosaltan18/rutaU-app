@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
@@ -22,9 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.LocalTime
+import java.time.Duration
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import uvg.edu.rutau.core.designsystem.component.RutaUDropdownField
+import uvg.edu.rutau.core.designsystem.component.RutaUAvatar
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
@@ -43,6 +47,7 @@ fun TripCard(
     trip: Trip,
     onEdit: () -> Unit,
     onMatches: () -> Unit,
+    onDeactivate: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -60,6 +65,9 @@ fun TripCard(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 RutaUPrimaryButton("Ver compatibles", onMatches, Modifier.weight(1f), enabled = trip.active)
                 RutaUOutlinedButton("Editar", onEdit)
+            }
+            if (trip.active) {
+                RutaUSecondaryButton("Desactivar", onDeactivate, Modifier.fillMaxWidth())
             }
             RutaUSecondaryButton("Eliminar", onRemove, Modifier.fillMaxWidth())
         }
@@ -154,11 +162,29 @@ fun TimeSelector(selected: LocalTime, onSelected: (LocalTime) -> Unit) {
 @Composable
 fun MatchCard(match: TripMatch, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     Card(onClick = onOpen, modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(match.student.fullName, style = MaterialTheme.typography.titleMedium)
-            Text(match.trip.role.asUiRole())
-            Text(match.trip.departureTime.asUiTime())
-            Text(if (match.timeDifferenceMinutes == 0) "Misma hora" else "${match.timeDifferenceMinutes} minutos de diferencia")
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            RutaUAvatar(
+                fullName = match.student.fullName,
+                photoUrl = match.student.photoUrl,
+                size = 48.dp,
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(match.student.fullName, style = MaterialTheme.typography.titleMedium)
+                Text("${match.student.university} · ${match.student.campus}")
+                Text(match.trip.role.asUiRole())
+                Text(match.trip.departureTime.asUiTime())
+                Text(
+                    if (match.timeDifferenceMinutes == 0) "Misma hora" else {
+                        "${match.timeDifferenceMinutes} minutos de diferencia"
+                    },
+                )
+                Text(
+                    "✓ Misma zona · ✓ Mismo campus · ✓ Mismo día",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                RutaUOutlinedButton("Ver perfil", onOpen, Modifier.fillMaxWidth())
+            }
             if (match.trip.role == TripRole.DRIVER) Text("${match.trip.availableSeats} plazas disponibles")
         }
     }
@@ -180,6 +206,7 @@ fun CompatibilityRuleItem(text: String) {
 @Composable
 fun CandidateProfileHeader(student: Student, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RutaUAvatar(student.fullName, student.photoUrl, size = 80.dp)
         Text(student.fullName, style = MaterialTheme.typography.titleLarge)
         Text("${student.university} · ${student.campus}", style = MaterialTheme.typography.bodyMedium)
     }
@@ -187,6 +214,32 @@ fun CandidateProfileHeader(student: Student, modifier: Modifier = Modifier) {
 
 @Composable
 fun CandidateTripCard(trip: Trip, modifier: Modifier = Modifier) = TripSummaryCard(trip, modifier)
+
+@Composable
+fun CompatibilityReasonsCard(
+    sourceTrip: Trip,
+    candidateTrip: Trip,
+    modifier: Modifier = Modifier,
+) {
+    val difference = kotlin.math.abs(
+        Duration.between(sourceTrip.departureTime, candidateTrip.departureTime).toMinutes(),
+    )
+    RutaUInfoCard(
+        title = "Compatibilidad comprobada",
+        message = buildString {
+            append("✓ Misma zona de origen\n")
+            append("✓ Mismo campus de destino\n")
+            append("✓ Mismo día\n")
+            append("✓ ${if (difference == 0L) "Misma hora" else "$difference minutos de diferencia"}\n")
+            append("✓ Roles complementarios")
+            if (candidateTrip.role == TripRole.DRIVER) {
+                append("\n✓ ${candidateTrip.availableSeats} plazas disponibles")
+            }
+        },
+        modifier = modifier,
+        icon = Icons.Default.CheckCircle,
+    )
+}
 
 @Composable
 fun ContributionEditor(value: Int, onValueChange: (Int) -> Unit, modifier: Modifier = Modifier) {
@@ -206,6 +259,22 @@ fun PrivacyNoticeCard(modifier: Modifier = Modifier) {
 }
 
 @Composable
+fun CompatibilityInfoSheet(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Cómo calculamos la compatibilidad", style = MaterialTheme.typography.titleLarge)
+        Text("Comparamos trayectos universitarios registrados sin usar mapas, tráfico ni ubicación en tiempo real.")
+        CompatibilityRuleItem("Misma zona de origen")
+        CompatibilityRuleItem("Mismo campus de destino")
+        CompatibilityRuleItem("Mismo día")
+        CompatibilityRuleItem("Máximo 30 minutos de diferencia")
+        CompatibilityRuleItem("Roles complementarios")
+        CompatibilityRuleItem("Conductor con plazas disponibles")
+        Spacer(Modifier.height(4.dp))
+        RutaUPrimaryButton("Entendido", onDismiss, Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
 fun ConfirmCoordinationSheet(
     state: ConfirmCoordinationUiState,
     onMessageChange: (String) -> Unit,
@@ -217,9 +286,34 @@ fun ConfirmCoordinationSheet(
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(if (state.sourceTrip?.role == TripRole.PASSENGER) "Confirmar solicitud" else "Confirmar invitación", style = MaterialTheme.typography.titleLarge)
             state.student?.let { Text("Coordinar con ${it.fullName}") }
+            state.sourceTrip?.let { source ->
+                Text("${source.originZone} → ${source.destinationCampus}", style = MaterialTheme.typography.titleSmall)
+                Text("${source.dayOfWeek} · ${source.departureTime.asUiTime()}")
+            }
+            state.candidateTrip?.let { candidate ->
+                val difference = state.sourceTrip?.let { source ->
+                    kotlin.math.abs(Duration.between(source.departureTime, candidate.departureTime).toMinutes())
+                }
+                if (difference != null) {
+                    Text(
+                        if (difference == 0L) "Misma hora" else "$difference minutos de diferencia",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            listOfNotNull(state.sourceTrip, state.candidateTrip)
+                .firstOrNull { it.role == TripRole.DRIVER }
+                ?.let { driver -> SeatAvailabilityIndicator(driver) }
             HorizontalDivider()
             ContributionEditor(state.contributionQuetzales, onContributionChange)
-            OutlinedTextField(state.message, onMessageChange, Modifier.fillMaxWidth(), label = { Text("Mensaje opcional") }, minLines = 3)
+            OutlinedTextField(
+                value = state.message,
+                onValueChange = { onMessageChange(it.take(MaxOptionalMessageLength)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Mensaje opcional") },
+                supportingText = { Text("${state.message.length}/$MaxOptionalMessageLength") },
+                minLines = 3,
+            )
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             RutaUPrimaryButton(
                 if (state.sourceTrip?.role == TripRole.PASSENGER) "Enviar solicitud" else "Enviar invitación",
@@ -231,3 +325,5 @@ fun ConfirmCoordinationSheet(
         }
     }
 }
+
+private const val MaxOptionalMessageLength = 160
