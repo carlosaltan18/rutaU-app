@@ -32,12 +32,25 @@ class FakeTripRepository(
 
     override suspend fun updateTrip(tripId: String, input: TripInput) {
         validate(input)
+        val existingTrip = store.trips.value.firstOrNull { it.id == tripId }
+            ?: error("Trip does not exist.")
+        require(existingTrip.ownerId == store.currentUser.value?.id) {
+            "Only the trip owner can update it."
+        }
+        if (existingTrip.occupiedSeats > 0) {
+            require(input.role == TripRole.DRIVER) {
+                "No puedes cambiar a pasajero un trayecto con pasajeros confirmados."
+            }
+            require(input.offeredSeats >= existingTrip.occupiedSeats) {
+                "No puedes reducir las plazas por debajo de los pasajeros confirmados."
+            }
+        }
         store.trips.value = store.trips.value.map { existing ->
             if (existing.id == tripId) {
                 input.toTrip(
                     id = existing.id,
                     ownerId = existing.ownerId,
-                    occupiedSeats = existing.occupiedSeats.coerceAtMost(input.offeredSeats),
+                    occupiedSeats = existing.occupiedSeats,
                     active = existing.active,
                 )
             } else {
@@ -47,10 +60,19 @@ class FakeTripRepository(
     }
 
     override suspend fun deleteTrip(tripId: String) {
+        val trip = store.trips.value.firstOrNull { it.id == tripId } ?: return
+        require(trip.ownerId == store.currentUser.value?.id) {
+            "Only the trip owner can delete it."
+        }
         store.trips.value = store.trips.value.filterNot { it.id == tripId }
     }
 
     override suspend fun deactivateTrip(tripId: String) {
+        val trip = store.trips.value.firstOrNull { it.id == tripId }
+            ?: error("Trip does not exist.")
+        require(trip.ownerId == store.currentUser.value?.id) {
+            "Only the trip owner can deactivate it."
+        }
         store.trips.value = store.trips.value.map { trip ->
             if (trip.id == tripId) trip.copy(active = false) else trip
         }

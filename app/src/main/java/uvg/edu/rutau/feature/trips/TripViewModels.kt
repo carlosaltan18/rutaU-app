@@ -99,9 +99,23 @@ class TripEditorViewModel(
                     repository.updateTrip(tripId, input)
                     tripId
                 }
-            }.onSuccess(onSaved).onFailure {
-                uiState.value = state.copy(error = "No fue posible guardar el trayecto.")
+            }.onSuccess(onSaved).onFailure { error ->
+                uiState.value = state.copy(
+                    isSaving = false,
+                    error = error.message ?: "No fue posible guardar el trayecto.",
+                )
             }
+        }
+    }
+
+    fun delete(onDeleted: () -> Unit) {
+        val id = tripId ?: return
+        viewModelScope.launch {
+            runCatching { repository.deleteTrip(id) }
+                .onSuccess { onDeleted() }
+                .onFailure { error ->
+                    update { copy(error = error.message ?: "No fue posible eliminar el trayecto.") }
+                }
         }
     }
 
