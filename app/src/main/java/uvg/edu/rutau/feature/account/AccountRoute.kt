@@ -12,12 +12,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.collectLatest
 import uvg.edu.rutau.app.RutaUAppDependencies
+import uvg.edu.rutau.core.navigation.LegalDocumentType
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
 /** Conecta la pantalla de cuenta con sus datos y acciones. */
 @Composable
 fun AccountRoute(
     onSignedOut: () -> Unit,
+    onOpenLegalDocument: (LegalDocumentType) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: AccountViewModel = viewModel(
         factory = AccountViewModel.factory(
@@ -40,6 +42,7 @@ fun AccountRoute(
         AccountScreen(
             state = state,
             onAction = viewModel::onAction,
+            onOpenLegalDocument = onOpenLegalDocument,
             modifier = modifier,
         )
     }
@@ -51,6 +54,7 @@ private fun AccountRoutePreview() {
     RutaUTheme {
         AccountRoute(
             onSignedOut = {},
+            onOpenLegalDocument = {},
             viewModel = AccountViewModel(
                 userRepository = RutaUAppDependencies.userRepository,
                 sessionRepository = RutaUAppDependencies.sessionRepository,

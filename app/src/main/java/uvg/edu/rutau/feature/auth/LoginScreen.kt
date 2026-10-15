@@ -36,9 +36,12 @@ fun LoginScreen(
     onLogin: () -> Unit,
     onForgotPassword: () -> Unit,
     onSignUp: () -> Unit,
+    onOpenTerms: () -> Unit,
+    onOpenPrivacy: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
-    errorMessage: String? = null,
+    emailError: String? = null,
+    passwordError: String? = null,
 ) {
     RutaUScreenContainer(modifier = modifier) { innerPadding ->
         Column(
@@ -74,7 +77,8 @@ fun LoginScreen(
                 onValueChange = onEmailChange,
                 label = "Correo electrónico",
                 modifier = Modifier.fillMaxWidth().testTag("LoginEmailInput"),
-                isError = errorMessage != null,
+                supportingText = emailError,
+                isError = emailError != null,
             )
             Spacer(Modifier.height(RutaUSpacing.Medium))
             RutaUPasswordField(
@@ -82,8 +86,8 @@ fun LoginScreen(
                 onValueChange = onPasswordChange,
                 label = "Contraseña",
                 modifier = Modifier.fillMaxWidth().testTag("LoginPasswordInput"),
-                supportingText = errorMessage,
-                isError = errorMessage != null,
+                supportingText = passwordError,
+                isError = passwordError != null,
             )
             Spacer(Modifier.height(RutaUSpacing.Small))
             androidx.compose.material3.TextButton(
@@ -110,12 +114,26 @@ fun LoginScreen(
                 modifier = Modifier.fillMaxWidth().testTag("LoginSignUpButton"),
             )
             Spacer(Modifier.height(RutaUSpacing.XLarge))
-            Text(
-                text = "Al continuar, aceptas nuestros Términos y condiciones y Política de privacidad.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "Al continuar, aceptas nuestros documentos legales.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+                androidx.compose.foundation.layout.Row(
+                    horizontalArrangement = Arrangement.spacedBy(RutaUSpacing.XSmall),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.TextButton(onClick = onOpenTerms) {
+                        Text("Términos y condiciones")
+                    }
+                    Text("y", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    androidx.compose.material3.TextButton(onClick = onOpenPrivacy) {
+                        Text("Política de privacidad")
+                    }
+                }
+            }
         }
     }
 }
@@ -132,6 +150,8 @@ private fun LoginScreenPreview() {
             onLogin = {},
             onForgotPassword = {},
             onSignUp = {},
+            onOpenTerms = {},
+            onOpenPrivacy = {},
         )
     }
 }

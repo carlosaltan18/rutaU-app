@@ -25,6 +25,17 @@ data object EmailSentRoute : AppDestination
 @Serializable
 data object ResetPasswordRoute : AppDestination
 
+/** Distingue los documentos legales que pueden consultarse desde cualquier pantalla. */
+@Serializable
+enum class LegalDocumentType {
+    TERMS,
+    PRIVACY,
+}
+
+/** Lleva a un documento legal de RutaU. */
+@Serializable
+data class LegalDocumentRoute(val document: LegalDocumentType) : AppDestination
+
 /** Lleva a la lista de trayectos. */
 @Serializable
 data object TripsRoute : AppDestination

@@ -8,6 +8,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.collectLatest
 import uvg.edu.rutau.app.RutaUAppDependencies
+import uvg.edu.rutau.core.navigation.LegalDocumentType
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
 /** Conecta el inicio de sesión con sus datos y acciones. */
@@ -16,6 +17,7 @@ fun LoginRoute(
     onLoginSuccess: () -> Unit,
     onNavigateToSignUp: () -> Unit,
     onNavigateToRecovery: () -> Unit,
+    onOpenLegalDocument: (LegalDocumentType) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = viewModel(
         factory = LoginViewModel.factory(RutaUAppDependencies.sessionRepository),
@@ -35,9 +37,12 @@ fun LoginRoute(
         onLogin = viewModel::login,
         onForgotPassword = onNavigateToRecovery,
         onSignUp = onNavigateToSignUp,
+        onOpenTerms = { onOpenLegalDocument(LegalDocumentType.TERMS) },
+        onOpenPrivacy = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
         modifier = modifier,
         isLoading = state.isLoading,
-        errorMessage = state.errorMessage,
+        emailError = state.emailError,
+        passwordError = state.passwordError,
     )
 }
 
@@ -46,6 +51,7 @@ fun LoginRoute(
 fun SignUpRoute(
     onAccountCreated: () -> Unit,
     onBack: () -> Unit,
+    onOpenLegalDocument: (LegalDocumentType) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SignUpViewModel = viewModel(
         factory = SignUpViewModel.factory(RutaUAppDependencies.sessionRepository),
@@ -76,9 +82,17 @@ fun SignUpRoute(
         onTermsAcceptedChange = viewModel::onTermsAcceptedChange,
         onCreateAccount = viewModel::createAccount,
         onBack = onBack,
+        onOpenTerms = { onOpenLegalDocument(LegalDocumentType.TERMS) },
+        onOpenPrivacy = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
         modifier = modifier,
         isLoading = state.isLoading,
-        errorMessage = state.errorMessage,
+        fullNameError = state.fullNameError,
+        universityError = state.universityError,
+        campusError = state.campusError,
+        emailError = state.emailError,
+        passwordError = state.passwordError,
+        confirmPasswordError = state.confirmPasswordError,
+        termsError = state.termsError,
     )
 }
 
@@ -158,7 +172,12 @@ fun ResetPasswordRoute(
 @Composable
 private fun LoginRoutePreview() {
     RutaUTheme {
-        LoginRoute(onLoginSuccess = {}, onNavigateToSignUp = {}, onNavigateToRecovery = {})
+        LoginRoute(
+            onLoginSuccess = {},
+            onNavigateToSignUp = {},
+            onNavigateToRecovery = {},
+            onOpenLegalDocument = {},
+        )
     }
 }
 
@@ -166,7 +185,7 @@ private fun LoginRoutePreview() {
 @Composable
 private fun SignUpRoutePreview() {
     RutaUTheme {
-        SignUpRoute(onAccountCreated = {}, onBack = {})
+        SignUpRoute(onAccountCreated = {}, onBack = {}, onOpenLegalDocument = {})
     }
 }
 

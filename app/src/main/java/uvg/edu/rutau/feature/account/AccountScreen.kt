@@ -32,6 +32,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.model.UserAccount
+import uvg.edu.rutau.core.navigation.LegalDocumentType
 import uvg.edu.rutau.ui.theme.RutaUSpacing
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
@@ -106,6 +107,7 @@ sealed interface AccountAction {
 fun AccountScreen(
     state: AccountUiState,
     onAction: (AccountAction) -> Unit,
+    onOpenLegalDocument: (LegalDocumentType) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     RutaUScreenContainer(
@@ -207,11 +209,11 @@ fun AccountScreen(
             RutaUSectionTitle("Información y legal")
             LegalDocumentButton(
                 text = LegalDocument.TERMS.title,
-                onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.TERMS)) },
+                onClick = { onOpenLegalDocument(LegalDocumentType.TERMS) },
             )
             LegalDocumentButton(
                 text = LegalDocument.PRIVACY.title,
-                onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.PRIVACY)) },
+                onClick = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
             )
             LegalDocumentButton(
                 text = LegalDocument.ABOUT.title,
@@ -307,6 +309,7 @@ private fun AccountScreenPreview() {
         AccountScreen(
             state = AccountUiState(user = MockSeed.currentUser),
             onAction = {},
+            onOpenLegalDocument = {},
         )
     }
 }
