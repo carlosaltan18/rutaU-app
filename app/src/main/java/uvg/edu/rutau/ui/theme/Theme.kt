@@ -1,58 +1,79 @@
 package uvg.edu.rutau.ui.theme
 
-import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.CompositionLocalProvider
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = RutaUPrimaryContainer,
+    onPrimary = RutaUOnPrimaryContainer,
+    primaryContainer = RutaUPrimary,
+    onPrimaryContainer = RutaUOnPrimary,
+    secondary = RutaUSecondaryContainer,
+    onSecondary = RutaUOnSecondaryContainer,
+    tertiary = RutaUTertiaryContainer,
+    onTertiary = RutaUOnTertiaryContainer,
+    background = RutaUDarkBackground,
+    onBackground = RutaUDarkOnSurface,
+    surface = RutaUDarkSurface,
+    onSurface = RutaUDarkOnSurface,
+    onSurfaceVariant = RutaUSecondaryContainer,
+    outline = RutaUOutline,
+    error = RutaUError,
+    onError = RutaUOnError,
+    errorContainer = RutaUErrorContainer,
+    onErrorContainer = RutaUOnErrorContainer,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = RutaUPrimary,
+    onPrimary = RutaUOnPrimary,
+    primaryContainer = RutaUPrimaryContainer,
+    onPrimaryContainer = RutaUOnPrimaryContainer,
+    secondary = RutaUSecondary,
+    onSecondary = RutaUOnSecondary,
+    secondaryContainer = RutaUSecondaryContainer,
+    onSecondaryContainer = RutaUOnSecondaryContainer,
+    tertiary = RutaUTertiary,
+    onTertiary = RutaUOnTertiary,
+    tertiaryContainer = RutaUTertiaryContainer,
+    onTertiaryContainer = RutaUOnTertiaryContainer,
+    background = RutaUBackground,
+    onBackground = RutaUOnSurface,
+    surface = RutaUSurface,
+    onSurface = RutaUOnSurface,
+    onSurfaceVariant = RutaUOnSurfaceVariant,
+    outline = RutaUOutline,
+    error = RutaUError,
+    onError = RutaUOnError,
+    errorContainer = RutaUErrorContainer,
+    onErrorContainer = RutaUOnErrorContainer,
 )
 
 @Composable
 fun RutaUTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    CompositionLocalProvider(
+        LocalRutaUSemanticColors provides RutaUSemanticColors(
+            success = RutaUSuccess,
+            successContainer = RutaUSuccessContainer,
+            onSuccessContainer = RutaUOnSuccessContainer,
+            warning = RutaUWarning,
+            warningContainer = RutaUWarningContainer,
+            onWarningContainer = RutaUOnWarningContainer,
+        ),
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = RutaUShapes,
+            content = content,
+        )
     }
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
 }
