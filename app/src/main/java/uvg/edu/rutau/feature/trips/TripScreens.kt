@@ -16,7 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -73,13 +73,13 @@ fun TripsScreen(
     var pendingRemoval by remember { mutableStateOf<Trip?>(null) }
     RutaUScreenContainer(
         modifier = modifier,
-        topBar = { RutaUTopAppBar("Mis trayectos") },
-        bottomBar = {
-            Column(Modifier.padding(16.dp)) {
-                FloatingActionButton(onClick = onCreateTrip, modifier = Modifier.align(Alignment.End)) {
-                    Icon(Icons.Default.Add, "Crear trayecto")
-                }
-            }
+        topBar = { RutaUTopAppBar("Trayectos base") },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = onCreateTrip,
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text("Nuevo trayecto base") },
+            )
         },
     ) { padding ->
         if (state.trips.isEmpty()) {
@@ -88,17 +88,27 @@ fun TripsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Text("Aún no tienes trayectos", style = MaterialTheme.typography.titleLarge)
+                Text("Aún no tienes trayectos base", style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.size(8.dp))
-                Text("Publica tu horario habitual para encontrar estudiantes compatibles.")
+                Text("Registra tu ruta habitual para encontrar estudiantes compatibles.")
             }
         } else {
             LazyColumn(
                 Modifier.fillMaxSize().padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                    start = 16.dp,
+                    top = 12.dp,
+                    end = 16.dp,
+                    bottom = 96.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item { Text("Publica como pasajero o conductor. Cada trayecto mantiene un único rol.") }
+                item {
+                    RutaUInfoCard(
+                        title = "Trayectos base",
+                        message = "Son tus rutas habituales. Úsalas para buscar compatibilidades; no son viajes confirmados.",
+                    )
+                }
                 state.error?.let { message ->
                     item { Text(message, color = MaterialTheme.colorScheme.error) }
                 }
@@ -111,7 +121,6 @@ fun TripsScreen(
                         onRemove = { pendingRemoval = trip },
                     )
                 }
-                item { Spacer(Modifier.size(64.dp)) }
             }
         }
     }

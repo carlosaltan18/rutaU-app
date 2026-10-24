@@ -2,6 +2,7 @@ package uvg.edu.rutau.feature.account
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,6 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -120,124 +124,134 @@ fun AccountScreen(
                 .padding(innerPadding)
                 .padding(horizontal = RutaUSpacing.ScreenHorizontal)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(RutaUSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(RutaUSpacing.Small),
         ) {
-            Spacer(Modifier.height(RutaUSpacing.Small))
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                RutaUProfilePhotoPicker(
-                    fullName = state.fullName,
-                    photoUrl = state.user.photoUrl,
-                    onPhotoSelected = { onAction(AccountAction.PhotoChanged(it)) },
-                )
-                Spacer(Modifier.height(RutaUSpacing.Small))
-                Text(state.user.fullName, style = MaterialTheme.typography.titleLarge)
+            Text("Mi perfil", style = MaterialTheme.typography.headlineSmall)
+            Text(
+                text = "Actualiza tus datos personales y de acceso por separado.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            state.message?.let { message ->
                 Text(
-                    text = "${state.user.university} · ${state.user.campus}",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = message,
+                    color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
 
             RutaUSectionTitle("Datos personales")
-            RutaUTextField(
-                state.fullName,
-                { onAction(AccountAction.FullNameChanged(it)) },
-                "Nombre completo",
-                Modifier.fillMaxWidth().testTag("AccountFullNameInput"),
-            )
-            RutaUTextField(state.university, { onAction(AccountAction.UniversityChanged(it)) }, "Universidad", Modifier.fillMaxWidth())
-            RutaUTextField(state.campus, { onAction(AccountAction.CampusChanged(it)) }, "Campus habitual", Modifier.fillMaxWidth())
-            RutaULoadingButton(
-                text = "Guardar datos",
-                onClick = { onAction(AccountAction.SaveProfile) },
-                isLoading = state.isSaving,
-                modifier = Modifier.fillMaxWidth().testTag("AccountSaveProfileButton"),
-            )
+            AccountSectionCard {
+                RutaUProfilePhotoPicker(
+                    fullName = state.fullName,
+                    photoUrl = state.user.photoUrl,
+                    onPhotoSelected = { onAction(AccountAction.PhotoChanged(it)) },
+                )
+                RutaUTextField(
+                    state.fullName,
+                    { onAction(AccountAction.FullNameChanged(it)) },
+                    "Nombre completo",
+                    Modifier.fillMaxWidth().testTag("AccountFullNameInput"),
+                )
+                RutaUTextField(state.university, { onAction(AccountAction.UniversityChanged(it)) }, "Universidad", Modifier.fillMaxWidth())
+                RutaUTextField(state.campus, { onAction(AccountAction.CampusChanged(it)) }, "Campus habitual", Modifier.fillMaxWidth())
+                RutaULoadingButton(
+                    text = "Guardar datos personales",
+                    onClick = { onAction(AccountAction.SaveProfile) },
+                    isLoading = state.isSaving,
+                    modifier = Modifier.fillMaxWidth().testTag("AccountSaveProfileButton"),
+                )
+            }
 
-            RutaUSectionTitle("Correo electrónico")
-            RutaUTextField(state.email, { onAction(AccountAction.EmailChanged(it)) }, "Nuevo correo", Modifier.fillMaxWidth())
-            RutaUPasswordField(
-                state.currentEmailPassword,
-                { onAction(AccountAction.CurrentEmailPasswordChanged(it)) },
-                "Contraseña actual para confirmar",
-                Modifier.fillMaxWidth(),
-            )
-            RutaUOutlinedButton(
-                text = "Actualizar correo",
-                onClick = { onAction(AccountAction.UpdateEmail) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-
-            RutaUSectionTitle("Seguridad y contraseña")
-            RutaUPasswordField(state.currentPassword, { onAction(AccountAction.CurrentPasswordChanged(it)) }, "Contraseña actual", Modifier.fillMaxWidth())
-            RutaUPasswordField(state.newPassword, { onAction(AccountAction.NewPasswordChanged(it)) }, "Nueva contraseña", Modifier.fillMaxWidth())
-            RutaUPasswordField(state.confirmPassword, { onAction(AccountAction.ConfirmPasswordChanged(it)) }, "Confirmar nueva contraseña", Modifier.fillMaxWidth())
-            Text(
-                text = "Usa al menos 8 caracteres, una mayúscula y un número.",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodySmall,
-            )
-            RutaUOutlinedButton(
-                text = "Actualizar contraseña",
-                onClick = { onAction(AccountAction.UpdatePassword) },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            RutaUSectionTitle("Credenciales")
+            AccountSectionCard {
+                Text("Correo electrónico", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "Requiere tu contraseña actual para confirmar el cambio.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                RutaUTextField(state.email, { onAction(AccountAction.EmailChanged(it)) }, "Nuevo correo", Modifier.fillMaxWidth())
+                RutaUPasswordField(
+                    state.currentEmailPassword,
+                    { onAction(AccountAction.CurrentEmailPasswordChanged(it)) },
+                    "Contraseña actual",
+                    Modifier.fillMaxWidth(),
+                )
+                RutaUOutlinedButton(
+                    text = "Actualizar correo",
+                    onClick = { onAction(AccountAction.UpdateEmail) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                HorizontalDivider()
+                Text("Contraseña", style = MaterialTheme.typography.titleSmall)
+                RutaUPasswordField(state.currentPassword, { onAction(AccountAction.CurrentPasswordChanged(it)) }, "Contraseña actual", Modifier.fillMaxWidth())
+                RutaUPasswordField(state.newPassword, { onAction(AccountAction.NewPasswordChanged(it)) }, "Nueva contraseña", Modifier.fillMaxWidth())
+                RutaUPasswordField(state.confirmPassword, { onAction(AccountAction.ConfirmPasswordChanged(it)) }, "Confirmar nueva contraseña", Modifier.fillMaxWidth())
+                Text(
+                    text = "Usa al menos 8 caracteres, una mayúscula y un número.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                RutaUOutlinedButton(
+                    text = "Actualizar contraseña",
+                    onClick = { onAction(AccountAction.UpdatePassword) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             RutaUSectionTitle("Preferencias")
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Notificaciones de solicitudes", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Avisos cuando una persona solicite o responda tu viaje.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        style = MaterialTheme.typography.bodyMedium,
+            AccountSectionCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Notificaciones de solicitudes", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "Avisos cuando una persona solicite o responda tu viaje.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Switch(
+                        checked = state.notificationsEnabled,
+                        onCheckedChange = { onAction(AccountAction.NotificationsChanged(it)) },
                     )
                 }
-                Switch(
-                    checked = state.notificationsEnabled,
-                    onCheckedChange = { onAction(AccountAction.NotificationsChanged(it)) },
-                )
             }
 
             RutaUSectionTitle("Información y legal")
-            LegalDocumentButton(
-                text = LegalDocument.TERMS.title,
-                onClick = { onOpenLegalDocument(LegalDocumentType.TERMS) },
-            )
-            LegalDocumentButton(
-                text = LegalDocument.PRIVACY.title,
-                onClick = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
-            )
-            LegalDocumentButton(
-                text = LegalDocument.ABOUT.title,
-                onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.ABOUT)) },
-            )
-
-            state.message?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium,
+            AccountSectionCard {
+                LegalDocumentButton(
+                    text = LegalDocument.TERMS.title,
+                    onClick = { onOpenLegalDocument(LegalDocumentType.TERMS) },
+                )
+                LegalDocumentButton(
+                    text = LegalDocument.PRIVACY.title,
+                    onClick = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
+                )
+                LegalDocumentButton(
+                    text = LegalDocument.ABOUT.title,
+                    onClick = { onAction(AccountAction.LegalDocumentRequested(LegalDocument.ABOUT)) },
                 )
             }
-            RutaUOutlinedButton(
-                text = "Cerrar sesión",
-                onClick = { onAction(AccountAction.LogoutRequested) },
-                modifier = Modifier.fillMaxWidth().testTag("AccountLogoutButton"),
-            )
-            RutaUDestructiveButton(
-                text = "Eliminar mi cuenta",
-                onClick = { onAction(AccountAction.DeleteAccountRequested) },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(RutaUSpacing.Large))
+
+            RutaUSectionTitle("Sesión")
+            AccountSectionCard {
+                RutaUOutlinedButton(
+                    text = "Cerrar sesión",
+                    onClick = { onAction(AccountAction.LogoutRequested) },
+                    modifier = Modifier.fillMaxWidth().testTag("AccountLogoutButton"),
+                )
+                RutaUDestructiveButton(
+                    text = "Eliminar mi cuenta",
+                    onClick = { onAction(AccountAction.DeleteAccountRequested) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Spacer(Modifier.height(RutaUSpacing.Medium))
         }
     }
 
@@ -268,6 +282,24 @@ fun AccountScreen(
             title = document.title,
             message = document.content,
             onDismiss = { onAction(AccountAction.LegalDocumentDismissed) },
+        )
+    }
+}
+
+/** Agrupa controles que se guardan o consultan dentro de una misma sección. */
+@Composable
+private fun AccountSectionCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(RutaUSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(RutaUSpacing.Medium),
+            content = content,
         )
     }
 }

@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import uvg.edu.rutau.core.data.catalog.AcademicCatalog
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUDropdownField
@@ -82,9 +83,8 @@ fun SignUpScreen(
                 .padding(innerPadding)
                 .padding(horizontal = RutaUSpacing.ScreenHorizontal)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(RutaUSpacing.Medium),
+            verticalArrangement = Arrangement.spacedBy(RutaUSpacing.Small),
         ) {
-            Spacer(Modifier.height(RutaUSpacing.Small))
             Text(
                 text = "Crea tu cuenta en RutaU",
                 style = MaterialTheme.typography.titleLarge,
@@ -107,6 +107,8 @@ fun SignUpScreen(
                 photoUrl = photoUrl,
                 onPhotoSelected = onPhotoChange,
                 modifier = Modifier.fillMaxWidth().testTag("SignUpPhotoPicker"),
+                label = "Foto (opcional)",
+                avatarSize = 56.dp,
             )
             RutaUDropdownField(
                 selectedOption = university.ifBlank { null },
@@ -191,7 +193,7 @@ fun SignUpScreen(
                 isLoading = isLoading,
                 modifier = Modifier.fillMaxWidth().testTag("SignUpSubmitButton"),
             )
-            Spacer(Modifier.height(RutaUSpacing.Large))
+            Spacer(Modifier.height(RutaUSpacing.Medium))
         }
     }
 }

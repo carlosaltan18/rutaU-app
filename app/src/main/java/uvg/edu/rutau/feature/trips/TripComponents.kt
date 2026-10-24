@@ -1,6 +1,7 @@
 package uvg.edu.rutau.feature.trips
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,15 +11,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -51,25 +60,66 @@ fun TripCard(
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showActions by remember { mutableStateOf(false) }
     Card(modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("${trip.originZone}  →  ${trip.destinationCampus}", style = MaterialTheme.typography.titleMedium)
                     Text("${trip.dayOfWeek} · ${trip.departureTime.asUiTime()}")
                 }
-                Text(trip.role.asUiRole(), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                Text(
+                    trip.role.asUiRole(),
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelLarge,
+                )
             }
             if (trip.role == TripRole.DRIVER) SeatAvailabilityIndicator(trip)
             if (!trip.active) Text("Trayecto inactivo", color = MaterialTheme.colorScheme.error)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 RutaUPrimaryButton("Ver compatibles", onMatches, Modifier.weight(1f), enabled = trip.active)
-                RutaUOutlinedButton("Editar", onEdit)
+                Box {
+                    IconButton(onClick = { showActions = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Más acciones del trayecto")
+                    }
+                    DropdownMenu(
+                        expanded = showActions,
+                        onDismissRequest = { showActions = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Editar trayecto") },
+                            onClick = {
+                                showActions = false
+                                onEdit()
+                            },
+                        )
+                        if (trip.active) {
+                            DropdownMenuItem(
+                                text = { Text("Desactivar trayecto") },
+                                onClick = {
+                                    showActions = false
+                                    onDeactivate()
+                                },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Eliminar trayecto", color = MaterialTheme.colorScheme.error) },
+                            onClick = {
+                                showActions = false
+                                onRemove()
+                            },
+                        )
+                    }
+                }
             }
-            if (trip.active) {
-                RutaUSecondaryButton("Desactivar", onDeactivate, Modifier.fillMaxWidth())
-            }
-            RutaUSecondaryButton("Eliminar", onRemove, Modifier.fillMaxWidth())
         }
     }
 }
@@ -311,7 +361,12 @@ fun ConfirmCoordinationSheet(
                 onValueChange = { onMessageChange(it.take(MaxOptionalMessageLength)) },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("Mensaje opcional") },
-                supportingText = { Text("${state.message.length}/$MaxOptionalMessageLength") },
+                supportingText = {
+                    Text(
+                        "Máximo $MaxOptionalMessageLength caracteres · " +
+                            "${state.message.length}/$MaxOptionalMessageLength",
+                    )
+                },
                 minLines = 3,
             )
             state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

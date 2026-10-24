@@ -19,6 +19,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import uvg.edu.rutau.ui.theme.RutaUTheme
@@ -31,6 +32,7 @@ fun RutaUProfilePhotoPicker(
     onPhotoSelected: (String?) -> Unit,
     modifier: Modifier = Modifier,
     label: String = "Foto de perfil (opcional)",
+    avatarSize: Dp = 72.dp,
 ) {
     val photoPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -43,7 +45,7 @@ fun RutaUProfilePhotoPicker(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
-        RutaUAvatar(fullName = fullName, photoUrl = photoUrl, size = 72.dp)
+        RutaUAvatar(fullName = fullName, photoUrl = photoUrl, size = avatarSize)
         Spacer(Modifier.width(12.dp))
         Column {
             Text(label, style = MaterialTheme.typography.labelLarge)
