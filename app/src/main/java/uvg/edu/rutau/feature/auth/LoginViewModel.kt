@@ -18,7 +18,8 @@ data class LoginUiState(
     val email: String = "",
     val password: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val emailError: String? = null,
+    val passwordError: String? = null,
 )
 
 /** Indica los resultados posibles al iniciar sesión. */
@@ -37,27 +38,35 @@ class LoginViewModel(
     val events: SharedFlow<LoginEvent> = mutableEvents.asSharedFlow()
 
     fun onEmailChange(value: String) {
-        mutableUiState.update { it.copy(email = value, errorMessage = null) }
+        mutableUiState.update { it.copy(email = value, emailError = null) }
     }
 
     fun onPasswordChange(value: String) {
-        mutableUiState.update { it.copy(password = value, errorMessage = null) }
+        mutableUiState.update { it.copy(password = value, passwordError = null) }
     }
 
     fun login() {
         val state = uiState.value
-        if (state.email.isBlank() || state.password.isBlank()) {
-            mutableUiState.update { it.copy(errorMessage = "Ingresa tu correo y contraseña.") }
+        val emailError = when {
+            state.email.isBlank() -> "Ingresa tu correo electrónico."
+            !state.email.contains('@') -> "Ingresa un correo electrónico válido."
+            else -> null
+        }
+        val passwordError = if (state.password.isBlank()) "Ingresa tu contraseña." else null
+        if (emailError != null || passwordError != null) {
+            mutableUiState.update { it.copy(emailError = emailError, passwordError = passwordError) }
             return
         }
         viewModelScope.launch {
-            mutableUiState.update { it.copy(isLoading = true, errorMessage = null) }
+            mutableUiState.update { it.copy(isLoading = true, emailError = null, passwordError = null) }
             val didLogin = sessionRepository.login(state.email, state.password)
             mutableUiState.update { it.copy(isLoading = false) }
             if (didLogin) {
                 mutableEvents.emit(LoginEvent.SignedIn)
             } else {
-                mutableUiState.update { it.copy(errorMessage = "Correo o contraseña incorrectos.") }
+                mutableUiState.update {
+                    it.copy(passwordError = "El correo o la contraseña no coinciden.")
+                }
             }
         }
     }

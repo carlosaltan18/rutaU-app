@@ -26,7 +26,13 @@ data class SignUpUiState(
     val photoUrl: String? = null,
     val termsAccepted: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null,
+    val fullNameError: String? = null,
+    val universityError: String? = null,
+    val campusError: String? = null,
+    val emailError: String? = null,
+    val passwordError: String? = null,
+    val confirmPasswordError: String? = null,
+    val termsError: String? = null,
 )
 
 /** Indica los resultados posibles al crear una cuenta. */
@@ -44,35 +50,68 @@ class SignUpViewModel(
     private val mutableEvents = MutableSharedFlow<SignUpEvent>()
     val events: SharedFlow<SignUpEvent> = mutableEvents.asSharedFlow()
 
-    fun onFullNameChange(value: String) = updateState { copy(fullName = value, errorMessage = null) }
+    fun onFullNameChange(value: String) = updateState { copy(fullName = value, fullNameError = null) }
     fun onUniversityChange(value: String) = updateState {
-        copy(university = value, campus = "", errorMessage = null)
+        copy(university = value, campus = "", universityError = null, campusError = null)
     }
-    fun onCampusChange(value: String) = updateState { copy(campus = value, errorMessage = null) }
-    fun onPhotoChange(value: String?) = updateState { copy(photoUrl = value, errorMessage = null) }
-    fun onEmailChange(value: String) = updateState { copy(email = value, errorMessage = null) }
-    fun onPasswordChange(value: String) = updateState { copy(password = value, errorMessage = null) }
-    fun onConfirmPasswordChange(value: String) = updateState { copy(confirmPassword = value, errorMessage = null) }
-    fun onTermsAcceptedChange(value: Boolean) = updateState { copy(termsAccepted = value, errorMessage = null) }
+    fun onCampusChange(value: String) = updateState { copy(campus = value, campusError = null) }
+    fun onPhotoChange(value: String?) = updateState { copy(photoUrl = value) }
+    fun onEmailChange(value: String) = updateState { copy(email = value, emailError = null) }
+    fun onPasswordChange(value: String) = updateState {
+        copy(password = value, passwordError = null, confirmPasswordError = null)
+    }
+    fun onConfirmPasswordChange(value: String) = updateState {
+        copy(confirmPassword = value, confirmPasswordError = null)
+    }
+    fun onTermsAcceptedChange(value: Boolean) = updateState { copy(termsAccepted = value, termsError = null) }
 
     fun createAccount() {
         val state = uiState.value
         val passwordError = PasswordRules.validationError(state.password)
-        val validationError = when {
-            state.fullName.isBlank() || state.university.isBlank() || state.campus.isBlank() ->
-                "Completa tus datos personales y académicos."
-            state.email.isBlank() || !state.email.contains('@') -> "Ingresa un correo válido."
-            passwordError != null -> passwordError
+        val emailError = if (state.email.isBlank() || !state.email.contains('@')) {
+            "Ingresa un correo electrónico válido."
+        } else {
+            null
+        }
+        val confirmPasswordError = when {
+            state.confirmPassword.isBlank() -> "Confirma tu contraseña."
             state.password != state.confirmPassword -> "Las contraseñas no coinciden."
-            !state.termsAccepted -> "Debes aceptar los términos y condiciones."
             else -> null
         }
-        if (validationError != null) {
-            updateState { copy(errorMessage = validationError) }
+        val fullNameError = if (state.fullName.isBlank()) "Ingresa tu nombre completo." else null
+        val universityError = if (state.university.isBlank()) "Selecciona tu universidad." else null
+        val campusError = if (state.campus.isBlank()) "Selecciona tu campus o sede habitual." else null
+        val termsError = if (!state.termsAccepted) "Debes aceptar los términos y condiciones." else null
+        if (
+            fullNameError != null || universityError != null || campusError != null ||
+            emailError != null || passwordError != null || confirmPasswordError != null || termsError != null
+        ) {
+            updateState {
+                copy(
+                    fullNameError = fullNameError,
+                    universityError = universityError,
+                    campusError = campusError,
+                    emailError = emailError,
+                    passwordError = passwordError,
+                    confirmPasswordError = confirmPasswordError,
+                    termsError = termsError,
+                )
+            }
             return
         }
         viewModelScope.launch {
-            updateState { copy(isLoading = true, errorMessage = null) }
+            updateState {
+                copy(
+                    isLoading = true,
+                    fullNameError = null,
+                    universityError = null,
+                    campusError = null,
+                    emailError = null,
+                    passwordError = null,
+                    confirmPasswordError = null,
+                    termsError = null,
+                )
+            }
             val didRegister = sessionRepository.register(
                 SignUpInput(
                     fullName = state.fullName,
@@ -87,7 +126,7 @@ class SignUpViewModel(
             if (didRegister) {
                 mutableEvents.emit(SignUpEvent.AccountCreated)
             } else {
-                updateState { copy(errorMessage = "No pudimos crear tu cuenta. Intenta de nuevo.") }
+                updateState { copy(emailError = "No pudimos validar este correo. Intenta de nuevo.") }
             }
         }
     }

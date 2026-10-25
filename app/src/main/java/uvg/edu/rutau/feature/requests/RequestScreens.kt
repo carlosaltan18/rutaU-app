@@ -68,8 +68,8 @@ fun RequestsScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
                 RequestTabSelector(
@@ -101,7 +101,6 @@ fun RequestsScreen(
                     )
                 }
             }
-            item { Spacer(Modifier.size(64.dp)) }
         }
     }
 }
@@ -181,7 +180,7 @@ fun RequestDetailScreen(
                     item { PendingRequestNotice(detail, isReceived) }
                 }
                 if (detail.request.status in setOf(RequestStatus.REJECTED, RequestStatus.CANCELLED, RequestStatus.EXPIRED)) {
-                    item { TerminalRequestCard(detail.request.status) }
+                    item { TerminalRequestCard(detail, isReceived) }
                 }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
@@ -275,6 +274,13 @@ fun CoordinatedRideScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                item {
+                    RutaUInfoCard(
+                        title = "Viaje confirmado",
+                        message = "Este acuerdo es para ${detail.asRequestDate()}. A diferencia de un trayecto base, " +
+                            "la plaza y el contacto ya están coordinados.",
+                    )
+                }
                 item { RequestStatusChip(RequestStatus.ACCEPTED) }
                 item { RequestTripSummary(detail) }
                 item { VehicleCapacityCard(driver) }
@@ -392,7 +398,7 @@ private fun RequestActions(
             )
             RequestStatus.CANCELLED -> Text("Esta solicitud fue cancelada.")
             RequestStatus.EXPIRED -> RutaUPrimaryButton(
-                "Buscar nuevamente",
+                "Buscar nuevas opciones",
                 onClick = {
                     onSearchAgain(if (isReceived) detail.targetTrip.id else detail.senderTrip.id)
                 },

@@ -36,6 +36,9 @@ fun RutaUNavHost(
         )
         tripGraph(navController)
         requestGraph(navController)
-        accountGraph(onSignedOut = appState::clearToLogin)
+        accountGraph(
+            navController = navController,
+            onSignedOut = appState::clearToLogin,
+        )
     }
 }

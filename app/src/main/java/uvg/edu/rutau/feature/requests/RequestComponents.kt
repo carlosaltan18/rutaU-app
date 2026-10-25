@@ -288,13 +288,24 @@ fun EmptyRequestsCard(modifier: Modifier = Modifier) {
     )
 }
 
-/** Explica qué significa una solicitud que ya terminó. */
+/** Explica qué ocurrió con una solicitud que ya terminó y cuál fue su efecto. */
 @Composable
-fun TerminalRequestCard(status: RequestStatus, modifier: Modifier = Modifier) {
+fun TerminalRequestCard(
+    detail: RideRequestDetails,
+    isReceived: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val status = detail.request.status
     val message = when (status) {
-        RequestStatus.REJECTED -> "La otra persona no aceptó esta solicitud."
+        RequestStatus.REJECTED -> if (isReceived) {
+            "Rechazaste esta solicitud. No se confirmó ninguna plaza ni se compartieron datos de contacto."
+        } else {
+            "La otra persona rechazó esta solicitud. No se confirmó ninguna plaza ni se compartieron datos de contacto."
+        }
         RequestStatus.CANCELLED -> "Esta solicitud fue cancelada y no ocupa ninguna plaza."
-        RequestStatus.EXPIRED -> "La fecha pasó antes de que la solicitud fuera aceptada."
+        RequestStatus.EXPIRED ->
+            "El viaje estaba previsto para ${detail.asRequestDate()} y venció sin ser aceptado. " +
+                "No se confirmó ninguna plaza ni se compartieron datos de contacto."
         else -> return
     }
     RutaUInfoCard(
