@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "311319237256",
+    "project_id": "ruta-u-ebf74",
+    "storage_bucket": "ruta-u-ebf74.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:311319237256:android:bf6380add48080a10f853d",
+        "android_client_info": {
+          "package_name": "com.apprutau.rutau"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "311319237256-1k9ppnkqjjvi3olu3rkkm3aih1l3or36.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.apprutau.rutau",
+            "certificate_hash": "9684800d86845d5c0354fe7a7819175c8cb3ff29"
+          }
+        },
+        {
+          "client_id": "311319237256-3ahmqe1oj4ncpoeks2n8t53oi4bqkqt6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqW7_Jld7V0M_AaCb6WuLXTbE-OPG0_rE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "311319237256-3ahmqe1oj4ncpoeks2n8t53oi4bqkqt6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

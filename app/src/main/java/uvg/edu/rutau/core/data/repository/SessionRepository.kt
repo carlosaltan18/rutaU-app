@@ -16,7 +16,9 @@ interface SessionRepository {
     val sessionState: StateFlow<SessionState>
 
     suspend fun login(email: String, password: String): Boolean
+    suspend fun loginWithGoogle(idToken: String): Boolean
     suspend fun register(input: SignUpInput): Boolean
+    suspend fun registerWithGoogle(idToken: String, input: SignUpInput): Boolean
     suspend fun requestPasswordRecovery(email: String)
     suspend fun resetPassword(newPassword: String)
     suspend fun logout()

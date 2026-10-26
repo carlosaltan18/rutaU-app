@@ -19,6 +19,9 @@ class FakeCoordinationRepository(
             coordinations.firstOrNull { it.requestId == requestId }
         }
 
+    override fun observeCoordinationById(coordinationId: String): Flow<Coordination?> =
+        store.coordinations.map { coordinations -> coordinations.firstOrNull { it.id == coordinationId } }
+
     override suspend fun cancelRide(coordinationId: String) {
         synchronized(store) {
             val coordination = findAcceptedCoordination(coordinationId)
@@ -46,6 +49,12 @@ class FakeCoordinationRepository(
             cancelOneCoordination(coordination)
         }
     }
+
+    override suspend fun startLiveLocation(coordinationId: String): Coordination =
+        error("La ubicación en vivo requiere una coordinación del servidor.")
+
+    override suspend fun endLiveLocation(coordinationId: String): Coordination =
+        error("La ubicación en vivo requiere una coordinación del servidor.")
 
     override suspend fun createPendingCoordination(
         tripId: String,

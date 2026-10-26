@@ -1,0 +1,18 @@
+rules_version = '2';
+service cloud.firestore {
+  function isAuthenticated() {
+    return request.auth != null;
+  }
+
+  match /databases/{database}/documents {
+    // Los mensajes no contienen datos privados. Solo el servidor los administra.
+    match /appMessages/{messageId} {
+      allow get, list: if isAuthenticated();
+      allow create, update, delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

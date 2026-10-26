@@ -1,5 +1,10 @@
 package uvg.edu.rutau.feature.account
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.CircularProgressIndicator
@@ -7,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,10 +31,15 @@ fun AccountRoute(
         factory = AccountViewModel.factory(
             userRepository = RutaUAppDependencies.userRepository,
             sessionRepository = RutaUAppDependencies.sessionRepository,
+            popupMessageRepository = RutaUAppDependencies.popupMessageRepository,
         ),
     ),
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle().value
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
     LaunchedEffect(viewModel) {
         viewModel.events.collectLatest { event ->
             if (event is AccountEvent.SignedOut) onSignedOut()
@@ -43,6 +54,12 @@ fun AccountRoute(
             state = state,
             onAction = viewModel::onAction,
             onOpenLegalDocument = onOpenLegalDocument,
+            onRequestNotificationPermission = {
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                    PackageManager.PERMISSION_GRANTED) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
             modifier = modifier,
         )
     }
@@ -55,10 +72,6 @@ private fun AccountRoutePreview() {
         AccountRoute(
             onSignedOut = {},
             onOpenLegalDocument = {},
-            viewModel = AccountViewModel(
-                userRepository = RutaUAppDependencies.userRepository,
-                sessionRepository = RutaUAppDependencies.sessionRepository,
-            ),
         )
     }
 }

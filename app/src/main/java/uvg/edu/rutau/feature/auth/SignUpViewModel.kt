@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import uvg.edu.rutau.core.data.catalog.CatalogItem
+import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.repository.SessionRepository
 import uvg.edu.rutau.core.model.PasswordRules
 import uvg.edu.rutau.core.model.SignUpInput
@@ -24,6 +26,9 @@ data class SignUpUiState(
     val password: String = "",
     val confirmPassword: String = "",
     val photoUrl: String? = null,
+    val universities: List<CatalogItem> = emptyList(),
+    val campuses: List<CatalogItem> = emptyList(),
+    val catalogError: String? = null,
     val termsAccepted: Boolean = false,
     val isLoading: Boolean = false,
     val fullNameError: String? = null,
@@ -43,6 +48,7 @@ sealed interface SignUpEvent {
 /** Maneja la creación de cuentas nuevas. */
 class SignUpViewModel(
     private val sessionRepository: SessionRepository,
+    private val catalogRepository: CatalogRepository? = null,
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(SignUpUiState())
     val uiState = mutableUiState.asStateFlow()
@@ -50,10 +56,14 @@ class SignUpViewModel(
     private val mutableEvents = MutableSharedFlow<SignUpEvent>()
     val events: SharedFlow<SignUpEvent> = mutableEvents.asSharedFlow()
 
+    init {
+        if (catalogRepository != null) loadUniversities()
+    }
+
     fun onFullNameChange(value: String) = updateState { copy(fullName = value, fullNameError = null) }
     fun onUniversityChange(value: String) = updateState {
         copy(university = value, campus = "", universityError = null, campusError = null)
-    }
+    }.also { loadCampuses(value) }
     fun onCampusChange(value: String) = updateState { copy(campus = value, campusError = null) }
     fun onPhotoChange(value: String?) = updateState { copy(photoUrl = value) }
     fun onEmailChange(value: String) = updateState { copy(email = value, emailError = null) }
@@ -112,22 +122,86 @@ class SignUpViewModel(
                     termsError = null,
                 )
             }
-            val didRegister = sessionRepository.register(
-                SignUpInput(
-                    fullName = state.fullName,
-                    university = state.university,
-                    campus = state.campus,
-                    email = state.email,
-                    password = state.password,
-                    photoUrl = state.photoUrl,
-                ),
-            )
-            updateState { copy(isLoading = false) }
-            if (didRegister) {
-                mutableEvents.emit(SignUpEvent.AccountCreated)
-            } else {
-                updateState { copy(emailError = "No pudimos validar este correo. Intenta de nuevo.") }
+            val result = runCatching {
+                sessionRepository.register(
+                    SignUpInput(
+                        fullName = state.fullName,
+                        university = state.university,
+                        campus = state.campus,
+                        email = state.email,
+                        password = state.password,
+                        photoUrl = state.photoUrl,
+                        universityId = state.university,
+                        campusId = state.campus,
+                    ),
+                )
             }
+            updateState { copy(isLoading = false) }
+            result.fold(
+                onSuccess = { didRegister ->
+                    if (didRegister) {
+                        mutableEvents.emit(SignUpEvent.AccountCreated)
+                    } else {
+                        updateState { copy(emailError = "No fue posible registrar la cuenta. Verifica tus datos.") }
+                    }
+                },
+                onFailure = { error ->
+                    val message = when {
+                        error is uvg.edu.rutau.core.network.BackendApiException -> error.message
+                        error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo en unos segundos."
+                        else -> error.localizedMessage ?: "No pudimos crear la cuenta. Intenta de nuevo."
+                    }
+                    updateState { copy(emailError = message) }
+                },
+            )
+        }
+    }
+
+    /** Crea una cuenta de Google después de validar los datos académicos. */
+    fun createAccountWithGoogle(idToken: String?) {
+        val state = uiState.value
+        val termsError = if (!state.termsAccepted) "Debes aceptar los términos y condiciones." else null
+        if (idToken.isNullOrBlank() || termsError != null) {
+            updateState {
+                copy(
+                    emailError = if (idToken.isNullOrBlank()) "No fue posible continuar con Google." else null,
+                    termsError = termsError,
+                )
+            }
+            return
+        }
+        viewModelScope.launch {
+            updateState { copy(isLoading = true, emailError = null) }
+            val result = runCatching {
+                sessionRepository.registerWithGoogle(
+                    idToken,
+                    SignUpInput(
+                        fullName = state.fullName,
+                        university = state.university,
+                        campus = state.campus,
+                        email = state.email,
+                        password = "",
+                        photoUrl = state.photoUrl,
+                        universityId = state.university,
+                        campusId = state.campus,
+                    ),
+                )
+            }
+            updateState { copy(isLoading = false) }
+            result.fold(
+                onSuccess = { didRegister ->
+                    if (didRegister) mutableEvents.emit(SignUpEvent.AccountCreated)
+                    else updateState { copy(emailError = "No fue posible registrar la cuenta con Google.") }
+                },
+                onFailure = { error ->
+                    val message = when {
+                        error is uvg.edu.rutau.core.network.BackendApiException -> error.message
+                        error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo en unos segundos."
+                        else -> error.localizedMessage ?: "No pudimos crear la cuenta con Google. Intenta de nuevo."
+                    }
+                    updateState { copy(emailError = message) }
+                },
+            )
         }
     }
 
@@ -135,9 +209,30 @@ class SignUpViewModel(
         mutableUiState.update(transform)
     }
 
+    private fun loadUniversities() {
+        val repository = catalogRepository ?: return
+        viewModelScope.launch {
+            runCatching { repository.universities() }
+                .onSuccess { items -> updateState { copy(universities = items, catalogError = null) } }
+                .onFailure { updateState { copy(catalogError = "No fue posible cargar las universidades.") } }
+        }
+    }
+
+    private fun loadCampuses(universityId: String) {
+        val repository = catalogRepository ?: return
+        viewModelScope.launch {
+            runCatching { repository.campuses(universityId) }
+                .onSuccess { items -> updateState { copy(campuses = items, catalogError = null) } }
+                .onFailure { updateState { copy(campuses = emptyList(), catalogError = "No fue posible cargar los campus.") } }
+        }
+    }
+
     companion object {
-        fun factory(sessionRepository: SessionRepository) = viewModelFactory {
-            initializer { SignUpViewModel(sessionRepository) }
+        fun factory(
+            sessionRepository: SessionRepository,
+            catalogRepository: CatalogRepository? = null,
+        ) = viewModelFactory {
+            initializer { SignUpViewModel(sessionRepository, catalogRepository) }
         }
     }
 }

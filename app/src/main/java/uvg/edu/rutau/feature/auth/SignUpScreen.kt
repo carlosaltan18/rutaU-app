@@ -22,7 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import uvg.edu.rutau.core.data.catalog.AcademicCatalog
+import uvg.edu.rutau.core.data.catalog.CatalogItem
 import uvg.edu.rutau.core.designsystem.component.RutaULoadingButton
 import uvg.edu.rutau.core.designsystem.component.RutaUDropdownField
 import uvg.edu.rutau.core.designsystem.component.RutaUPasswordField
@@ -43,6 +43,8 @@ fun SignUpScreen(
     password: String,
     confirmPassword: String,
     photoUrl: String?,
+    universityOptions: List<CatalogItem>,
+    campusOptions: List<CatalogItem>,
     termsAccepted: Boolean,
     onFullNameChange: (String) -> Unit,
     onUniversityChange: (String) -> Unit,
@@ -53,6 +55,7 @@ fun SignUpScreen(
     onPhotoChange: (String?) -> Unit,
     onTermsAcceptedChange: (Boolean) -> Unit,
     onCreateAccount: () -> Unit,
+    onCreateAccountWithGoogle: () -> Unit,
     onBack: () -> Unit,
     onOpenTerms: () -> Unit,
     onOpenPrivacy: () -> Unit,
@@ -65,6 +68,7 @@ fun SignUpScreen(
     passwordError: String? = null,
     confirmPasswordError: String? = null,
     termsError: String? = null,
+    catalogError: String? = null,
 ) {
     RutaUScreenContainer(
         modifier = modifier,
@@ -111,24 +115,31 @@ fun SignUpScreen(
                 avatarSize = 56.dp,
             )
             RutaUDropdownField(
-                selectedOption = university.ifBlank { null },
-                options = AcademicCatalog.universities,
-                onOptionSelected = onUniversityChange,
+                selectedOption = universityOptions.firstOrNull { it.id == university }?.name,
+                options = universityOptions.map(CatalogItem::name),
+                onOptionSelected = { name ->
+                    universityOptions.firstOrNull { it.name == name }?.let { onUniversityChange(it.id) }
+                },
                 label = "Universidad",
                 modifier = Modifier.fillMaxWidth().testTag("SignUpUniversitySelector"),
                 supportingText = universityError,
                 isError = universityError != null,
             )
             RutaUDropdownField(
-                selectedOption = campus.ifBlank { null },
-                options = AcademicCatalog.campusesFor(university),
-                onOptionSelected = onCampusChange,
+                selectedOption = campusOptions.firstOrNull { it.id == campus }?.name,
+                options = campusOptions.map(CatalogItem::name),
+                onOptionSelected = { name ->
+                    campusOptions.firstOrNull { it.name == name }?.let { onCampusChange(it.id) }
+                },
                 label = "Campus o sede habitual",
                 modifier = Modifier.fillMaxWidth().testTag("SignUpCampusSelector"),
                 enabled = university.isNotBlank(),
                 supportingText = campusError ?: if (university.isBlank()) "Primero selecciona tu universidad." else null,
                 isError = campusError != null,
             )
+            catalogError?.let { message ->
+                Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
             RutaUTextField(
                 value = email,
                 onValueChange = onEmailChange,
@@ -193,6 +204,13 @@ fun SignUpScreen(
                 isLoading = isLoading,
                 modifier = Modifier.fillMaxWidth().testTag("SignUpSubmitButton"),
             )
+            TextButton(
+                onClick = onCreateAccountWithGoogle,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading,
+            ) {
+                Text("Registrarme con Google")
+            }
             Spacer(Modifier.height(RutaUSpacing.Medium))
         }
     }
@@ -204,12 +222,14 @@ private fun SignUpScreenPreview() {
     RutaUTheme {
         SignUpScreen(
             fullName = "Mateo Morales Silva",
-            university = "Universidad San Carlos",
-            campus = "Campus Central",
+            university = "university",
+            campus = "campus",
             email = "mateo@ejemplo.com",
             password = "RutaU123",
             confirmPassword = "RutaU123",
             photoUrl = null,
+            universityOptions = listOf(CatalogItem("university", "Universidad San Carlos")),
+            campusOptions = listOf(CatalogItem("campus", "Campus Central")),
             termsAccepted = true,
             onFullNameChange = {},
             onUniversityChange = {},
@@ -220,6 +240,7 @@ private fun SignUpScreenPreview() {
             onPhotoChange = {},
             onTermsAcceptedChange = {},
             onCreateAccount = {},
+            onCreateAccountWithGoogle = {},
             onBack = {},
             onOpenTerms = {},
             onOpenPrivacy = {},

@@ -59,15 +59,49 @@ class LoginViewModel(
         }
         viewModelScope.launch {
             mutableUiState.update { it.copy(isLoading = true, emailError = null, passwordError = null) }
-            val didLogin = sessionRepository.login(state.email, state.password)
+            val result = runCatching { sessionRepository.login(state.email, state.password) }
             mutableUiState.update { it.copy(isLoading = false) }
-            if (didLogin) {
-                mutableEvents.emit(LoginEvent.SignedIn)
-            } else {
-                mutableUiState.update {
-                    it.copy(passwordError = "El correo o la contraseña no coinciden.")
-                }
-            }
+            result.fold(
+                onSuccess = { didLogin ->
+                    if (didLogin) mutableEvents.emit(LoginEvent.SignedIn)
+                    else mutableUiState.update { it.copy(passwordError = "El correo o la contraseña no coinciden.") }
+                },
+                onFailure = { error ->
+                    val message = when {
+                        error is uvg.edu.rutau.core.network.BackendApiException -> error.message
+                        error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo."
+                        else -> "No fue posible iniciar sesión. Intenta de nuevo."
+                    }
+                    mutableUiState.update { it.copy(passwordError = message) }
+                },
+            )
+        }
+    }
+
+    /** Inicia la sesión después de elegir una cuenta de Google. */
+    fun loginWithGoogle(idToken: String?) {
+        if (idToken.isNullOrBlank()) {
+            mutableUiState.update { it.copy(passwordError = "No fue posible seleccionar una cuenta de Google.") }
+            return
+        }
+        viewModelScope.launch {
+            mutableUiState.update { it.copy(isLoading = true, emailError = null, passwordError = null) }
+            val result = runCatching { sessionRepository.loginWithGoogle(idToken) }
+            mutableUiState.update { it.copy(isLoading = false) }
+            result.fold(
+                onSuccess = { didLogin ->
+                    if (didLogin) mutableEvents.emit(LoginEvent.SignedIn)
+                    else mutableUiState.update { it.copy(passwordError = "No fue posible iniciar sesión con Google.") }
+                },
+                onFailure = { error ->
+                    val message = when {
+                        error is uvg.edu.rutau.core.network.BackendApiException -> error.message
+                        error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo."
+                        else -> "No fue posible iniciar sesión con Google."
+                    }
+                    mutableUiState.update { it.copy(passwordError = message) }
+                },
+            )
         }
     }
 

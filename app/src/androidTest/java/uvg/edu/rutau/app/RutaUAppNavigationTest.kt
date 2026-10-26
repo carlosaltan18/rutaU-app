@@ -20,6 +20,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import uvg.edu.rutau.core.notifications.PushNavigationTarget
+import uvg.edu.rutau.core.notifications.RutaUPushType
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
 /** Comprueba que las pantallas principales se conecten correctamente. */
@@ -69,29 +71,13 @@ class RutaUAppNavigationTest {
     }
 
     @Test
-    fun recoveryDemoLinkNavigatesToResetPassword() {
+    fun recoveryShowsEmailConfirmation() {
         composeRule.onNodeWithTag("LoginForgotPasswordButton").performClick()
         composeRule.onNodeWithTag("RecoveryEmailInput").performTextInput("mateo@ejemplo.com")
         composeRule.onNodeWithTag("RecoverySubmitButton").performClick()
         assertScreenVisible("Revisa tu correo")
 
-        composeRule.onNodeWithTag("RecoveryOpenDemoLinkButton").performClick()
-
-        assertScreenVisible("Crea una nueva contraseña")
-    }
-
-    @Test
-    fun resettingThePasswordReturnsToLogin() {
-        composeRule.onNodeWithTag("LoginForgotPasswordButton").performClick()
-        composeRule.onNodeWithTag("RecoveryEmailInput").performTextInput("mateo@ejemplo.com")
-        composeRule.onNodeWithTag("RecoverySubmitButton").performClick()
-        composeRule.onNodeWithTag("RecoveryOpenDemoLinkButton").performClick()
-
-        composeRule.onNodeWithTag("ResetPasswordInput").performTextInput("NuevaRutaU123")
-        composeRule.onNodeWithTag("ResetConfirmPasswordInput").performTextInput("NuevaRutaU123")
-        composeRule.onNodeWithTag("ResetSubmitButton").performClick()
-
-        assertScreenVisible("Bienvenido a RutaU")
+        assertScreenVisible("Abre el enlace recibido en tu correo para continuar de forma segura.")
     }
 
     @Test
@@ -186,6 +172,23 @@ class RutaUAppNavigationTest {
 
         assertScreenVisible("Viaje coordinado")
         assertScreenVisible("Pasajeros confirmados")
+    }
+
+    @Test
+    fun notificationNavigationOpensTheRelatedRequest() {
+        loginWithDefaultAccount()
+
+        composeRule.runOnIdle {
+            appState.navigateFromPush(
+                PushNavigationTarget(
+                    type = RutaUPushType.REQUEST_RECEIVED,
+                    destination = "RIDE_REQUEST_DETAIL",
+                    resourceId = "request-pending",
+                ),
+            )
+        }
+
+        assertScreenVisible("Detalle de solicitud")
     }
 
     @Test

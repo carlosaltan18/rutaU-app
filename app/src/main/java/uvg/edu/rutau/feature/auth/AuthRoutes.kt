@@ -2,12 +2,16 @@ package uvg.edu.rutau.feature.auth
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 import uvg.edu.rutau.app.RutaUAppDependencies
+import uvg.edu.rutau.core.auth.findActivity
 import uvg.edu.rutau.core.navigation.LegalDocumentType
 import uvg.edu.rutau.ui.theme.RutaUTheme
 
@@ -24,6 +28,8 @@ fun LoginRoute(
     ),
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle().value
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         viewModel.events.collectLatest { event ->
             if (event is LoginEvent.SignedIn) onLoginSuccess()
@@ -35,6 +41,18 @@ fun LoginRoute(
         onEmailChange = viewModel::onEmailChange,
         onPasswordChange = viewModel::onPasswordChange,
         onLogin = viewModel::login,
+        onGoogleLogin = {
+            val activity = context.findActivity()
+            if (activity == null) {
+                viewModel.loginWithGoogle(null)
+            } else {
+                scope.launch {
+                    viewModel.loginWithGoogle(
+                        RutaUAppDependencies.googleSignInCoordinator.requestIdToken(activity),
+                    )
+                }
+            }
+        },
         onForgotPassword = onNavigateToRecovery,
         onSignUp = onNavigateToSignUp,
         onOpenTerms = { onOpenLegalDocument(LegalDocumentType.TERMS) },
@@ -54,10 +72,15 @@ fun SignUpRoute(
     onOpenLegalDocument: (LegalDocumentType) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SignUpViewModel = viewModel(
-        factory = SignUpViewModel.factory(RutaUAppDependencies.sessionRepository),
+        factory = SignUpViewModel.factory(
+            RutaUAppDependencies.sessionRepository,
+            RutaUAppDependencies.catalogRepository,
+        ),
     ),
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle().value
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         viewModel.events.collectLatest { event ->
             if (event is SignUpEvent.AccountCreated) onAccountCreated()
@@ -71,6 +94,8 @@ fun SignUpRoute(
         password = state.password,
         confirmPassword = state.confirmPassword,
         photoUrl = state.photoUrl,
+        universityOptions = state.universities,
+        campusOptions = state.campuses,
         termsAccepted = state.termsAccepted,
         onFullNameChange = viewModel::onFullNameChange,
         onUniversityChange = viewModel::onUniversityChange,
@@ -81,6 +106,18 @@ fun SignUpRoute(
         onPhotoChange = viewModel::onPhotoChange,
         onTermsAcceptedChange = viewModel::onTermsAcceptedChange,
         onCreateAccount = viewModel::createAccount,
+        onCreateAccountWithGoogle = {
+            val activity = context.findActivity()
+            if (activity == null) {
+                viewModel.createAccountWithGoogle(null)
+            } else {
+                scope.launch {
+                    viewModel.createAccountWithGoogle(
+                        RutaUAppDependencies.googleSignInCoordinator.requestIdToken(activity),
+                    )
+                }
+            }
+        },
         onBack = onBack,
         onOpenTerms = { onOpenLegalDocument(LegalDocumentType.TERMS) },
         onOpenPrivacy = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
@@ -93,6 +130,7 @@ fun SignUpRoute(
         passwordError = state.passwordError,
         confirmPasswordError = state.confirmPasswordError,
         termsError = state.termsError,
+        catalogError = state.catalogError,
     )
 }
 
@@ -126,14 +164,14 @@ fun RecoverAccessRoute(
 /** Permite reenviar las instrucciones para recuperar la contraseña. */
 @Composable
 fun EmailSentRoute(
-    onOpenResetLink: () -> Unit,
     onBackToLogin: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: PasswordRecoveryViewModel,
+    viewModel: PasswordRecoveryViewModel = viewModel(
+        factory = PasswordRecoveryViewModel.factory(RutaUAppDependencies.sessionRepository),
+    ),
 ) {
     EmailSentScreen(
         onResend = viewModel::resendInstructions,
-        onOpenResetLink = onOpenResetLink,
         onBackToLogin = onBackToLogin,
         modifier = modifier,
     )
@@ -202,9 +240,7 @@ private fun RecoverAccessRoutePreview() {
 private fun EmailSentRoutePreview() {
     RutaUTheme {
         EmailSentRoute(
-            onOpenResetLink = {},
             onBackToLogin = {},
-            viewModel = PasswordRecoveryViewModel(RutaUAppDependencies.sessionRepository),
         )
     }
 }
