@@ -32,6 +32,8 @@ fun AccountRoute(
             userRepository = RutaUAppDependencies.userRepository,
             sessionRepository = RutaUAppDependencies.sessionRepository,
             popupMessageRepository = RutaUAppDependencies.popupMessageRepository,
+            themePreferenceRepository = RutaUAppDependencies.themePreferenceRepository,
+            catalogRepository = RutaUAppDependencies.catalogRepository,
         ),
     ),
 ) {

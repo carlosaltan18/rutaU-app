@@ -44,6 +44,8 @@ data class UserAccount(
     val email: String,
     val photoUrl: String?,
     val phone: String? = null,
+    val universityId: String = university,
+    val campusId: String = campus,
 )
 
 /** Reúne los datos que una persona escribe al crear su cuenta. */
@@ -64,6 +66,8 @@ data class UpdateProfileInput(
     val university: String,
     val campus: String,
     val photoUrl: String?,
+    val universityId: String = university,
+    val campusId: String = campus,
 )
 
 /** Reúne los datos necesarios para cambiar el correo. */

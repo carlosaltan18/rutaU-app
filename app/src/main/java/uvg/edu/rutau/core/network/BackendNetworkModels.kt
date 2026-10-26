@@ -78,6 +78,7 @@ data class ZoneDto(
 data class UpdateMeRequestDto(
     @SerializedName("displayName") val displayName: String? = null,
     @SerializedName("photoUrl") val photoUrl: String? = null,
+    @SerializedName("universityId") val universityId: String? = null,
     @SerializedName("campusId") val campusId: String? = null,
     @SerializedName("phone") val phone: String? = null,
 )

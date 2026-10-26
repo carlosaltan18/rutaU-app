@@ -31,11 +31,13 @@ class FirebaseSessionRepository(
 ) : SessionRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val credentialManager = CredentialManager.create(context.applicationContext)
-    private val mutableSessionState = MutableStateFlow(firebaseUidToSessionState(firebaseAuth.currentUser?.uid))
+    private val mutableSessionState = MutableStateFlow<SessionState>(SessionState.SignedOut)
     override val sessionState: StateFlow<SessionState> = mutableSessionState
 
     private val authStateListener = FirebaseAuth.AuthStateListener { auth ->
-        mutableSessionState.value = firebaseUidToSessionState(auth.currentUser?.uid)
+        if (auth.currentUser == null) {
+            mutableSessionState.value = SessionState.SignedOut
+        }
     }
 
     init {
@@ -46,9 +48,9 @@ class FirebaseSessionRepository(
         firebaseAuth.signInWithEmailAndPassword(email.trim(), password).await()
         createBackendSession(SessionRequestDto())
     }.getOrElse { error ->
-        signOutFirebase()
-        // Re-lanzar errores de red para que el ViewModel pueda mostrar mensaje apropiado
+        // Un fallo de red no invalida una sesión válida de Firebase.
         if (error is java.io.IOException) throw error
+        signOutFirebase()
         false
     }
 
@@ -64,9 +66,9 @@ class FirebaseSessionRepository(
             ),
         )
     }.getOrElse { error ->
-        signOutFirebase()
-        // Re-lanzar errores de red para que el ViewModel pueda mostrar mensaje apropiado
+        // Un fallo de red no invalida una sesión válida de Firebase.
         if (error is java.io.IOException) throw error
+        signOutFirebase()
         false
     }
 
@@ -87,10 +89,15 @@ class FirebaseSessionRepository(
                 ),
             )
         }.getOrElse { error ->
+            if (error is BackendApiException) {
+                runCatching { firebaseAuth.currentUser?.delete()?.await() }
+                signOutFirebase()
+                throw error
+            }
+            // Con red inestable se conserva la cuenta creada para poder sincronizarla al reintentar.
+            if (error is java.io.IOException) throw error
             runCatching { firebaseAuth.currentUser?.delete()?.await() }
             signOutFirebase()
-            // Re-lanzar errores de red y errores de API para que el ViewModel muestre mensajes descriptivos
-            if (error is java.io.IOException) throw error
             false
         }
     }
@@ -117,9 +124,8 @@ class FirebaseSessionRepository(
                 ),
             )
         }.getOrElse { error ->
-            signOutFirebase()
-            // Re-lanzar errores de red y errores de API para que el ViewModel muestre mensajes descriptivos
             if (error is java.io.IOException) throw error
+            signOutFirebase()
             false
         }
     }
@@ -171,6 +177,9 @@ class FirebaseSessionRepository(
         check(backendApi.createSession(body).requireData().authenticated) {
             "El servidor no confirmó la sesión."
         }
+        val state = firebaseUidToSessionState(firebaseAuth.currentUser?.uid)
+        check(state is SessionState.SignedIn) { "Firebase no conserva una sesión válida." }
+        mutableSessionState.value = state
         onBackendSessionReady()
         return true
     }
