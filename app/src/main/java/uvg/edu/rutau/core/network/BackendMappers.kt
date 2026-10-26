@@ -16,14 +16,19 @@ import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.UserAccount
 
 /** Convierte las respuestas del servidor a los modelos que usa la aplicación. */
-fun PrivateProfileDto.toUserAccount(): UserAccount = UserAccount(
+fun PrivateProfileDto.toUserAccount(
+    universityName: String = universityId,
+    campusName: String = campusId,
+): UserAccount = UserAccount(
     id = id,
     fullName = displayName,
-    university = universityId,
-    campus = campusId,
+    university = universityName,
+    campus = campusName,
     email = institutionalEmail,
     photoUrl = photoUrl,
     phone = phone,
+    universityId = universityId,
+    campusId = campusId,
 )
 
 /** Convierte un perfil público sin mostrar datos privados. */

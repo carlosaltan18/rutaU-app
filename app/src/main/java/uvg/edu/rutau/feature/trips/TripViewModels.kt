@@ -155,7 +155,7 @@ class TripEditorViewModel(
             runCatching { catalogs.zones() }
                 .onSuccess { zones -> update { copy(zones = zones) } }
                 .onFailure { update { copy(error = "No fue posible cargar las zonas.") } }
-            val universityId = userRepository?.observeCurrentUser()?.first()?.university.orEmpty()
+            val universityId = userRepository?.observeCurrentUser()?.first()?.universityId.orEmpty()
             if (universityId.isNotBlank()) {
                 runCatching { catalogs.campuses(universityId) }
                     .onSuccess { campuses -> update { copy(campuses = campuses) } }

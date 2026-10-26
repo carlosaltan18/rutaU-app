@@ -42,6 +42,8 @@ import uvg.edu.rutau.core.preferences.DataStorePopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageFeedRepository
 import uvg.edu.rutau.core.preferences.FirestorePopupMessageFeedRepository
+import uvg.edu.rutau.core.preferences.DataStoreThemePreferenceRepository
+import uvg.edu.rutau.core.preferences.ThemePreferenceRepository
 
 /** Reúne los servicios reales de la aplicación y los datos de prueba. */
 object RutaUAppDependencies {
@@ -70,6 +72,8 @@ object RutaUAppDependencies {
     lateinit var deviceRegistrationRepository: DeviceRegistrationRepository
         private set
     lateinit var liveTripLocationRepository: LiveTripLocationRepository
+        private set
+    lateinit var themePreferenceRepository: ThemePreferenceRepository
         private set
 
     /** Conecta la aplicación normal con Firebase y el servidor de RutaU. */
@@ -104,13 +108,19 @@ object RutaUAppDependencies {
             },
         )
         sessionRepository = firebaseSessionRepository
-        userRepository = FirebaseUserRepository(firebaseAuth, sessionRepository, networkClient.api)
+        catalogRepository = RemoteCatalogRepository(networkClient.api)
+        userRepository = FirebaseUserRepository(
+            firebaseAuth,
+            sessionRepository,
+            networkClient.api,
+            catalogRepository,
+        )
         tripRepository = RemoteTripRepository(networkClient.api)
         coordinationRepository = RemoteCoordinationRepository(networkClient.api)
         rideRequestRepository = RemoteRideRequestRepository(networkClient.api)
-        catalogRepository = RemoteCatalogRepository(networkClient.api)
         googleSignInCoordinator = GoogleSignInCoordinator(appContext)
         popupMessageRepository = DataStorePopupMessageRepository(appContext)
+        themePreferenceRepository = DataStoreThemePreferenceRepository(appContext)
         popupMessageFeedRepository = FirestorePopupMessageFeedRepository(
             FirebaseFirestore.getInstance(),
             popupMessageRepository,

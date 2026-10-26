@@ -18,6 +18,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +39,9 @@ import uvg.edu.rutau.core.designsystem.component.RutaUProfilePhotoPicker
 import uvg.edu.rutau.core.designsystem.component.RutaUSectionTitle
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTextField
+import uvg.edu.rutau.core.designsystem.component.RutaUDropdownField
+import uvg.edu.rutau.core.data.catalog.CatalogItem
+import uvg.edu.rutau.core.preferences.ThemeMode
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.model.UserAccount
 import uvg.edu.rutau.core.navigation.LegalDocumentType
@@ -45,13 +53,18 @@ data class AccountUiState(
     val user: UserAccount,
     val fullName: String = user.fullName,
     val university: String = user.university,
+    val universityId: String = user.universityId,
+    val universityOptions: List<CatalogItem> = emptyList(),
     val campus: String = user.campus,
+    val campusId: String = user.campusId,
+    val campusOptions: List<CatalogItem> = emptyList(),
     val email: String = user.email,
     val currentEmailPassword: String = "",
     val currentPassword: String = "",
     val newPassword: String = "",
     val confirmPassword: String = "",
     val notificationsEnabled: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val isSaving: Boolean = false,
     val showLogoutConfirmation: Boolean = false,
     val showDeleteConfirmation: Boolean = false,
@@ -93,6 +106,7 @@ sealed interface AccountAction {
     data class ConfirmPasswordChanged(val value: String) : AccountAction
     data class PhotoChanged(val value: String?) : AccountAction
     data class NotificationsChanged(val enabled: Boolean) : AccountAction
+    data class ThemeModeChanged(val value: ThemeMode) : AccountAction
     data object SaveProfile : AccountAction
     data object UpdateEmail : AccountAction
     data object UpdatePassword : AccountAction
@@ -117,7 +131,28 @@ fun AccountScreen(
 ) {
     RutaUScreenContainer(
         modifier = modifier,
-        topBar = { RutaUTopAppBar(title = "Cuenta") },
+        topBar = {
+            RutaUTopAppBar(
+                title = "Cuenta",
+                actions = {
+                    val useLightMode = state.themeMode == ThemeMode.DARK
+                    IconButton(
+                        onClick = {
+                            onAction(
+                                AccountAction.ThemeModeChanged(
+                                    if (useLightMode) ThemeMode.LIGHT else ThemeMode.DARK,
+                                ),
+                            )
+                        },
+                    ) {
+                        Icon(
+                            imageVector = if (useLightMode) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                            contentDescription = if (useLightMode) "Activar modo claro" else "Activar modo oscuro",
+                        )
+                    }
+                },
+            )
+        },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -154,8 +189,30 @@ fun AccountScreen(
                     "Nombre completo",
                     Modifier.fillMaxWidth().testTag("AccountFullNameInput"),
                 )
-                RutaUTextField(state.university, { onAction(AccountAction.UniversityChanged(it)) }, "Universidad", Modifier.fillMaxWidth())
-                RutaUTextField(state.campus, { onAction(AccountAction.CampusChanged(it)) }, "Campus habitual", Modifier.fillMaxWidth())
+                RutaUDropdownField(
+                    selectedOption = state.university,
+                    options = state.universityOptions.map(CatalogItem::name),
+                    onOptionSelected = { name ->
+                        state.universityOptions.firstOrNull { it.name == name }
+                            ?.let { onAction(AccountAction.UniversityChanged(it.id)) }
+                    },
+                    label = "Universidad",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = state.universityOptions.isNotEmpty(),
+                    supportingText = if (state.universityOptions.isEmpty()) "Cargando universidades disponibles..." else null,
+                )
+                RutaUDropdownField(
+                    selectedOption = state.campus,
+                    options = state.campusOptions.map(CatalogItem::name),
+                    onOptionSelected = { name ->
+                        state.campusOptions.firstOrNull { it.name == name }
+                            ?.let { onAction(AccountAction.CampusChanged(it.id)) }
+                    },
+                    label = "Campus habitual",
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = state.campusOptions.isNotEmpty(),
+                    supportingText = if (state.campusOptions.isEmpty()) "Cargando campus disponibles..." else null,
+                )
                 RutaULoadingButton(
                     text = "Guardar datos personales",
                     onClick = { onAction(AccountAction.SaveProfile) },

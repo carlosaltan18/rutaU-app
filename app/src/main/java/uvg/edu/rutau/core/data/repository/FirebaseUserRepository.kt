@@ -6,6 +6,7 @@ import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.model.UpdateEmailInput
 import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
@@ -20,10 +21,18 @@ class FirebaseUserRepository(
     private val firebaseAuth: FirebaseAuth,
     private val sessionRepository: SessionRepository,
     private val backendApi: BackendApi,
+    private val catalogRepository: CatalogRepository,
 ) : UserRepository {
     override fun observeCurrentUser(): Flow<UserAccount?> = sessionRepository.sessionState.map { state ->
         if (state !is SessionState.SignedIn) return@map null
-        backendApi.getMe().requireData().toUserAccount()
+        val profile = backendApi.getMe().requireData()
+        val universityName = runCatching {
+            catalogRepository.universities().firstOrNull { it.id == profile.universityId }?.name
+        }.getOrNull() ?: profile.universityId
+        val campusName = runCatching {
+            catalogRepository.campuses(profile.universityId).firstOrNull { it.id == profile.campusId }?.name
+        }.getOrNull() ?: profile.campusId
+        profile.toUserAccount(universityName, campusName)
     }
 
     override suspend fun updateProfile(input: UpdateProfileInput) {
@@ -31,7 +40,8 @@ class FirebaseUserRepository(
             UpdateMeRequestDto(
                 displayName = input.fullName,
                 photoUrl = input.photoUrl,
-                campusId = input.campus,
+                universityId = input.universityId,
+                campusId = input.campusId,
             ),
         ).requireData()
         firebaseAuth.currentUser?.updateProfile(
