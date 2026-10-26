@@ -54,8 +54,15 @@ class FirebaseSessionRepository(
 
     override suspend fun loginWithGoogle(idToken: String): Boolean = runCatching {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
-        firebaseAuth.signInWithCredential(credential).await()
-        createBackendSession(SessionRequestDto())
+        val authResult = firebaseAuth.signInWithCredential(credential).await()
+        val user = authResult.user ?: firebaseAuth.currentUser
+        createBackendSession(
+            SessionRequestDto(
+                displayName = user?.displayName?.trim()?.takeIf { it.isNotBlank() },
+                institutionalEmail = user?.email?.trim()?.takeIf { it.isNotBlank() },
+                photoUrl = user?.photoUrl?.toString()?.trim()?.takeIf { it.isNotBlank() },
+            ),
+        )
     }.getOrElse { error ->
         signOutFirebase()
         // Re-lanzar errores de red para que el ViewModel pueda mostrar mensaje apropiado
@@ -92,17 +99,21 @@ class FirebaseSessionRepository(
         if (idToken.isBlank()) return false
         return runCatching {
             val credential = GoogleAuthProvider.getCredential(idToken, null)
-            firebaseAuth.signInWithCredential(credential).await()
-            firebaseAuth.currentUser?.updateProfile(
-                UserProfileChangeRequest.Builder().setDisplayName(input.fullName.trim()).build(),
-            )?.await()
+            val authResult = firebaseAuth.signInWithCredential(credential).await()
+            val user = authResult.user ?: firebaseAuth.currentUser
+            val displayName = input.fullName.trim().ifBlank { user?.displayName.orEmpty() }
+            if (displayName.isNotBlank()) {
+                user?.updateProfile(
+                    UserProfileChangeRequest.Builder().setDisplayName(displayName).build(),
+                )?.await()
+            }
             createBackendSession(
                 SessionRequestDto(
-                    displayName = input.fullName.trim(),
-                    institutionalEmail = input.email.trim(),
-                    universityId = input.universityId,
-                    campusId = input.campusId,
-                    photoUrl = input.photoUrl?.trim()?.takeIf { it.isNotBlank() },
+                    displayName = displayName.takeIf { it.isNotBlank() },
+                    institutionalEmail = (input.email.trim().ifBlank { user?.email.orEmpty() }).takeIf { it.isNotBlank() },
+                    universityId = input.universityId.trim().takeIf { it.isNotBlank() },
+                    campusId = input.campusId.trim().takeIf { it.isNotBlank() },
+                    photoUrl = (input.photoUrl?.trim()?.takeIf { it.isNotBlank() } ?: user?.photoUrl?.toString()),
                 ),
             )
         }.getOrElse { error ->
@@ -136,17 +147,24 @@ class FirebaseSessionRepository(
 
     /** Recupera la sesión del servidor cuando Firebase conserva una sesión previa. */
     suspend fun restoreBackendSession() {
-        if (firebaseAuth.currentUser == null) return
-        runCatching { createBackendSession(SessionRequestDto()) }
-            .onFailure { error ->
-                // Solo cerrar sesión si el servidor rechaza explícitamente el token (auth inválida)
-                // No cerrar sesión por errores de red (cold start de Render, sin internet, etc.)
-                if (error is BackendApiException && (error.code == "UNAUTHENTICATED" || error.code == "FORBIDDEN")) {
-                    signOutFirebase()
-                }
-                // Los errores de red (BackendNetworkException, IOException) se ignoran:
-                // el usuario queda con sesión Firebase válida y el backend sincronizará en la siguiente llamada
+        val user = firebaseAuth.currentUser ?: return
+        runCatching {
+            createBackendSession(
+                SessionRequestDto(
+                    displayName = user.displayName?.trim()?.takeIf { it.isNotBlank() },
+                    institutionalEmail = user.email?.trim()?.takeIf { it.isNotBlank() },
+                    photoUrl = user.photoUrl?.toString()?.trim()?.takeIf { it.isNotBlank() },
+                ),
+            )
+        }.onFailure { error ->
+            // Solo cerrar sesión si el servidor rechaza explícitamente el token (auth inválida)
+            // No cerrar sesión por errores de red (cold start de Render, sin internet, etc.)
+            if (error is BackendApiException && (error.code == "UNAUTHENTICATED" || error.code == "FORBIDDEN")) {
+                signOutFirebase()
             }
+            // Los errores de red (BackendNetworkException, IOException) se ignoran:
+            // el usuario queda con sesión Firebase válida y el backend sincronizará en la siguiente llamada
+        }
     }
 
     private suspend fun createBackendSession(body: SessionRequestDto): Boolean {

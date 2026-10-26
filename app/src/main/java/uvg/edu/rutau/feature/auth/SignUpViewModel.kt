@@ -160,22 +160,11 @@ class SignUpViewModel(
     /** Crea una cuenta de Google después de validar los datos académicos. */
     fun createAccountWithGoogle(idToken: String?) {
         val state = uiState.value
-        val emailError = if (state.email.isBlank() || !state.email.contains('@')) {
-            "Ingresa el correo institucional que usarás en RutaU."
-        } else {
-            null
-        }
-        val fullNameError = if (state.fullName.isBlank()) "Ingresa tu nombre completo." else null
-        val universityError = if (state.university.isBlank()) "Selecciona tu universidad." else null
-        val campusError = if (state.campus.isBlank()) "Selecciona tu campus o sede habitual." else null
         val termsError = if (!state.termsAccepted) "Debes aceptar los términos y condiciones." else null
-        if (idToken.isNullOrBlank() || fullNameError != null || universityError != null || campusError != null || emailError != null || termsError != null) {
+        if (idToken.isNullOrBlank() || termsError != null) {
             updateState {
                 copy(
-                    fullNameError = fullNameError,
-                    universityError = universityError,
-                    campusError = campusError,
-                    emailError = emailError ?: "No fue posible continuar con Google.",
+                    emailError = if (idToken.isNullOrBlank()) "No fue posible continuar con Google." else null,
                     termsError = termsError,
                 )
             }
