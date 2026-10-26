@@ -122,24 +122,38 @@ class SignUpViewModel(
                     termsError = null,
                 )
             }
-            val didRegister = sessionRepository.register(
-                SignUpInput(
-                    fullName = state.fullName,
-                    university = state.university,
-                    campus = state.campus,
-                    email = state.email,
-                    password = state.password,
-                    photoUrl = state.photoUrl,
-                    universityId = state.university,
-                    campusId = state.campus,
-                ),
-            )
-            updateState { copy(isLoading = false) }
-            if (didRegister) {
-                mutableEvents.emit(SignUpEvent.AccountCreated)
-            } else {
-                updateState { copy(emailError = "No pudimos validar este correo. Intenta de nuevo.") }
+            val result = runCatching {
+                sessionRepository.register(
+                    SignUpInput(
+                        fullName = state.fullName,
+                        university = state.university,
+                        campus = state.campus,
+                        email = state.email,
+                        password = state.password,
+                        photoUrl = state.photoUrl,
+                        universityId = state.university,
+                        campusId = state.campus,
+                    ),
+                )
             }
+            updateState { copy(isLoading = false) }
+            result.fold(
+                onSuccess = { didRegister ->
+                    if (didRegister) {
+                        mutableEvents.emit(SignUpEvent.AccountCreated)
+                    } else {
+                        updateState { copy(emailError = "No fue posible registrar la cuenta. Verifica tus datos.") }
+                    }
+                },
+                onFailure = { error ->
+                    val message = when {
+                        error is uvg.edu.rutau.core.network.BackendApiException -> error.message
+                        error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo en unos segundos."
+                        else -> error.localizedMessage ?: "No pudimos crear la cuenta. Intenta de nuevo."
+                    }
+                    updateState { copy(emailError = message) }
+                },
+            )
         }
     }
 
@@ -169,22 +183,36 @@ class SignUpViewModel(
         }
         viewModelScope.launch {
             updateState { copy(isLoading = true, emailError = null) }
-            val didRegister = sessionRepository.registerWithGoogle(
-                idToken,
-                SignUpInput(
-                    fullName = state.fullName,
-                    university = state.university,
-                    campus = state.campus,
-                    email = state.email,
-                    password = "",
-                    photoUrl = state.photoUrl,
-                    universityId = state.university,
-                    campusId = state.campus,
-                ),
-            )
+            val result = runCatching {
+                sessionRepository.registerWithGoogle(
+                    idToken,
+                    SignUpInput(
+                        fullName = state.fullName,
+                        university = state.university,
+                        campus = state.campus,
+                        email = state.email,
+                        password = "",
+                        photoUrl = state.photoUrl,
+                        universityId = state.university,
+                        campusId = state.campus,
+                    ),
+                )
+            }
             updateState { copy(isLoading = false) }
-            if (didRegister) mutableEvents.emit(SignUpEvent.AccountCreated)
-            else updateState { copy(emailError = "No pudimos crear la cuenta con Google. Intenta de nuevo.") }
+            result.fold(
+                onSuccess = { didRegister ->
+                    if (didRegister) mutableEvents.emit(SignUpEvent.AccountCreated)
+                    else updateState { copy(emailError = "No fue posible registrar la cuenta con Google.") }
+                },
+                onFailure = { error ->
+                    val message = when {
+                        error is uvg.edu.rutau.core.network.BackendApiException -> error.message
+                        error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo en unos segundos."
+                        else -> error.localizedMessage ?: "No pudimos crear la cuenta con Google. Intenta de nuevo."
+                    }
+                    updateState { copy(emailError = message) }
+                },
+            )
         }
     }
 

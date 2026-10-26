@@ -20,8 +20,9 @@ class RutaUNetworkClient(
         }
         require(baseUrl.endsWith('/')) { "La URL de la API debe terminar con /." }
         val client = OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(FirebaseAuthInterceptor(tokenProvider))
             .authenticator(FirebaseTokenAuthenticator(tokenProvider, onSessionInvalid))
             .build()

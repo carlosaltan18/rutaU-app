@@ -16,6 +16,8 @@ import kotlinx.coroutines.tasks.await
 import uvg.edu.rutau.core.model.PasswordRules
 import uvg.edu.rutau.core.model.SignUpInput
 import uvg.edu.rutau.core.network.BackendApi
+import uvg.edu.rutau.core.network.BackendApiException
+import uvg.edu.rutau.core.network.BackendNetworkException
 import uvg.edu.rutau.core.network.SessionRequestDto
 import uvg.edu.rutau.core.network.requireData
 
@@ -43,8 +45,10 @@ class FirebaseSessionRepository(
     override suspend fun login(email: String, password: String): Boolean = runCatching {
         firebaseAuth.signInWithEmailAndPassword(email.trim(), password).await()
         createBackendSession(SessionRequestDto())
-    }.getOrElse {
+    }.getOrElse { error ->
         signOutFirebase()
+        // Re-lanzar errores de red para que el ViewModel pueda mostrar mensaje apropiado
+        if (error is java.io.IOException) throw error
         false
     }
 
@@ -52,8 +56,10 @@ class FirebaseSessionRepository(
         val credential = GoogleAuthProvider.getCredential(idToken, null)
         firebaseAuth.signInWithCredential(credential).await()
         createBackendSession(SessionRequestDto())
-    }.getOrElse {
+    }.getOrElse { error ->
         signOutFirebase()
+        // Re-lanzar errores de red para que el ViewModel pueda mostrar mensaje apropiado
+        if (error is java.io.IOException) throw error
         false
     }
 
@@ -70,11 +76,14 @@ class FirebaseSessionRepository(
                     institutionalEmail = input.email.trim(),
                     universityId = input.universityId,
                     campusId = input.campusId,
-                    photoUrl = input.photoUrl,
+                    photoUrl = input.photoUrl?.trim()?.takeIf { it.isNotBlank() },
                 ),
             )
-        }.getOrElse {
+        }.getOrElse { error ->
+            runCatching { firebaseAuth.currentUser?.delete()?.await() }
             signOutFirebase()
+            // Re-lanzar errores de red y errores de API para que el ViewModel muestre mensajes descriptivos
+            if (error is java.io.IOException) throw error
             false
         }
     }
@@ -93,11 +102,13 @@ class FirebaseSessionRepository(
                     institutionalEmail = input.email.trim(),
                     universityId = input.universityId,
                     campusId = input.campusId,
-                    photoUrl = input.photoUrl,
+                    photoUrl = input.photoUrl?.trim()?.takeIf { it.isNotBlank() },
                 ),
             )
-        }.getOrElse {
+        }.getOrElse { error ->
             signOutFirebase()
+            // Re-lanzar errores de red y errores de API para que el ViewModel muestre mensajes descriptivos
+            if (error is java.io.IOException) throw error
             false
         }
     }
@@ -127,7 +138,15 @@ class FirebaseSessionRepository(
     suspend fun restoreBackendSession() {
         if (firebaseAuth.currentUser == null) return
         runCatching { createBackendSession(SessionRequestDto()) }
-            .onFailure { signOutFirebase() }
+            .onFailure { error ->
+                // Solo cerrar sesión si el servidor rechaza explícitamente el token (auth inválida)
+                // No cerrar sesión por errores de red (cold start de Render, sin internet, etc.)
+                if (error is BackendApiException && (error.code == "UNAUTHENTICATED" || error.code == "FORBIDDEN")) {
+                    signOutFirebase()
+                }
+                // Los errores de red (BackendNetworkException, IOException) se ignoran:
+                // el usuario queda con sesión Firebase válida y el backend sincronizará en la siguiente llamada
+            }
     }
 
     private suspend fun createBackendSession(body: SessionRequestDto): Boolean {
