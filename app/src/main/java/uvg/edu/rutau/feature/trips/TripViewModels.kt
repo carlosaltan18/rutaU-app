@@ -12,8 +12,11 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import uvg.edu.rutau.core.data.catalog.CatalogItem
+import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.TripRepository
+import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
@@ -54,8 +57,10 @@ class TripsViewModel(private val repository: TripRepository) : ViewModel() {
 
 /** Guarda los datos que se editan en el formulario de un trayecto. */
 data class TripEditorUiState(
-    val originZone: String = "Zona 11",
-    val destinationCampus: String = "Campus Central",
+    val originZone: String = "",
+    val destinationCampus: String = "",
+    val zones: List<CatalogItem> = emptyList(),
+    val campuses: List<CatalogItem> = emptyList(),
     val dayOfWeek: String = "Lunes",
     val departureTime: LocalTime = LocalTime.of(6, 30),
     val role: TripRole = TripRole.PASSENGER,
@@ -69,16 +74,19 @@ data class TripEditorUiState(
 class TripEditorViewModel(
     private val tripId: String?,
     private val repository: TripRepository,
+    private val catalogRepository: CatalogRepository? = null,
+    private val userRepository: UserRepository? = null,
 ) : ViewModel() {
     val uiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
 
     init {
+        loadCatalogs()
         if (tripId != null) {
             viewModelScope.launch {
                 val trip = repository.observeTrip(tripId).filterNotNull().first()
                 uiState.value = TripEditorUiState(
-                    originZone = trip.originZone,
-                    destinationCampus = trip.destinationCampus,
+                    originZone = trip.originZoneId,
+                    destinationCampus = trip.destinationCampusId,
                     dayOfWeek = trip.dayOfWeek,
                     departureTime = trip.departureTime,
                     role = trip.role,
@@ -141,9 +149,28 @@ class TripEditorViewModel(
         uiState.value = uiState.value.transform()
     }
 
+    private fun loadCatalogs() {
+        val catalogs = catalogRepository ?: return
+        viewModelScope.launch {
+            runCatching { catalogs.zones() }
+                .onSuccess { zones -> update { copy(zones = zones) } }
+                .onFailure { update { copy(error = "No fue posible cargar las zonas.") } }
+            val universityId = userRepository?.observeCurrentUser()?.first()?.university.orEmpty()
+            if (universityId.isNotBlank()) {
+                runCatching { catalogs.campuses(universityId) }
+                    .onSuccess { campuses -> update { copy(campuses = campuses) } }
+                    .onFailure { update { copy(error = "No fue posible cargar los campus.") } }
+            }
+        }
+    }
+
     companion object {
-        fun factory(tripId: String?, repository: TripRepository) =
-            viewModelFactory { TripEditorViewModel(tripId, repository) }
+        fun factory(
+            tripId: String?,
+            repository: TripRepository,
+            catalogRepository: CatalogRepository? = null,
+            userRepository: UserRepository? = null,
+        ) = viewModelFactory { TripEditorViewModel(tripId, repository, catalogRepository, userRepository) }
     }
 }
 

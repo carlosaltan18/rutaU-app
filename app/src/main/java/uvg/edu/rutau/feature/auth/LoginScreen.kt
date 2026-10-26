@@ -34,6 +34,7 @@ fun LoginScreen(
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onLogin: () -> Unit,
+    onGoogleLogin: () -> Unit,
     onForgotPassword: () -> Unit,
     onSignUp: () -> Unit,
     onOpenTerms: () -> Unit,
@@ -103,6 +104,12 @@ fun LoginScreen(
                 isLoading = isLoading,
                 modifier = Modifier.fillMaxWidth().testTag("LoginSubmitButton"),
             )
+            Spacer(Modifier.height(RutaUSpacing.Medium))
+            RutaUPrimaryButton(
+                text = "Continuar con Google",
+                onClick = onGoogleLogin,
+                modifier = Modifier.fillMaxWidth().testTag("LoginGoogleButton"),
+            )
             Spacer(Modifier.height(RutaUSpacing.XLarge))
             Text(
                 text = "¿No tienes cuenta?",
@@ -148,6 +155,7 @@ private fun LoginScreenPreview() {
             onEmailChange = {},
             onPasswordChange = {},
             onLogin = {},
+            onGoogleLogin = {},
             onForgotPassword = {},
             onSignUp = {},
             onOpenTerms = {},

@@ -42,6 +42,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
+import uvg.edu.rutau.core.data.catalog.CatalogItem
 import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripMatch
@@ -148,8 +149,8 @@ fun TripEditorForm(
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         TripRoleSelector(state.role, onRoleChange)
-        OriginZoneSelector(state.originZone, onOriginChange)
-        CampusSelector(state.destinationCampus, onCampusChange)
+        OriginZoneSelector(state.originZone, state.zones, onOriginChange)
+        CampusSelector(state.destinationCampus, state.campuses, onCampusChange)
         DaySelector(state.dayOfWeek, onDayChange)
         TimeSelector(state.departureTime, onTimeChange)
         if (state.role == TripRole.DRIVER) PassengerSeatSelector(state.offeredSeats, onSeatsChange)
@@ -186,12 +187,24 @@ fun SeatAvailabilityIndicator(trip: Trip) {
 }
 
 @Composable
-fun OriginZoneSelector(selected: String, onSelected: (String) -> Unit) =
-    RutaUDropdownField(selected, listOf("Zona 1", "Zona 7", "Zona 10", "Zona 11", "Zona 12", "Mixco"), onSelected, "Zona de origen", Modifier.fillMaxWidth())
+fun OriginZoneSelector(selected: String, options: List<CatalogItem>, onSelected: (String) -> Unit) =
+    RutaUDropdownField(
+        options.firstOrNull { it.id == selected }?.name,
+        options.map(CatalogItem::name),
+        { name -> options.firstOrNull { it.name == name }?.let { onSelected(it.id) } },
+        "Zona de origen",
+        Modifier.fillMaxWidth(),
+    )
 
 @Composable
-fun CampusSelector(selected: String, onSelected: (String) -> Unit) =
-    RutaUDropdownField(selected, listOf("Campus Central", "Campus Sur", "Campus Norte"), onSelected, "Campus de destino", Modifier.fillMaxWidth())
+fun CampusSelector(selected: String, options: List<CatalogItem>, onSelected: (String) -> Unit) =
+    RutaUDropdownField(
+        options.firstOrNull { it.id == selected }?.name,
+        options.map(CatalogItem::name),
+        { name -> options.firstOrNull { it.name == name }?.let { onSelected(it.id) } },
+        "Campus de destino",
+        Modifier.fillMaxWidth(),
+    )
 
 @Composable
 fun DaySelector(selected: String, onSelected: (String) -> Unit) =

@@ -28,7 +28,6 @@ import uvg.edu.rutau.ui.theme.RutaUTheme
 @Composable
 fun EmailSentScreen(
     onResend: () -> Unit,
-    onOpenResetLink: () -> Unit,
     onBackToLogin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -71,14 +70,10 @@ fun EmailSentScreen(
             )
             Spacer(Modifier.height(RutaUSpacing.Medium))
             Text(
-                text = "¿Abriste el enlace de tu correo?",
+                text = "Abre el enlace recibido en tu correo para continuar de forma segura.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
-            )
-            RutaUPrimaryButton(
-                text = "Abrir enlace de demostración",
-                onClick = onOpenResetLink,
-                modifier = Modifier.fillMaxWidth().testTag("RecoveryOpenDemoLinkButton"),
+                textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(RutaUSpacing.Medium))
             androidx.compose.material3.TextButton(onClick = onBackToLogin) {
@@ -92,6 +87,6 @@ fun EmailSentScreen(
 @Composable
 private fun EmailSentScreenPreview() {
     RutaUTheme {
-        EmailSentScreen(onResend = {}, onOpenResetLink = {}, onBackToLogin = {})
+        EmailSentScreen(onResend = {}, onBackToLogin = {})
     }
 }

@@ -47,7 +47,7 @@ data class RequestsUiState(
 class RequestsViewModel(
     rideRequestRepository: RideRequestRepository,
     userRepository: UserRepository,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val tab = MutableStateFlow(
         savedStateHandle.get<String>(SelectedTabKey)?.let(RequestTab::valueOf) ?: RequestTab.RECEIVED,
@@ -203,6 +203,7 @@ class CoordinatedRideViewModel(
 ) : ViewModel() {
     private val saving = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
+    private val liveCoordination = MutableStateFlow<Coordination?>(null)
     private val rideInfo = combine(
         rideRequestRepository.observeRequestDetail(requestId),
         rideRequestRepository.observeRequestDetails(),
@@ -216,18 +217,20 @@ class CoordinatedRideViewModel(
         userRepository.observeCurrentUser(),
         saving,
         error,
-    ) { info, user, isSaving, message ->
-        val confirmedRequests = info.coordination?.let { coordination ->
+        liveCoordination,
+    ) { info, user, isSaving, message, updatedCoordination ->
+        val coordination = updatedCoordination ?: info.coordination
+        val confirmedRequests = coordination?.let { currentCoordination ->
             info.allDetails.filter { requestDetail ->
                 val (driverTripId, _) = requestDetail.request.driverAndPassengerTripIds()
                 requestDetail.request.status == RequestStatus.ACCEPTED &&
-                    requestDetail.request.rideDate == coordination.rideDate &&
-                    driverTripId == coordination.driverTripId
+                    requestDetail.request.rideDate == currentCoordination.rideDate &&
+                    (currentCoordination.driverTripId.isBlank() || driverTripId == currentCoordination.driverTripId)
             }
         }.orEmpty()
         CoordinatedRideUiState(
             detail = info.detail,
-            coordination = info.coordination,
+            coordination = coordination,
             confirmedRequests = confirmedRequests,
             currentUserId = user?.id,
             isSaving = isSaving,
@@ -244,6 +247,40 @@ class CoordinatedRideViewModel(
         val coordinationId = uiState.value.coordination?.id ?: return
         cancel(onCancelled) {
             coordinationRepository.cancelParticipation(coordinationId)
+        }
+    }
+
+    /** Inicia la ubicación únicamente cuando el servidor confirmó que es conductor. */
+    fun startLiveLocation(onStarted: (String) -> Unit) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                val updated = coordinationRepository.startLiveLocation(coordinationId)
+                liveCoordination.value = updated
+                updated.liveOccurrenceId?.let(onStarted)
+                    ?: error("El servidor no entregó la ocurrencia del viaje.")
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible iniciar el viaje."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Finaliza el viaje y deja de compartir la ubicación. */
+    fun endLiveLocation(onEnded: () -> Unit) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = coordinationRepository.endLiveLocation(coordinationId)
+                onEnded()
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible finalizar el viaje."
+            }
+            saving.value = false
         }
     }
 

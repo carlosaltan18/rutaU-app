@@ -21,6 +21,8 @@ class FakeSessionRepository(
         return true
     }
 
+    override suspend fun loginWithGoogle(idToken: String): Boolean = false
+
     override suspend fun register(input: SignUpInput): Boolean {
         if (input.email.isBlank() || PasswordRules.validationError(input.password) != null) return false
         val account = UserAccount(
@@ -36,6 +38,8 @@ class FakeSessionRepository(
         mutableSessionState.value = SessionState.SignedIn(account.id)
         return true
     }
+
+    override suspend fun registerWithGoogle(idToken: String, input: SignUpInput): Boolean = false
 
     override suspend fun requestPasswordRecovery(email: String) = Unit
 

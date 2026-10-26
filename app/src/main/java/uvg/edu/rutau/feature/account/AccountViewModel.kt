@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.repository.SessionRepository
@@ -20,6 +21,7 @@ import uvg.edu.rutau.core.model.UpdateEmailInput
 import uvg.edu.rutau.core.model.UpdatePasswordInput
 import uvg.edu.rutau.core.model.UpdateProfileInput
 import uvg.edu.rutau.core.model.PasswordRules
+import uvg.edu.rutau.core.preferences.PopupMessageRepository
 
 /** Indica los resultados posibles de las acciones de cuenta. */
 sealed interface AccountEvent {
@@ -30,7 +32,8 @@ sealed interface AccountEvent {
 class AccountViewModel(
     private val userRepository: UserRepository,
     private val sessionRepository: SessionRepository,
-    private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val popupMessageRepository: PopupMessageRepository,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow<AccountUiState?>(null)
     val uiState = mutableUiState.asStateFlow()
@@ -40,7 +43,10 @@ class AccountViewModel(
 
     init {
         viewModelScope.launch {
-            userRepository.observeCurrentUser().collectLatest { user ->
+            combine(
+                userRepository.observeCurrentUser(),
+                popupMessageRepository.observeState(),
+            ) { user, popupState -> user to popupState }.collectLatest { (user, popupState) ->
                 mutableUiState.value = user?.let { account ->
                     AccountUiState(
                         user = account.copy(photoUrl = savedStateHandle[PhotoUrlKey] ?: account.photoUrl),
@@ -48,7 +54,7 @@ class AccountViewModel(
                         university = savedStateHandle[UniversityKey] ?: account.university,
                         campus = savedStateHandle[CampusKey] ?: account.campus,
                         email = savedStateHandle[EmailKey] ?: account.email,
-                        notificationsEnabled = savedStateHandle[NotificationsKey] ?: true,
+                        notificationsEnabled = savedStateHandle[NotificationsKey] ?: popupState.popupsEnabled,
                     )
                 }
             }
@@ -68,7 +74,10 @@ class AccountViewModel(
             is AccountAction.PhotoChanged -> updateState {
                 copy(user = user.copy(photoUrl = action.value))
             }
-            is AccountAction.NotificationsChanged -> updateState { copy(notificationsEnabled = action.enabled) }
+            is AccountAction.NotificationsChanged -> {
+                updateState { copy(notificationsEnabled = action.enabled) }
+                viewModelScope.launch { popupMessageRepository.setPopupsEnabled(action.enabled) }
+            }
             AccountAction.SaveProfile -> saveProfile()
             AccountAction.UpdateEmail -> updateEmail()
             AccountAction.UpdatePassword -> updatePassword()
@@ -91,10 +100,19 @@ class AccountViewModel(
         }
         viewModelScope.launch {
             updateState { copy(isSaving = true, message = null) }
-            userRepository.updateProfile(
-                UpdateProfileInput(state.fullName, state.university, state.campus, state.user.photoUrl),
-            )
-            updateState { copy(isSaving = false, message = "Tus datos fueron actualizados.") }
+            try {
+                userRepository.updateProfile(
+                    UpdateProfileInput(state.fullName, state.university, state.campus, state.user.photoUrl),
+                )
+                updateState { copy(isSaving = false, message = "Tus datos fueron actualizados.") }
+            } catch (_: Throwable) {
+                updateState {
+                    copy(
+                        isSaving = false,
+                        message = "No fue posible guardar tus datos. Revisa tu conexión e inténtalo de nuevo.",
+                    )
+                }
+            }
         }
     }
 
@@ -147,9 +165,13 @@ class AccountViewModel(
 
     private fun deleteAccount() {
         viewModelScope.launch {
-            userRepository.deleteAccount()
-            sessionRepository.logout()
-            mutableEvents.emit(AccountEvent.SignedOut)
+            try {
+                userRepository.deleteAccount()
+                sessionRepository.logout()
+                mutableEvents.emit(AccountEvent.SignedOut)
+            } catch (_: Throwable) {
+                updateState { copy(showDeleteConfirmation = false, message = "No fue posible eliminar la cuenta. Inténtalo de nuevo.") }
+            }
         }
     }
 
@@ -172,11 +194,13 @@ class AccountViewModel(
         fun factory(
             userRepository: UserRepository,
             sessionRepository: SessionRepository,
+            popupMessageRepository: PopupMessageRepository,
         ) = viewModelFactory {
             initializer {
                 AccountViewModel(
                     userRepository = userRepository,
                     sessionRepository = sessionRepository,
+                    popupMessageRepository = popupMessageRepository,
                     savedStateHandle = createSavedStateHandle(),
                 )
             }

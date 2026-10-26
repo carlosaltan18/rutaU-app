@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
@@ -37,6 +37,10 @@ import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.location.LiveTripLocationPermissions
+import uvg.edu.rutau.core.location.LiveTripLocation
+import uvg.edu.rutau.core.location.LiveTripLocationService
+import uvg.edu.rutau.core.location.rememberLiveTripLocationPermissionRequester
 
 /** Conecta la lista de solicitudes con los datos compartidos. */
 @Composable
@@ -228,11 +232,37 @@ fun CoordinatedRideRoute(
     viewModel: CoordinatedRideViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val liveLocation by uvg.edu.rutau.app.RutaUAppDependencies.liveTripLocationRepository
+        .observe(state.coordination?.liveOccurrenceId.orEmpty())
+        .collectAsStateWithLifecycle(null)
+    val context = LocalContext.current
+    val requestLocationPermission = rememberLiveTripLocationPermissionRequester { granted ->
+        if (granted) {
+            viewModel.startLiveLocation { occurrenceId ->
+                LiveTripLocationService.start(context, occurrenceId)
+            }
+        }
+    }
     CoordinatedRideScreen(
         state = state,
         onBack = onBack,
-        onCancelRide = { viewModel.cancelRide(onBack) },
-        onCancelParticipation = { viewModel.cancelParticipation(onBack) },
+        onCancelRide = {
+            viewModel.cancelRide {
+                LiveTripLocationService.stop(context)
+                onBack()
+            }
+        },
+        onCancelParticipation = {
+            viewModel.cancelParticipation {
+                LiveTripLocationService.stop(context)
+                onBack()
+            }
+        },
+        onStartLiveLocation = requestLocationPermission,
+        onEndLiveLocation = {
+            viewModel.endLiveLocation { LiveTripLocationService.stop(context) }
+        },
+        liveLocation = liveLocation,
     )
 }
 
@@ -243,6 +273,9 @@ fun CoordinatedRideScreen(
     onBack: () -> Unit,
     onCancelRide: () -> Unit,
     onCancelParticipation: () -> Unit,
+    onStartLiveLocation: () -> Unit,
+    onEndLiveLocation: () -> Unit,
+    liveLocation: LiveTripLocation? = null,
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
@@ -297,14 +330,14 @@ fun CoordinatedRideScreen(
                             phone = otherPerson.phone,
                             onCall = {
                                 otherPerson.phone?.let { phone ->
-                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phone")))
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, "tel:$phone".toUri()))
                                 }
                             },
                             onWhatsApp = {
                                 otherPerson.phone?.let { phone ->
                                     val number = phone.filter(Char::isDigit)
                                     context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$number")),
+                                        Intent(Intent.ACTION_VIEW, "https://wa.me/$number".toUri()),
                                     )
                                 }
                             },
@@ -314,6 +347,40 @@ fun CoordinatedRideScreen(
                 item { ContactNoticeCard() }
                 item { MeetingPointCard() }
                 item { CoordinationTimeline() }
+                if (state.coordination.canStartLiveLocation) {
+                    item {
+                        RutaUInfoCard(
+                            title = "Ubicación durante el viaje",
+                            message = LiveTripLocationPermissions.Explanation,
+                        )
+                    }
+                    item {
+                        RutaUPrimaryButton(
+                            "Iniciar viaje y ubicación",
+                            onStartLiveLocation,
+                            Modifier.fillMaxWidth(),
+                            enabled = !state.isSaving,
+                        )
+                    }
+                }
+                if (state.coordination.canEndLiveLocation) {
+                    item {
+                        RutaUDestructiveButton(
+                            "Finalizar viaje",
+                            onEndLiveLocation,
+                            Modifier.fillMaxWidth(),
+                            enabled = !state.isSaving,
+                        )
+                    }
+                }
+                if (!currentUserIsDriver && liveLocation != null) {
+                    item {
+                        RutaUInfoCard(
+                            title = "Ubicación del conductor disponible",
+                            message = "La aplicación recibió la última ubicación compartida durante este viaje.",
+                        )
+                    }
+                }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
                 }

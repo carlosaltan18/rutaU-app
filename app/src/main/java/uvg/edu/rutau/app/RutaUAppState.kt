@@ -13,6 +13,10 @@ import uvg.edu.rutau.core.navigation.AppDestination
 import uvg.edu.rutau.core.navigation.LoginRoute
 import uvg.edu.rutau.core.navigation.RequestsRoute
 import uvg.edu.rutau.core.navigation.TripsRoute
+import uvg.edu.rutau.core.navigation.RequestDetailRoute
+import uvg.edu.rutau.core.navigation.CoordinatedRideRoute
+import uvg.edu.rutau.core.navigation.CoordinationDetailRoute
+import uvg.edu.rutau.core.notifications.PushNavigationTarget
 
 /** Maneja la navegación principal de la aplicación. */
 @Stable
@@ -57,6 +61,14 @@ class RutaUAppState internal constructor(
                 inclusive = true
             }
             launchSingleTop = true
+        }
+    }
+
+    /** Abre el recurso indicado por un push después de volver a consultar la API. */
+    fun navigateFromPush(target: PushNavigationTarget) {
+        when (target.destination) {
+            "RIDE_REQUEST_DETAIL" -> navController.navigate(RequestDetailRoute(target.resourceId))
+            "COORDINATION_DETAIL" -> navController.navigate(CoordinationDetailRoute(target.resourceId))
         }
     }
 }

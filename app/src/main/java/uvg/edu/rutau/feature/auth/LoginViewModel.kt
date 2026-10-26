@@ -71,6 +71,24 @@ class LoginViewModel(
         }
     }
 
+    /** Inicia la sesión después de elegir una cuenta de Google. */
+    fun loginWithGoogle(idToken: String?) {
+        if (idToken.isNullOrBlank()) {
+            mutableUiState.update { it.copy(passwordError = "No fue posible seleccionar una cuenta de Google.") }
+            return
+        }
+        viewModelScope.launch {
+            mutableUiState.update { it.copy(isLoading = true, emailError = null, passwordError = null) }
+            val didLogin = sessionRepository.loginWithGoogle(idToken)
+            mutableUiState.update { it.copy(isLoading = false) }
+            if (didLogin) {
+                mutableEvents.emit(LoginEvent.SignedIn)
+            } else {
+                mutableUiState.update { it.copy(passwordError = "No fue posible iniciar sesión con Google.") }
+            }
+        }
+    }
+
     companion object {
         fun factory(sessionRepository: SessionRepository) = viewModelFactory {
             initializer { LoginViewModel(sessionRepository) }

@@ -42,7 +42,6 @@ fun NavGraphBuilder.authGraph(
     }
     composable<EmailSentDestination> {
         EmailSentRoute(
-            onOpenResetLink = { navController.navigate(ResetPasswordDestination) },
             onBackToLogin = onClearToLogin,
             viewModel = passwordRecoveryViewModel,
         )

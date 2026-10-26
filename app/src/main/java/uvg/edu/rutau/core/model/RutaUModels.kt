@@ -54,6 +54,8 @@ data class SignUpInput(
     val email: String,
     val password: String,
     val photoUrl: String? = null,
+    val universityId: String = university,
+    val campusId: String = campus,
 )
 
 /** Reúne los datos que una persona puede cambiar en su perfil. */
@@ -93,6 +95,8 @@ data class Trip(
     val offeredSeats: Int,
     val occupiedSeats: Int,
     val active: Boolean,
+    val originZoneId: String = originZone,
+    val destinationCampusId: String = destinationCampus,
 ) {
     /** Plazas que todavía puede confirmar el conductor. */
     val availableSeats: Int
@@ -140,6 +144,9 @@ data class Coordination(
     val passengerTripId: String,
     val rideDate: LocalDate,
     val contributionCents: Long,
+    val liveOccurrenceId: String? = null,
+    val canStartLiveLocation: Boolean = false,
+    val canEndLiveLocation: Boolean = false,
 )
 
 /** Une una solicitud con los trayectos y personas que participan. */

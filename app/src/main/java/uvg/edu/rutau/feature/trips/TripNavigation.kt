@@ -29,7 +29,12 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             viewModel = viewModel(
                 key = "trip-editor-${route.tripId ?: "new"}",
-                factory = TripEditorViewModel.factory(route.tripId, RutaUAppDependencies.tripRepository),
+                factory = TripEditorViewModel.factory(
+                    route.tripId,
+                    RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.catalogRepository,
+                    RutaUAppDependencies.userRepository,
+                ),
             ),
         )
     }

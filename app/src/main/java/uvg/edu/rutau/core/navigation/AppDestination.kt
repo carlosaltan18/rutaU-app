@@ -1,6 +1,7 @@
 package uvg.edu.rutau.core.navigation
 
 import kotlinx.serialization.Serializable
+import androidx.annotation.Keep
 
 /** Reúne las rutas disponibles de la aplicación. */
 sealed interface AppDestination
@@ -27,6 +28,7 @@ data object ResetPasswordRoute : AppDestination
 
 /** Distingue los documentos legales que pueden consultarse desde cualquier pantalla. */
 @Serializable
+@Keep
 enum class LegalDocumentType {
     TERMS,
     PRIVACY,
@@ -73,6 +75,10 @@ data class RequestDetailRoute(val requestId: String) : AppDestination
 /** Lleva a un viaje que ya fue aceptado. */
 @Serializable
 data class CoordinatedRideRoute(val requestId: String) : AppDestination
+
+/** Lleva a una coordinación usando su identificador real del servidor. */
+@Serializable
+data class CoordinationDetailRoute(val coordinationId: String) : AppDestination
 
 /** Lleva a la pantalla de cuenta. */
 @Serializable

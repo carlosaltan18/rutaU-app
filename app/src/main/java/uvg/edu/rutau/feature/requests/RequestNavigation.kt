@@ -1,12 +1,19 @@
 package uvg.edu.rutau.feature.requests
 
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import uvg.edu.rutau.app.RutaUAppDependencies
 import uvg.edu.rutau.core.navigation.CoordinatedRideRoute as CoordinatedRideDestination
+import uvg.edu.rutau.core.navigation.CoordinationDetailRoute as CoordinationDetailDestination
 import uvg.edu.rutau.core.navigation.MatchesRoute as MatchesDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute as RequestDetailDestination
 import uvg.edu.rutau.core.navigation.RequestsRoute as RequestsDestination
@@ -57,5 +64,19 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
                 ),
             ),
         )
+    }
+    composable<CoordinationDetailDestination> { entry ->
+        val route = entry.toRoute<CoordinationDetailDestination>()
+        val coordination by RutaUAppDependencies.coordinationRepository
+            .observeCoordinationById(route.coordinationId)
+            .collectAsState(initial = null)
+        LaunchedEffect(coordination?.requestId) {
+            coordination?.requestId?.let { requestId ->
+                navController.navigate(CoordinatedRideDestination(requestId)) {
+                    popUpTo(CoordinationDetailDestination(route.coordinationId)) { inclusive = true }
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize())
     }
 }

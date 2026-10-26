@@ -113,6 +113,7 @@ fun AccountScreen(
     onAction: (AccountAction) -> Unit,
     onOpenLegalDocument: (LegalDocumentType) -> Unit,
     modifier: Modifier = Modifier,
+    onRequestNotificationPermission: () -> Unit = {},
 ) {
     RutaUScreenContainer(
         modifier = modifier,
@@ -217,7 +218,10 @@ fun AccountScreen(
                     }
                     Switch(
                         checked = state.notificationsEnabled,
-                        onCheckedChange = { onAction(AccountAction.NotificationsChanged(it)) },
+                        onCheckedChange = { enabled ->
+                            if (enabled) onRequestNotificationPermission()
+                            onAction(AccountAction.NotificationsChanged(enabled))
+                        },
                     )
                 }
             }
