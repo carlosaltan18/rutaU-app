@@ -55,8 +55,12 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
         val route = entry.toRoute<CandidateProfileDestination>()
         CandidateProfileRoute(
             onBack = { navController.popBackStack() },
-            onCoordinate = {
-                navController.navigate(ConfirmCoordinationDestination(route.tripId, route.candidateTripId))
+            onCoordinate = { existingRequestId ->
+                if (existingRequestId != null) {
+                    navController.navigate(RequestDetailRoute(existingRequestId))
+                } else {
+                    navController.navigate(ConfirmCoordinationDestination(route.tripId, route.candidateTripId))
+                }
             },
             viewModel = viewModel(
                 key = "candidate-${route.tripId}-${route.candidateTripId}",
@@ -64,6 +68,7 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
                     route.tripId,
                     route.candidateTripId,
                     RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.rideRequestRepository,
                 ),
             ),
         )

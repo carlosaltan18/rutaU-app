@@ -15,6 +15,7 @@ data class LiveTripLocation(
     val accuracy: Float,
     val bearing: Float,
     val speed: Float,
+    val updatedAtMillis: Long? = null,
 )
 
 /** Envía y elimina ubicaciones de un viaje que está en curso. */
@@ -50,7 +51,12 @@ class FirebaseLiveTripLocationRepository(
         database.reference.child("liveTrips/$tripOccurrenceId/location").setValue(value).await()
     }
 
-    override suspend fun stopSharing(tripOccurrenceId: String) = Unit
+    override suspend fun stopSharing(tripOccurrenceId: String) {
+        if (tripOccurrenceId.isBlank()) return
+        runCatching {
+            database.reference.child("liveTrips/$tripOccurrenceId/location").removeValue().await()
+        }
+    }
 
     override fun observe(tripOccurrenceId: String): Flow<LiveTripLocation?> {
         if (tripOccurrenceId.isBlank()) return flowOf(null)
@@ -71,6 +77,7 @@ class FirebaseLiveTripLocationRepository(
                             accuracy = snapshot.child("accuracy").getValue(Double::class.java)?.toFloat() ?: 0f,
                             bearing = snapshot.child("bearing").getValue(Double::class.java)?.toFloat() ?: 0f,
                             speed = snapshot.child("speed").getValue(Double::class.java)?.toFloat() ?: 0f,
+                            updatedAtMillis = snapshot.child("updatedAt").getValue(Long::class.java),
                         ),
                     )
                 }

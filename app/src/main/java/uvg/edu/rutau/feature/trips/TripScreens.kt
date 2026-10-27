@@ -286,7 +286,7 @@ fun MatchesScreen(
 }
 
 @Composable
-fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: () -> Unit, viewModel: CandidateProfileViewModel) {
+fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: (String?) -> Unit, viewModel: CandidateProfileViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     CandidateProfileScreen(
         state = state,
@@ -300,7 +300,7 @@ fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: () -> Unit, viewMode
 fun CandidateProfileScreen(
     state: CandidateProfileUiState,
     onBack: () -> Unit,
-    onCoordinate: () -> Unit,
+    onCoordinate: (String?) -> Unit,
     onContributionChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -337,8 +337,11 @@ fun CandidateProfileScreen(
                 item { PrivacyNoticeCard() }
                 item {
                     RutaUPrimaryButton(
-                        if (state.sourceTrip?.role == TripRole.PASSENGER) "Solicitar unirme" else "Invitar a mi trayecto",
-                        onCoordinate,
+                        when (state.existingRequestStatus) {
+                            uvg.edu.rutau.core.model.RequestStatus.PENDING -> "Solicitud enviada · Ver detalle"
+                            else -> if (state.sourceTrip?.role == TripRole.PASSENGER) "Solicitar unirme" else "Invitar a mi trayecto"
+                        },
+                        { onCoordinate(state.existingRequestId) },
                         Modifier.fillMaxWidth(),
                     )
                 }

@@ -16,7 +16,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
+import uvg.edu.rutau.core.designsystem.component.RutaULiveMap
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
@@ -37,10 +40,13 @@ import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.location.LiveTripLocationPermissions
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationService
 import uvg.edu.rutau.core.location.rememberLiveTripLocationPermissionRequester
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /** Conecta la lista de solicitudes con los datos compartidos. */
 @Composable
@@ -232,8 +238,12 @@ fun CoordinatedRideRoute(
     viewModel: CoordinatedRideViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val activeOccurrenceId = state.coordination
+        ?.takeIf { it.liveLocationStatus == LiveLocationStatus.ACTIVE }
+        ?.liveOccurrenceId
+        .orEmpty()
     val liveLocation by uvg.edu.rutau.app.RutaUAppDependencies.liveTripLocationRepository
-        .observe(state.coordination?.liveOccurrenceId.orEmpty())
+        .observe(activeOccurrenceId)
         .collectAsStateWithLifecycle(null)
     val context = LocalContext.current
     val requestLocationPermission = rememberLiveTripLocationPermissionRequester { granted ->
@@ -241,6 +251,8 @@ fun CoordinatedRideRoute(
             viewModel.startLiveLocation { occurrenceId ->
                 LiveTripLocationService.start(context, occurrenceId)
             }
+        } else {
+            viewModel.locationPermissionDenied()
         }
     }
     CoordinatedRideScreen(
@@ -249,19 +261,19 @@ fun CoordinatedRideRoute(
         onCancelRide = {
             viewModel.cancelRide {
                 LiveTripLocationService.stop(context)
-                onBack()
             }
         },
         onCancelParticipation = {
             viewModel.cancelParticipation {
                 LiveTripLocationService.stop(context)
-                onBack()
             }
         },
         onStartLiveLocation = requestLocationPermission,
         onEndLiveLocation = {
             viewModel.endLiveLocation { LiveTripLocationService.stop(context) }
         },
+        onUpdateMeetingPoint = viewModel::updateMeetingPoint,
+        onConfirmMeetingPoint = viewModel::confirmMeetingPoint,
         liveLocation = liveLocation,
     )
 }
@@ -275,6 +287,8 @@ fun CoordinatedRideScreen(
     onCancelParticipation: () -> Unit,
     onStartLiveLocation: () -> Unit,
     onEndLiveLocation: () -> Unit,
+    onUpdateMeetingPoint: (String) -> Unit,
+    onConfirmMeetingPoint: () -> Unit,
     liveLocation: LiveTripLocation? = null,
     modifier: Modifier = Modifier,
 ) {
@@ -302,52 +316,92 @@ fun CoordinatedRideScreen(
             } else {
                 if (detail.senderTrip.role == TripRole.DRIVER) detail.sender else detail.target
             }
+            val confirmedPassengerCount = state.confirmedRequests
+                .map { it.request.id }
+                .distinct()
+                .size
+            val isTerminal = state.coordination.status != uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED
+            val isLocationActive = !isTerminal &&
+                (state.coordination.liveLocationStatus == LiveLocationStatus.ACTIVE || liveLocation != null)
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
-                    RutaUInfoCard(
-                        title = "Viaje confirmado",
-                        message = "Este acuerdo es para ${detail.asRequestDate()}. A diferencia de un trayecto base, " +
-                            "la plaza y el contacto ya están coordinados.",
+                    CoordinationStateCard(state.coordination.status, detail.asRequestDate())
+                }
+                if (!isTerminal) item { RequestStatusChip(RequestStatus.ACCEPTED) }
+                item { RequestTripSummary(detail) }
+                item {
+                    CoordinationCapacityCard(
+                        confirmedPassengers = state.coordination.confirmedPassengerCount,
+                        totalSeats = state.coordination.seatCapacity,
+                        availableSeats = state.coordination.availableSeatCount,
+                        fallbackConfirmedPassengers = confirmedPassengerCount,
                     )
                 }
-                item { RequestStatusChip(RequestStatus.ACCEPTED) }
-                item { RequestTripSummary(detail) }
-                item { VehicleCapacityCard(driver) }
-                if (currentUserIsDriver) {
+                item {
+                    RutaUInfoCard(
+                        title = "Contribución acordada",
+                        message = "La contribución simulada para este viaje es ${state.coordination.contributionCents.asQuetzales()}. No se realiza ningún cobro desde RutaU.",
+                    )
+                }
+                if (!isTerminal && currentUserIsDriver) {
                     item { Text("Pasajeros confirmados", style = MaterialTheme.typography.titleMedium) }
                     items(state.confirmedRequests, key = { it.request.id }) { confirmed ->
                         ConfirmedPassengerCard(confirmed)
                     }
-                } else {
+                } else if (!isTerminal) {
                     item { Text("Plaza confirmada", style = MaterialTheme.typography.titleMedium) }
-                    item { AuthorizedContactCard(otherPerson.fullName, otherPerson.phone) }
+                }
+                if (!isTerminal) item { AuthorizedContactCard(otherPerson.fullName, otherPerson.phone) }
+                if (!isTerminal) item {
+                    ExternalContactActions(
+                        phone = otherPerson.phone,
+                        onCall = {
+                            otherPerson.phone?.let { phone ->
+                                context.startActivity(Intent(Intent.ACTION_DIAL, "tel:$phone".toUri()))
+                            }
+                        },
+                        onWhatsApp = {
+                            otherPerson.phone?.let { phone ->
+                                val number = phone.filter(Char::isDigit)
+                                context.startActivity(
+                                    Intent(Intent.ACTION_VIEW, "https://wa.me/$number".toUri()),
+                                )
+                            }
+                        },
+                    )
+                }
+                if (!isTerminal) item { ContactNoticeCard() }
+                if (!isTerminal) item {
+                    MeetingPointCard(
+                        meetingPoint = state.coordination.meetingPoint,
+                        isConfirmedByCurrentUser = state.coordination.meetingPointConfirmedByCurrentUser,
+                        isConfirmedByOtherParticipant = state.coordination.meetingPointConfirmedByOtherParticipant,
+                        isSaving = state.isSaving,
+                        onSave = onUpdateMeetingPoint,
+                        onConfirm = onConfirmMeetingPoint,
+                    )
+                }
+                if (!isTerminal) item { CoordinationTimeline() }
+                item {
+                    LiveLocationStatusCard(
+                        coordinationStatus = state.coordination.status,
+                        status = state.coordination.liveLocationStatus,
+                        liveLocation = liveLocation,
+                    )
+                }
+                if (isLocationActive) {
                     item {
-                        ExternalContactActions(
-                            phone = otherPerson.phone,
-                            onCall = {
-                                otherPerson.phone?.let { phone ->
-                                    context.startActivity(Intent(Intent.ACTION_DIAL, "tel:$phone".toUri()))
-                                }
-                            },
-                            onWhatsApp = {
-                                otherPerson.phone?.let { phone ->
-                                    val number = phone.filter(Char::isDigit)
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_VIEW, "https://wa.me/$number".toUri()),
-                                    )
-                                }
-                            },
+                        RutaULiveMap(
+                            liveLocation = liveLocation,
+                            currentUserIsDriver = currentUserIsDriver,
                         )
                     }
                 }
-                item { ContactNoticeCard() }
-                item { MeetingPointCard() }
-                item { CoordinationTimeline() }
-                if (state.coordination.canStartLiveLocation) {
+                if (!isTerminal && state.coordination.canStartLiveLocation) {
                     item {
                         RutaUInfoCard(
                             title = "Ubicación durante el viaje",
@@ -363,7 +417,7 @@ fun CoordinatedRideScreen(
                         )
                     }
                 }
-                if (state.coordination.canEndLiveLocation) {
+                if (!isTerminal && state.coordination.canEndLiveLocation) {
                     item {
                         RutaUDestructiveButton(
                             "Finalizar viaje",
@@ -373,18 +427,10 @@ fun CoordinatedRideScreen(
                         )
                     }
                 }
-                if (!currentUserIsDriver && liveLocation != null) {
-                    item {
-                        RutaUInfoCard(
-                            title = "Ubicación del conductor disponible",
-                            message = "La aplicación recibió la última ubicación compartida durante este viaje.",
-                        )
-                    }
-                }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
                 }
-                item {
+                if (!isTerminal) item {
                     RutaUDestructiveButton(
                         text = if (currentUserIsDriver) "Cancelar viaje" else "Cancelar participación",
                         onClick = { confirmCancellation = true },
@@ -409,6 +455,89 @@ fun CoordinatedRideScreen(
         }
     }
 }
+
+/** Informa si el viaje aún espera, comparte o ya terminó la ubicación. */
+@Composable
+private fun LiveLocationStatusCard(
+    coordinationStatus: uvg.edu.rutau.core.model.CoordinationStatus,
+    status: LiveLocationStatus,
+    liveLocation: LiveTripLocation?,
+    modifier: Modifier = Modifier,
+) {
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(liveLocation?.updatedAtMillis, status) {
+        while (isActive) {
+            nowMillis = System.currentTimeMillis()
+            delay(1_000)
+        }
+    }
+    val updatedAt = liveLocation?.updatedAtMillis
+    val elapsedMillis = updatedAt?.let { (nowMillis - it).coerceAtLeast(0) }
+    val isStale = elapsedMillis != null && elapsedMillis > LocationStaleMillis
+    val title: String
+    val message: String
+    when {
+        coordinationStatus == uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED -> {
+            title = "Viaje cancelado"
+            message = "La coordinación fue cancelada. Ya no se comparte ubicación ni se ocupa una plaza."
+        }
+        coordinationStatus == uvg.edu.rutau.core.model.CoordinationStatus.COMPLETED -> {
+            title = "Viaje finalizado"
+            message = "El viaje terminó y la ubicación dejó de compartirse."
+        }
+        status == LiveLocationStatus.ENDED -> {
+            title = "Viaje finalizado"
+            message = "La ubicación ya no se comparte y se eliminó del viaje."
+        }
+        status == LiveLocationStatus.ACTIVE && liveLocation == null -> {
+            title = "Ubicación activa"
+            message = "Esperando señal GPS del conductor. Verifica que la ubicación y el internet estén activos."
+        }
+        status == LiveLocationStatus.ACTIVE && isStale -> {
+            title = "Ubicación con retraso"
+            message = "La última ubicación llegó hace ${elapsedMillis.asElapsedTime()}. Revisa GPS e internet del conductor."
+        }
+        status == LiveLocationStatus.ACTIVE -> {
+            title = "Ubicación activa"
+            message = "Última actualización hace ${elapsedMillis.asElapsedTime()}."
+        }
+        else -> {
+            title = "Esperando inicio"
+            message = "El conductor iniciará el viaje cuando esté listo para compartir su ubicación."
+        }
+    }
+    RutaUInfoCard(title, message, modifier)
+}
+
+/** Muestra el estado general que conserva el servidor para el viaje. */
+@Composable
+private fun CoordinationStateCard(
+    status: uvg.edu.rutau.core.model.CoordinationStatus,
+    date: String,
+    modifier: Modifier = Modifier,
+) {
+    val (title, message) = when (status) {
+        uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED -> "Viaje confirmado" to
+            "Este acuerdo es para $date. La plaza y el contacto ya están coordinados."
+        uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED -> "Viaje cancelado" to
+            "Este viaje fue cancelado. La plaza quedó liberada y ya no se comparte ubicación."
+        uvg.edu.rutau.core.model.CoordinationStatus.COMPLETED -> "Viaje finalizado" to
+            "Este viaje ya terminó. La ubicación dejó de compartirse."
+    }
+    RutaUInfoCard(title, message, modifier)
+}
+
+/** Convierte un tiempo corto en un texto fácil de leer. */
+private fun Long?.asElapsedTime(): String {
+    val seconds = ((this ?: 0L) / 1_000).coerceAtLeast(0)
+    return when {
+        seconds < 60 -> "$seconds segundos"
+        seconds < 3_600 -> "${seconds / 60} min"
+        else -> "${seconds / 3_600} h"
+    }
+}
+
+private const val LocationStaleMillis = 30_000L
 
 /** Muestra la persona con quien se quiere coordinar. */
 @Composable

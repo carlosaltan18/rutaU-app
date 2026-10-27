@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
+import uvg.edu.rutau.core.data.catalog.CatalogLabelResolver
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
@@ -29,8 +30,7 @@ class RemoteTripRepository(
     private val trips = MutableStateFlow<List<Trip>>(emptyList())
     private val versions = mutableMapOf<String, Int>()
     private val idempotencyKeys = IdempotencyKeyStore()
-    private var originNames: Map<String, String> = emptyMap()
-    private var campusNames: Map<String, String> = emptyMap()
+    private val labels = CatalogLabelResolver(backendApi)
 
     override fun observeTrips(): Flow<List<Trip>> = flow {
         refreshTrips()
@@ -82,10 +82,14 @@ class RemoteTripRepository(
     override fun observeMatches(tripId: String): Flow<List<TripMatch>> = flow {
         val source = trips.value.firstOrNull { it.id == tripId }
             ?: backendApi.getTrip(tripId).requireData().toDisplayTrip().also(::replaceTrip)
-        val matches = loadMatches(tripId, nextTravelDate(source.dayOfWeek)).map {
+        val response = loadMatches(tripId, nextTravelDate(source.dayOfWeek))
+        labels.loadFor(response.map { it.profile.universityId }.toSet())
+        val matches = response.map {
             it.toTripMatch(
-                originName = originNames[it.originZoneId] ?: it.originZoneId,
-                destinationName = campusNames[it.destinationCampusId] ?: it.destinationCampusId,
+                originName = labels.zoneName(it.originZoneId),
+                destinationName = labels.campusName(it.destinationCampusId),
+                universityName = labels.universityName(it.profile.universityId),
+                campusName = labels.campusName(it.profile.campusId),
             )
         }
         emit(matches)
@@ -122,30 +126,14 @@ class RemoteTripRepository(
     private suspend fun BackendTripDto.toDisplayTrip(): Trip {
         loadLabels()
         return toTrip(
-            originName = originNames[originZoneId] ?: originZoneId,
-            destinationName = campusNames[destinationCampusId] ?: destinationCampusId,
+            originName = labels.zoneName(originZoneId),
+            destinationName = labels.campusName(destinationCampusId),
         )
     }
 
     private suspend fun loadLabels() {
-        if (originNames.isNotEmpty() || campusNames.isNotEmpty()) return
-        val zones = mutableMapOf<String, String>()
-        var zoneCursor: String? = null
-        do {
-            val page = backendApi.getZones(cursor = zoneCursor).requireEnvelope()
-            zones += page.data.associate { it.id to it.name }
-            zoneCursor = page.meta.nextCursor
-        } while (zoneCursor != null)
         val profile = backendApi.getMe().requireData()
-        val campuses = mutableMapOf<String, String>()
-        var campusCursor: String? = null
-        do {
-            val page = backendApi.getCampuses(profile.universityId, cursor = campusCursor).requireEnvelope()
-            campuses += page.data.associate { it.id to it.name }
-            campusCursor = page.meta.nextCursor
-        } while (campusCursor != null)
-        originNames = zones
-        campusNames = campuses
+        labels.loadFor(setOf(profile.universityId))
     }
 }
 

@@ -14,6 +14,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +32,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
+import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
@@ -217,15 +222,78 @@ fun ExternalContactActions(
     }
 }
 
-/** Muestra que el punto de encuentro se acuerda entre las personas. */
+/** Permite proponer y confirmar el punto donde se reunirán antes del viaje. */
 @Composable
-fun MeetingPointCard(modifier: Modifier = Modifier) {
-    RutaUInfoCard(
-        title = "Punto de encuentro",
-        message = "Por acordar directamente con la otra persona.",
-        modifier = modifier,
-        icon = Icons.Default.Info,
-    )
+fun MeetingPointCard(
+    meetingPoint: String?,
+    isConfirmedByCurrentUser: Boolean,
+    isConfirmedByOtherParticipant: Boolean,
+    isSaving: Boolean,
+    onSave: (String) -> Unit,
+    onConfirm: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var editedPoint by remember(meetingPoint) { mutableStateOf(meetingPoint.orEmpty()) }
+    Card(modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("Punto de encuentro", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Escribe un lugar fácil de identificar. Si lo cambias, ambas confirmaciones se reinician.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            RutaUTextField(
+                value = editedPoint,
+                onValueChange = { editedPoint = it },
+                label = "Lugar para reunirse",
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving,
+            )
+            RutaUOutlinedButton(
+                text = if (meetingPoint.isNullOrBlank()) "Guardar punto" else "Actualizar punto",
+                onClick = { onSave(editedPoint) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSaving && editedPoint.trim().length >= 3 && editedPoint.trim() != meetingPoint,
+            )
+            if (meetingPoint.isNullOrBlank()) {
+                Text(
+                    "Aún no han definido dónde se reunirán.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                Text(
+                    if (isConfirmedByCurrentUser) {
+                        "Ya confirmaste este punto."
+                    } else {
+                        "Confirma cuando estés de acuerdo con este punto."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    if (isConfirmedByOtherParticipant) {
+                        "La otra persona ya lo confirmó."
+                    } else {
+                        "La otra persona aún debe confirmarlo."
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (!isConfirmedByCurrentUser) {
+                    RutaUPrimaryButton(
+                        text = "Confirmar punto de encuentro",
+                        onClick = onConfirm,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSaving,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /** Muestra el cambio de pendiente a viaje aceptado. */
@@ -253,6 +321,29 @@ fun VehicleCapacityCard(driver: Trip, modifier: Modifier = Modifier) {
         },
         modifier = modifier,
         icon = if (isFull) Icons.Default.CheckCircle else Icons.Default.Info,
+    )
+}
+
+/** Muestra las plazas confirmadas que el servidor informa para este viaje. */
+@Composable
+fun CoordinationCapacityCard(
+    confirmedPassengers: Int,
+    totalSeats: Int,
+    availableSeats: Int,
+    fallbackConfirmedPassengers: Int,
+    modifier: Modifier = Modifier,
+) {
+    val confirmed = if (totalSeats > 0) confirmedPassengers else fallbackConfirmedPassengers
+    val message = if (totalSeats > 0) {
+        "$confirmed de $totalSeats plazas confirmadas\n$availableSeats plazas disponibles"
+    } else {
+        "$confirmed plaza${if (confirmed == 1) "" else "s"} confirmada${if (confirmed == 1) "" else "s"}"
+    }
+    RutaUInfoCard(
+        title = "Capacidad del viaje",
+        message = message,
+        modifier = modifier,
+        icon = if (availableSeats == 0 && totalSeats > 0) Icons.Default.CheckCircle else Icons.Default.Info,
     )
 }
 

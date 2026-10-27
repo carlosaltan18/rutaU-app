@@ -5,6 +5,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import uvg.edu.rutau.core.data.catalog.CatalogLabelResolver
 import uvg.edu.rutau.core.model.RideRequest
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.network.BackendApi
@@ -18,11 +22,10 @@ class RemoteRideRequestRepository(
     private val backendApi: BackendApi,
 ) : RideRequestRepository {
     private val details = MutableStateFlow<List<RideRequestDetails>>(emptyList())
+    private val labels = CatalogLabelResolver(backendApi)
 
-    override fun observeRequests(): Flow<List<RideRequest>> = flow {
-        refreshRequests()
-        emitAll(details.map { current -> current.map { it.request } })
-    }
+    override fun observeRequests(): Flow<List<RideRequest>> = observeRequestDetails()
+        .map { current -> current.map { it.request } }
 
     override fun observeRequest(requestId: String): Flow<RideRequest?> = flow {
         val detail = loadRequest(requestId)
@@ -30,12 +33,18 @@ class RemoteRideRequestRepository(
     }
 
     override fun observeRequestDetails(): Flow<List<RideRequestDetails>> = flow {
-        refreshRequests()
-        emitAll(details)
+        while (currentCoroutineContext().isActive) {
+            refreshRequests()
+            emit(details.value)
+            delay(RefreshIntervalMillis)
+        }
     }
 
     override fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?> = flow {
-        emit(loadRequest(requestId))
+        while (currentCoroutineContext().isActive) {
+            emit(loadRequest(requestId))
+            delay(RefreshIntervalMillis)
+        }
     }
 
     override suspend fun accept(requestId: String) {
@@ -55,7 +64,7 @@ class RemoteRideRequestRepository(
     }
 
     private suspend fun loadRequest(requestId: String): RideRequestDetails {
-        val loaded = backendApi.getRideRequest(requestId).requireData().toRideRequestDetails()
+        val loaded = backendApi.getRideRequest(requestId).requireData().toDisplayDetails()
         replace(loaded)
         return loaded
     }
@@ -64,7 +73,7 @@ class RemoteRideRequestRepository(
         val sent = loadBox(SentBox)
         val received = loadBox(ReceivedBox)
         details.value = (sent + received)
-            .map { it.toRideRequestDetails() }
+            .map { it.toDisplayDetails() }
             .distinctBy { it.request.id }
     }
 
@@ -81,8 +90,23 @@ class RemoteRideRequestRepository(
         details.value = details.value.filterNot { it.request.id == updated.request.id } + updated
     }
 
+    private suspend fun BackendRideRequestDto.toDisplayDetails(): RideRequestDetails {
+        labels.loadFor(setOf(sender.universityId, target.universityId))
+        return toRideRequestDetails(
+            senderOriginName = labels.zoneName(senderTrip.originZoneId),
+            senderDestinationName = labels.campusName(senderTrip.destinationCampusId),
+            targetOriginName = labels.zoneName(targetTrip.originZoneId),
+            targetDestinationName = labels.campusName(targetTrip.destinationCampusId),
+            senderUniversityName = labels.universityName(sender.universityId),
+            senderCampusName = labels.campusName(sender.campusId),
+            targetUniversityName = labels.universityName(target.universityId),
+            targetCampusName = labels.campusName(target.campusId),
+        )
+    }
+
     private companion object {
         const val SentBox = "sent"
         const val ReceivedBox = "received"
+        const val RefreshIntervalMillis = 15_000L
     }
 }

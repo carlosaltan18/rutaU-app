@@ -250,6 +250,48 @@ class CoordinatedRideViewModel(
         }
     }
 
+    /** Guarda una nueva propuesta para reunirse antes del viaje. */
+    fun updateMeetingPoint(meetingPoint: String) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        if (meetingPoint.trim().length < 3) {
+            error.value = "Escribe un punto de encuentro de al menos 3 caracteres."
+            return
+        }
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = coordinationRepository.updateMeetingPoint(
+                    coordinationId,
+                    meetingPoint,
+                )
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible guardar el punto de encuentro."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Confirma el punto de encuentro que propuso la otra persona. */
+    fun confirmMeetingPoint() {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = coordinationRepository.confirmMeetingPoint(coordinationId)
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible confirmar el punto de encuentro."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Explica por qué no se puede iniciar la ubicación si se niega el permiso. */
+    fun locationPermissionDenied() {
+        error.value = "RutaU necesita permiso de ubicación para compartir tu posición durante el viaje."
+    }
+
     /** Inicia la ubicación únicamente cuando el servidor confirmó que es conductor. */
     fun startLiveLocation(onStarted: (String) -> Unit) {
         val coordinationId = uiState.value.coordination?.id ?: return
@@ -284,12 +326,12 @@ class CoordinatedRideViewModel(
         }
     }
 
-    private fun cancel(onCancelled: () -> Unit, action: suspend () -> Unit) {
+    private fun cancel(onCancelled: () -> Unit, action: suspend () -> Coordination) {
         viewModelScope.launch {
             saving.value = true
             error.value = null
             try {
-                action()
+                liveCoordination.value = action()
                 onCancelled()
             } catch (throwable: Throwable) {
                 error.value = throwable.message ?: "No fue posible cancelar el viaje."

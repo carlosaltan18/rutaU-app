@@ -68,6 +68,8 @@ private fun CoordinatedRideScreenPreview() {
             onCancelParticipation = {},
             onStartLiveLocation = {},
             onEndLiveLocation = {},
+            onUpdateMeetingPoint = {},
+            onConfirmMeetingPoint = {},
             liveLocation = null,
         )
     }

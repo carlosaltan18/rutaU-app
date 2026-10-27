@@ -2,14 +2,19 @@ package uvg.edu.rutau.core.data.repository
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.isActive
 import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.network.BackendApi
 import uvg.edu.rutau.core.network.BackendApiException
 import uvg.edu.rutau.core.network.CreateRideRequestRequestDto
 import uvg.edu.rutau.core.network.IdempotencyKeyStore
+import uvg.edu.rutau.core.network.UpdateMeetingPointRequestDto
 import uvg.edu.rutau.core.network.nextTravelDate
 import uvg.edu.rutau.core.network.requireData
+import uvg.edu.rutau.core.network.requireEnvelope
 import uvg.edu.rutau.core.network.toCoordination
 
 /** Conecta los viajes coordinados con las llamadas reales del servidor. */
@@ -18,25 +23,38 @@ class RemoteCoordinationRepository(
 ) : CoordinationRepository {
     private val idempotencyKeys = IdempotencyKeyStore()
     override fun observeCoordination(requestId: String): Flow<Coordination?> = flow {
-        val coordination = try {
-            backendApi.getCoordinationForRequest(requestId).requireData().toCoordination()
-        } catch (error: BackendApiException) {
-            if (error.code == CoordinationNotFound) null else throw error
+        while (currentCoroutineContext().isActive) {
+            val coordination = try {
+                backendApi.getCoordinationForRequest(requestId).requireData().toCoordination()
+            } catch (error: BackendApiException) {
+                if (error.code == CoordinationNotFound) null else throw error
+            }
+            emit(coordination)
+            delay(RefreshIntervalMillis)
         }
-        emit(coordination)
     }
 
     override fun observeCoordinationById(coordinationId: String): Flow<Coordination?> = flow {
-        emit(backendApi.getCoordination(coordinationId).requireData().toCoordination())
+        while (currentCoroutineContext().isActive) {
+            emit(backendApi.getCoordination(coordinationId).requireData().toCoordination())
+            delay(RefreshIntervalMillis)
+        }
     }
 
-    override suspend fun cancelRide(coordinationId: String) {
-        backendApi.cancelCoordination(coordinationId).requireData()
-    }
+    override suspend fun cancelRide(coordinationId: String): Coordination =
+        backendApi.cancelCoordination(coordinationId).requireData().toCoordination()
 
-    override suspend fun cancelParticipation(coordinationId: String) {
-        backendApi.cancelCoordination(coordinationId).requireData()
-    }
+    override suspend fun cancelParticipation(coordinationId: String): Coordination =
+        backendApi.cancelCoordination(coordinationId).requireData().toCoordination()
+
+    override suspend fun updateMeetingPoint(coordinationId: String, meetingPoint: String): Coordination =
+        backendApi.updateMeetingPoint(
+            coordinationId,
+            UpdateMeetingPointRequestDto(meetingPoint.trim()),
+        ).requireData().toCoordination()
+
+    override suspend fun confirmMeetingPoint(coordinationId: String): Coordination =
+        backendApi.confirmMeetingPoint(coordinationId).requireData().toCoordination()
 
     override suspend fun startLiveLocation(coordinationId: String): Coordination =
         backendApi.startLiveLocation(coordinationId).requireData().toCoordination()
@@ -52,24 +70,55 @@ class RemoteCoordinationRepository(
         contributionCents: Long,
     ): String {
         val source = backendApi.getTrip(tripId).requireData()
+        val travelDate = nextTravelDate(source.dayOfWeek.toDayName())
         val operation = "request:$tripId:$candidateTripId:$type:$contributionCents:${message.orEmpty()}"
-        val requestId = backendApi.createRideRequest(
-            idempotencyKey = idempotencyKeys.keyFor(operation),
-            body = CreateRideRequestRequestDto(
-                senderTripId = tripId,
-                targetTripId = candidateTripId,
-                type = type.name,
-                travelDate = nextTravelDate(source.dayOfWeek.toDayName()),
-                offeredContributionMinor = contributionCents,
-                message = message?.trim()?.takeIf(String::isNotEmpty),
-            ),
-        ).requireData().id
+        val requestId = try {
+            backendApi.createRideRequest(
+                idempotencyKey = idempotencyKeys.keyFor(operation),
+                body = CreateRideRequestRequestDto(
+                    senderTripId = tripId,
+                    targetTripId = candidateTripId,
+                    type = type.name,
+                    travelDate = travelDate,
+                    offeredContributionMinor = contributionCents,
+                    message = message?.trim()?.takeIf(String::isNotEmpty),
+                ),
+            ).requireData().id
+        } catch (error: BackendApiException) {
+            if (error.code != RequestAlreadyExists) throw error
+            findExistingRequest(tripId, candidateTripId, type.name, travelDate)
+                ?: throw error
+        }
         idempotencyKeys.complete(operation)
         return requestId
     }
 
+    private suspend fun findExistingRequest(
+        tripId: String,
+        candidateTripId: String,
+        type: String,
+        travelDate: String,
+    ): String? = buildList {
+        var cursor: String? = null
+        do {
+            val page = backendApi.getRideRequests(box = SentBox, cursor = cursor).requireEnvelope()
+            addAll(page.data)
+            cursor = page.meta.nextCursor
+        } while (cursor != null)
+    }.firstOrNull { request ->
+        request.senderTrip.id == tripId &&
+            request.targetTrip.id == candidateTripId &&
+            request.type == type &&
+            request.travelDate == travelDate &&
+            request.status == PendingStatus
+    }?.id
+
     private companion object {
         const val CoordinationNotFound = "COORDINATION_NOT_FOUND"
+        const val RequestAlreadyExists = "REQUEST_ALREADY_EXISTS"
+        const val SentBox = "sent"
+        const val PendingStatus = "PENDING"
+        const val RefreshIntervalMillis = 15_000L
     }
 }
 

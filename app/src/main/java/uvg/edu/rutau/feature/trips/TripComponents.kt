@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
@@ -308,9 +310,16 @@ fun CompatibilityReasonsCard(
 fun ContributionEditor(value: Int, onValueChange: (Int) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Contribución sugerida", style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             listOf(0, 5, 10, 15, 20).forEach { amount ->
-                FilterChip(value == amount, { onValueChange(amount) }, { Text(if (amount == 0) "Sin aporte" else "Q$amount") })
+                FilterChip(
+                    selected = value == amount,
+                    onClick = { onValueChange(amount) },
+                    label = { Text(if (amount == 0) "Sin aporte" else "Q$amount", maxLines = 1) },
+                )
             }
         }
     }

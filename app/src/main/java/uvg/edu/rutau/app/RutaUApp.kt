@@ -1,9 +1,16 @@
 package uvg.edu.rutau.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uvg.edu.rutau.core.data.repository.SessionState
 import uvg.edu.rutau.core.notifications.PushNavigationStore
@@ -20,6 +27,10 @@ fun RutaUApp(
 ) {
     val selectedDestination = appState.currentTopLevelDestination()
     val sessionState = RutaUAppDependencies.sessionRepository.sessionState.collectAsStateWithLifecycle().value
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { }
     val themeMode = RutaUAppDependencies.themePreferenceRepository
         .observeThemeMode()
         .collectAsStateWithLifecycle(ThemeMode.SYSTEM)
@@ -33,6 +44,16 @@ fun RutaUApp(
                 is SessionState.SignedIn -> appState.navigateToAuthenticatedRoot()
                 SessionState.SignedOut -> appState.clearToLogin()
             }
+        }
+    }
+    LaunchedEffect(sessionState) {
+        if (
+            sessionState is SessionState.SignedIn &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

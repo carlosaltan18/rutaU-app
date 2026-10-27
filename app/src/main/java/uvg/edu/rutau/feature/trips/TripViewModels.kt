@@ -17,7 +17,9 @@ import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.TripRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
+import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.model.RequestType
+import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripInput
@@ -84,15 +86,17 @@ class TripEditorViewModel(
         if (tripId != null) {
             viewModelScope.launch {
                 val trip = repository.observeTrip(tripId).filterNotNull().first()
-                uiState.value = TripEditorUiState(
-                    originZone = trip.originZoneId,
-                    destinationCampus = trip.destinationCampusId,
-                    dayOfWeek = trip.dayOfWeek,
-                    departureTime = trip.departureTime,
-                    role = trip.role,
-                    offeredSeats = trip.offeredSeats.coerceAtLeast(1),
-                    isEditing = true,
-                )
+                update {
+                    copy(
+                        originZone = trip.originZoneId,
+                        destinationCampus = trip.destinationCampusId,
+                        dayOfWeek = trip.dayOfWeek,
+                        departureTime = trip.departureTime,
+                        role = trip.role,
+                        offeredSeats = trip.offeredSeats.coerceAtLeast(1),
+                        isEditing = true,
+                    )
+                }
             }
         }
     }
@@ -198,6 +202,8 @@ data class CandidateProfileUiState(
     val candidateTrip: Trip? = null,
     val student: Student? = null,
     val contributionQuetzales: Int = 10,
+    val existingRequestId: String? = null,
+    val existingRequestStatus: RequestStatus? = null,
 )
 
 /** Maneja la información de una persona compatible. */
@@ -205,22 +211,44 @@ class CandidateProfileViewModel(
     tripId: String,
     candidateTripId: String,
     repository: TripRepository,
+    requestRepository: RideRequestRepository,
 ) : ViewModel() {
     private val contribution = MutableStateFlow(10)
     val uiState = combine(
         repository.observeTrip(tripId),
         repository.observeMatches(tripId),
         contribution,
-    ) { source, matches, amount ->
+        requestRepository.observeRequestDetails(),
+    ) { source, matches, amount, requests ->
         val match = matches.firstOrNull { it.trip.id == candidateTripId }
-        CandidateProfileUiState(source, match?.trip, match?.student, amount)
+        val existing = match?.let { candidate ->
+            requests.firstOrNull { detail ->
+                detail.request.status == RequestStatus.PENDING &&
+                    detail.request.senderTripId == source?.id &&
+                    detail.request.targetTripId == candidate.trip.id
+            }
+        }
+        CandidateProfileUiState(
+            sourceTrip = source,
+            candidateTrip = match?.trip,
+            student = match?.student,
+            contributionQuetzales = amount,
+            existingRequestId = existing?.request?.id,
+            existingRequestStatus = existing?.request?.status,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CandidateProfileUiState())
 
     fun setContribution(value: Int) { contribution.value = value.coerceIn(0, 100) }
 
     companion object {
-        fun factory(tripId: String, candidateTripId: String, repository: TripRepository) =
-            viewModelFactory { CandidateProfileViewModel(tripId, candidateTripId, repository) }
+        fun factory(
+            tripId: String,
+            candidateTripId: String,
+            repository: TripRepository,
+            requestRepository: RideRequestRepository,
+        ) = viewModelFactory {
+            CandidateProfileViewModel(tripId, candidateTripId, repository, requestRepository)
+        }
     }
 }
 
@@ -274,8 +302,11 @@ class ConfirmCoordinationViewModel(
                     message = state.message,
                     contributionCents = state.contributionQuetzales * 100L,
                 )
-            }.onSuccess(onConfirmed).onFailure {
-                form.value = state.copy(error = "No fue posible enviar la coordinación.")
+            }.onSuccess(onConfirmed).onFailure { error ->
+                form.value = state.copy(
+                    isSubmitting = false,
+                    error = error.message ?: "No fue posible enviar la coordinación.",
+                )
             }
         }
     }
