@@ -182,4 +182,5 @@ data class RideRequestDetails(
     val targetTrip: Trip,
     val sender: Student,
     val target: Student,
+    val coordinationStatus: CoordinationStatus? = null,
 )

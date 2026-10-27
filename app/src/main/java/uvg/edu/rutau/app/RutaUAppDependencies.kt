@@ -13,6 +13,7 @@ import uvg.edu.rutau.BuildConfig
 import uvg.edu.rutau.core.auth.GoogleSignInCoordinator
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
+import uvg.edu.rutau.core.data.catalog.CatalogLabelResolver
 import uvg.edu.rutau.core.data.catalog.RemoteCatalogRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.FakeCoordinationRepository
@@ -109,15 +110,16 @@ object RutaUAppDependencies {
         )
         sessionRepository = firebaseSessionRepository
         catalogRepository = RemoteCatalogRepository(networkClient.api)
+        val catalogLabels = CatalogLabelResolver(networkClient.api)
         userRepository = FirebaseUserRepository(
             firebaseAuth,
             sessionRepository,
             networkClient.api,
             catalogRepository,
         )
-        tripRepository = RemoteTripRepository(networkClient.api)
+        tripRepository = RemoteTripRepository(networkClient.api, catalogLabels)
         coordinationRepository = RemoteCoordinationRepository(networkClient.api)
-        rideRequestRepository = RemoteRideRequestRepository(networkClient.api)
+        rideRequestRepository = RemoteRideRequestRepository(networkClient.api, catalogLabels)
         googleSignInCoordinator = GoogleSignInCoordinator(appContext)
         popupMessageRepository = DataStorePopupMessageRepository(appContext)
         themePreferenceRepository = DataStoreThemePreferenceRepository(appContext)

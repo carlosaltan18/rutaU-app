@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.CancellationException
 import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.network.BackendApi
@@ -23,20 +24,31 @@ class RemoteCoordinationRepository(
 ) : CoordinationRepository {
     private val idempotencyKeys = IdempotencyKeyStore()
     override fun observeCoordination(requestId: String): Flow<Coordination?> = flow {
+        var latest: Coordination? = null
         while (currentCoroutineContext().isActive) {
-            val coordination = try {
+            latest = try {
                 backendApi.getCoordinationForRequest(requestId).requireData().toCoordination()
             } catch (error: BackendApiException) {
-                if (error.code == CoordinationNotFound) null else throw error
+                if (error.code == CoordinationNotFound) null else latest
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                latest
             }
-            emit(coordination)
+            emit(latest)
             delay(RefreshIntervalMillis)
         }
     }
 
     override fun observeCoordinationById(coordinationId: String): Flow<Coordination?> = flow {
+        var latest: Coordination? = null
         while (currentCoroutineContext().isActive) {
-            emit(backendApi.getCoordination(coordinationId).requireData().toCoordination())
+            latest = try {
+                backendApi.getCoordination(coordinationId).requireData().toCoordination()
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                latest
+            }
+            emit(latest)
             delay(RefreshIntervalMillis)
         }
     }
@@ -118,7 +130,7 @@ class RemoteCoordinationRepository(
         const val RequestAlreadyExists = "REQUEST_ALREADY_EXISTS"
         const val SentBox = "sent"
         const val PendingStatus = "PENDING"
-        const val RefreshIntervalMillis = 15_000L
+        const val RefreshIntervalMillis = 30_000L
     }
 }
 

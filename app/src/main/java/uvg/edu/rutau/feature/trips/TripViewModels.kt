@@ -25,6 +25,7 @@ import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.network.BackendApiException
 
 /** Guarda los trayectos que se muestran en la lista principal. */
 data class TripsUiState(
@@ -267,10 +268,13 @@ data class ConfirmCoordinationUiState(
 class ConfirmCoordinationViewModel(
     private val tripId: String,
     private val candidateTripId: String,
+    initialContribution: Int,
     tripRepository: TripRepository,
     private val coordinationRepository: CoordinationRepository,
 ) : ViewModel() {
-    private val form = MutableStateFlow(ConfirmCoordinationUiState())
+    private val form = MutableStateFlow(
+        ConfirmCoordinationUiState(contributionQuetzales = initialContribution.coerceIn(0, 100)),
+    )
     val uiState = combine(
         tripRepository.observeTrip(tripId),
         tripRepository.observeMatches(tripId),
@@ -305,7 +309,7 @@ class ConfirmCoordinationViewModel(
             }.onSuccess(onConfirmed).onFailure { error ->
                 form.value = state.copy(
                     isSubmitting = false,
-                    error = error.message ?: "No fue posible enviar la coordinación.",
+                    error = error.asCoordinationError(),
                 )
             }
         }
@@ -315,12 +319,26 @@ class ConfirmCoordinationViewModel(
         fun factory(
             tripId: String,
             candidateTripId: String,
+            initialContribution: Int = 10,
             tripRepository: TripRepository,
             coordinationRepository: CoordinationRepository,
         ) = viewModelFactory {
-            ConfirmCoordinationViewModel(tripId, candidateTripId, tripRepository, coordinationRepository)
+            ConfirmCoordinationViewModel(
+                tripId,
+                candidateTripId,
+                initialContribution,
+                tripRepository,
+                coordinationRepository,
+            )
         }
     }
+}
+
+/** Convierte un error temporal del servidor en un mensaje claro para la persona. */
+private fun Throwable.asCoordinationError(): String = when {
+    this is BackendApiException && code == "RATE_LIMITED" ->
+        "Hay muchas solicitudes en este momento. Espera unos segundos e inténtalo de nuevo."
+    else -> message ?: "No fue posible enviar la coordinación."
 }
 
 private inline fun <reified T : ViewModel> viewModelFactory(crossinline create: () -> T): ViewModelProvider.Factory =

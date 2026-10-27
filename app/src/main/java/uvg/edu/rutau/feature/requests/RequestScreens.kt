@@ -41,6 +41,7 @@ import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.LiveLocationStatus
+import uvg.edu.rutau.core.model.CoordinationStatus
 import uvg.edu.rutau.core.location.LiveTripLocationPermissions
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationService
@@ -169,7 +170,14 @@ fun RequestDetailScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                item { RequestStatusChip(detail.request.status) }
+                item {
+                    val coordinationStatus = state.coordination?.status ?: detail.coordinationStatus
+                    if (coordinationStatus == CoordinationStatus.CANCELLED || coordinationStatus == CoordinationStatus.COMPLETED) {
+                        CoordinationStatusChip(coordinationStatus)
+                    } else {
+                        RequestStatusChip(detail.request.status)
+                    }
+                }
                 item { RequestPersonCard(detail, isReceived) }
                 item { RequestTripSummary(detail) }
                 detail.request.message?.let { message ->
@@ -191,6 +199,10 @@ fun RequestDetailScreen(
                 }
                 if (detail.request.status in setOf(RequestStatus.REJECTED, RequestStatus.CANCELLED, RequestStatus.EXPIRED)) {
                     item { TerminalRequestCard(detail, isReceived) }
+                }
+                val coordinationStatus = state.coordination?.status ?: detail.coordinationStatus
+                if (coordinationStatus == CoordinationStatus.CANCELLED || coordinationStatus == CoordinationStatus.COMPLETED) {
+                    item { TerminalCoordinationNotice(coordinationStatus) }
                 }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
@@ -229,6 +241,19 @@ fun RequestDetailScreen(
             isDestructive = action != RequestAction.ACCEPT,
         )
     }
+}
+
+/** Explica el resultado final de una solicitud que llegó a coordinarse. */
+@Composable
+private fun TerminalCoordinationNotice(status: CoordinationStatus, modifier: Modifier = Modifier) {
+    val (title, message) = when (status) {
+        CoordinationStatus.CANCELLED -> "Viaje cancelado" to
+            "La coordinación fue cancelada y la plaza quedó liberada."
+        CoordinationStatus.COMPLETED -> "Viaje finalizado" to
+            "El viaje se completó y ya no comparte ubicación."
+        CoordinationStatus.CONFIRMED -> return
+    }
+    RutaUInfoCard(title, message, modifier)
 }
 
 /** Conecta un viaje aceptado con los datos compartidos. */

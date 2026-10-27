@@ -1,13 +1,15 @@
 package uvg.edu.rutau.core.data.repository
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.catalog.CatalogLabelResolver
 import uvg.edu.rutau.core.model.RideRequest
 import uvg.edu.rutau.core.model.RideRequestDetails
@@ -20,53 +22,40 @@ import uvg.edu.rutau.core.network.toRideRequestDetails
 /** Consulta y modifica solicitudes usando los datos reales del servidor. */
 class RemoteRideRequestRepository(
     private val backendApi: BackendApi,
+    private val labels: CatalogLabelResolver = CatalogLabelResolver(backendApi),
 ) : RideRequestRepository {
     private val details = MutableStateFlow<List<RideRequestDetails>>(emptyList())
-    private val labels = CatalogLabelResolver(backendApi)
+    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var refreshJob: Job? = null
 
     override fun observeRequests(): Flow<List<RideRequest>> = observeRequestDetails()
         .map { current -> current.map { it.request } }
 
-    override fun observeRequest(requestId: String): Flow<RideRequest?> = flow {
-        val detail = loadRequest(requestId)
-        emit(detail.request)
+    override fun observeRequest(requestId: String): Flow<RideRequest?> = observeRequestDetails()
+        .map { current -> current.firstOrNull { it.request.id == requestId }?.request }
+
+    override fun observeRequestDetails(): Flow<List<RideRequestDetails>> {
+        ensureRefreshLoop()
+        return details
     }
 
-    override fun observeRequestDetails(): Flow<List<RideRequestDetails>> = flow {
-        while (currentCoroutineContext().isActive) {
-            refreshRequests()
-            emit(details.value)
-            delay(RefreshIntervalMillis)
-        }
-    }
-
-    override fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?> = flow {
-        while (currentCoroutineContext().isActive) {
-            emit(loadRequest(requestId))
-            delay(RefreshIntervalMillis)
-        }
-    }
+    override fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?> = observeRequestDetails()
+        .map { current -> current.firstOrNull { it.request.id == requestId } }
 
     override suspend fun accept(requestId: String) {
-        replace(backendApi.acceptRideRequest(requestId).requireData().toRideRequestDetails())
+        replace(backendApi.acceptRideRequest(requestId).requireData().toDisplayDetails())
     }
 
     override suspend fun reject(requestId: String) {
-        replace(backendApi.rejectRideRequest(requestId).requireData().toRideRequestDetails())
+        replace(backendApi.rejectRideRequest(requestId).requireData().toDisplayDetails())
     }
 
     override suspend fun cancel(requestId: String) {
-        replace(backendApi.cancelRideRequest(requestId).requireData().toRideRequestDetails())
+        replace(backendApi.cancelRideRequest(requestId).requireData().toDisplayDetails())
     }
 
     override suspend fun expire(requestId: String) {
         throw UnsupportedOperationException("El servidor vence las solicitudes automáticamente cuando pasa la hora del viaje.")
-    }
-
-    private suspend fun loadRequest(requestId: String): RideRequestDetails {
-        val loaded = backendApi.getRideRequest(requestId).requireData().toDisplayDetails()
-        replace(loaded)
-        return loaded
     }
 
     private suspend fun refreshRequests() {
@@ -90,6 +79,18 @@ class RemoteRideRequestRepository(
         details.value = details.value.filterNot { it.request.id == updated.request.id } + updated
     }
 
+    /** Actualiza las solicitudes una sola vez para todas las pantallas abiertas. */
+    @Synchronized
+    private fun ensureRefreshLoop() {
+        if (refreshJob?.isActive == true) return
+        refreshJob = refreshScope.launch {
+            while (isActive) {
+                runCatching { refreshRequests() }
+                delay(RefreshIntervalMillis)
+            }
+        }
+    }
+
     private suspend fun BackendRideRequestDto.toDisplayDetails(): RideRequestDetails {
         labels.loadFor(setOf(sender.universityId, target.universityId))
         return toRideRequestDetails(
@@ -107,6 +108,6 @@ class RemoteRideRequestRepository(
     private companion object {
         const val SentBox = "sent"
         const val ReceivedBox = "received"
-        const val RefreshIntervalMillis = 15_000L
+        const val RefreshIntervalMillis = 30_000L
     }
 }

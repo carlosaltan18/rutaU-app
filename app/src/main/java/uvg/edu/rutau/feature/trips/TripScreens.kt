@@ -286,7 +286,7 @@ fun MatchesScreen(
 }
 
 @Composable
-fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: (String?) -> Unit, viewModel: CandidateProfileViewModel) {
+fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: (String?, Int) -> Unit, viewModel: CandidateProfileViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     CandidateProfileScreen(
         state = state,
@@ -300,7 +300,7 @@ fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: (String?) -> Unit, v
 fun CandidateProfileScreen(
     state: CandidateProfileUiState,
     onBack: () -> Unit,
-    onCoordinate: (String?) -> Unit,
+    onCoordinate: (String?, Int) -> Unit,
     onContributionChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -341,7 +341,7 @@ fun CandidateProfileScreen(
                             uvg.edu.rutau.core.model.RequestStatus.PENDING -> "Solicitud enviada · Ver detalle"
                             else -> if (state.sourceTrip?.role == TripRole.PASSENGER) "Solicitar unirme" else "Invitar a mi trayecto"
                         },
-                        { onCoordinate(state.existingRequestId) },
+                        { onCoordinate(state.existingRequestId, state.contributionQuetzales) },
                         Modifier.fillMaxWidth(),
                     )
                 }

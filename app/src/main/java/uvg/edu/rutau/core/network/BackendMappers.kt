@@ -139,6 +139,7 @@ fun BackendRideRequestDto.toRideRequestDetails(
         targetTrip = targetTrip.toTrip(target.id, availableSeats, targetOriginName, targetDestinationName),
         sender = sender.toStudent(senderUniversityName, senderCampusName),
         target = target.toStudent(targetUniversityName, targetCampusName),
+        coordinationStatus = coordination?.status?.toCoordinationStatus(),
     )
 }
 

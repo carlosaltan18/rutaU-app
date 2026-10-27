@@ -38,6 +38,7 @@ import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.model.CoordinationStatus
 
 /** Da formato simple a una hora para mostrarla en pantalla. */
 internal fun Trip.asRequestSchedule(): String = "$dayOfWeek · ${departureTime.format(requestTimeFormatter).lowercase()}"
@@ -113,7 +114,12 @@ fun RequestCard(
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                RequestStatusChip(detail.request.status)
+                val coordinationStatus = detail.coordinationStatus
+                if (coordinationStatus == CoordinationStatus.CANCELLED || coordinationStatus == CoordinationStatus.COMPLETED) {
+                    CoordinationStatusChip(coordinationStatus)
+                } else {
+                    RequestStatusChip(detail.request.status)
+                }
                 RequestTypeLabel(detail.request.type)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -153,6 +159,17 @@ fun RequestStatusChip(status: RequestStatus, modifier: Modifier = Modifier) {
         RequestStatus.REJECTED -> "Rechazada" to RutaUStatusType.ERROR
         RequestStatus.CANCELLED -> "Cancelada" to RutaUStatusType.NEUTRAL
         RequestStatus.EXPIRED -> "Vencida" to RutaUStatusType.NEUTRAL
+    }
+    RutaUStatusChip(label, type, modifier)
+}
+
+/** Muestra el resultado final de un viaje que ya fue aceptado. */
+@Composable
+fun CoordinationStatusChip(status: CoordinationStatus, modifier: Modifier = Modifier) {
+    val (label, type) = when (status) {
+        CoordinationStatus.CONFIRMED -> "Viaje confirmado" to RutaUStatusType.SUCCESS
+        CoordinationStatus.CANCELLED -> "Viaje cancelado" to RutaUStatusType.NEUTRAL
+        CoordinationStatus.COMPLETED -> "Viaje finalizado" to RutaUStatusType.SUCCESS
     }
     RutaUStatusChip(label, type, modifier)
 }

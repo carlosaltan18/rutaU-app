@@ -55,11 +55,17 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
         val route = entry.toRoute<CandidateProfileDestination>()
         CandidateProfileRoute(
             onBack = { navController.popBackStack() },
-            onCoordinate = { existingRequestId ->
+            onCoordinate = { existingRequestId, contribution ->
                 if (existingRequestId != null) {
                     navController.navigate(RequestDetailRoute(existingRequestId))
                 } else {
-                    navController.navigate(ConfirmCoordinationDestination(route.tripId, route.candidateTripId))
+                    navController.navigate(
+                        ConfirmCoordinationDestination(
+                            tripId = route.tripId,
+                            candidateTripId = route.candidateTripId,
+                            suggestedContribution = contribution,
+                        ),
+                    )
                 }
             },
             viewModel = viewModel(
@@ -79,10 +85,11 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             onConfirmed = { requestId -> navController.navigate(RequestDetailRoute(requestId)) },
             viewModel = viewModel(
-                key = "confirm-${route.tripId}-${route.candidateTripId}",
+                key = "confirm-${route.tripId}-${route.candidateTripId}-${route.suggestedContribution}",
                 factory = ConfirmCoordinationViewModel.factory(
                     route.tripId,
                     route.candidateTripId,
+                    route.suggestedContribution,
                     RutaUAppDependencies.tripRepository,
                     RutaUAppDependencies.coordinationRepository,
                 ),

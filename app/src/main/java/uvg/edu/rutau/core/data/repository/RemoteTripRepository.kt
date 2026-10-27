@@ -26,11 +26,11 @@ import uvg.edu.rutau.core.network.toTripMatch
 /** Consulta y actualiza los trayectos usando los datos reales del servidor. */
 class RemoteTripRepository(
     private val backendApi: BackendApi,
+    private val labels: CatalogLabelResolver = CatalogLabelResolver(backendApi),
 ) : TripRepository {
     private val trips = MutableStateFlow<List<Trip>>(emptyList())
     private val versions = mutableMapOf<String, Int>()
     private val idempotencyKeys = IdempotencyKeyStore()
-    private val labels = CatalogLabelResolver(backendApi)
 
     override fun observeTrips(): Flow<List<Trip>> = flow {
         refreshTrips()

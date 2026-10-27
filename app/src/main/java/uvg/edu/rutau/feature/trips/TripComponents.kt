@@ -227,30 +227,33 @@ fun TimeSelector(selected: LocalTime, onSelected: (LocalTime) -> Unit) {
 @Composable
 fun MatchCard(match: TripMatch, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     Card(onClick = onOpen, modifier = modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             RutaUAvatar(
                 fullName = match.student.fullName,
                 photoUrl = match.student.photoUrl,
                 size = 48.dp,
             )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(match.student.fullName, style = MaterialTheme.typography.titleMedium)
                 Text("${match.student.university} · ${match.student.campus}")
-                Text(match.trip.role.asUiRole())
-                Text(match.trip.departureTime.asUiTime())
-                Text(
-                    if (match.timeDifferenceMinutes == 0) "Misma hora" else {
-                        "${match.timeDifferenceMinutes} minutos de diferencia"
-                    },
-                )
-                Text(
-                    "✓ Misma zona · ✓ Mismo campus · ✓ Mismo día",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                RutaUOutlinedButton("Ver perfil", onOpen, Modifier.fillMaxWidth())
+                }
             }
-            if (match.trip.role == TripRole.DRIVER) Text("${match.trip.availableSeats} plazas disponibles")
+            Text("${match.trip.role.asUiRole()} · ${match.trip.departureTime.asUiTime()}")
+            if (match.trip.role == TripRole.DRIVER) {
+                Text("${match.trip.availableSeats} plazas disponibles", color = MaterialTheme.colorScheme.primary)
+            }
+            Text(
+                if (match.timeDifferenceMinutes == 0) "Misma hora" else {
+                    "${match.timeDifferenceMinutes} minutos de diferencia"
+                },
+            )
+            Text(
+                "✓ Misma zona · ✓ Mismo campus · ✓ Mismo día",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            RutaUOutlinedButton("Ver perfil", onOpen, Modifier.fillMaxWidth())
         }
     }
 }

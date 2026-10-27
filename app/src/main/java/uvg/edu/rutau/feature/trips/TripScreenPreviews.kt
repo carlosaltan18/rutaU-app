@@ -69,7 +69,7 @@ private fun CandidateProfileScreenPreview() {
                 student = driverStudent,
             ),
             onBack = {},
-            onCoordinate = {},
+            onCoordinate = { _, _ -> },
             onContributionChange = {},
         )
     }
