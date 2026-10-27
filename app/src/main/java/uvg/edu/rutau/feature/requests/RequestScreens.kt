@@ -270,6 +270,9 @@ fun CoordinatedRideRoute(
     val liveLocation by uvg.edu.rutau.app.RutaUAppDependencies.liveTripLocationRepository
         .observe(activeOccurrenceId)
         .collectAsStateWithLifecycle(null)
+    val liveLocationIssue by uvg.edu.rutau.app.RutaUAppDependencies.liveTripLocationRepository
+        .observeReadIssue(activeOccurrenceId)
+        .collectAsStateWithLifecycle(null)
     val context = LocalContext.current
     val requestLocationPermission = rememberLiveTripLocationPermissionRequester { granted ->
         if (granted) {
@@ -300,6 +303,7 @@ fun CoordinatedRideRoute(
         onUpdateMeetingPoint = viewModel::updateMeetingPoint,
         onConfirmMeetingPoint = viewModel::confirmMeetingPoint,
         liveLocation = liveLocation,
+        liveLocationIssue = liveLocationIssue,
     )
 }
 
@@ -315,6 +319,7 @@ fun CoordinatedRideScreen(
     onUpdateMeetingPoint: (String) -> Unit,
     onConfirmMeetingPoint: () -> Unit,
     liveLocation: LiveTripLocation? = null,
+    liveLocationIssue: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
@@ -416,9 +421,10 @@ fun CoordinatedRideScreen(
                         coordinationStatus = state.coordination.status,
                         status = state.coordination.liveLocationStatus,
                         liveLocation = liveLocation,
+                        issue = liveLocationIssue,
                     )
                 }
-                if (isLocationActive) {
+                if (isLocationActive && liveLocation != null) {
                     item {
                         RutaULiveMap(
                             liveLocation = liveLocation,
@@ -487,6 +493,7 @@ private fun LiveLocationStatusCard(
     coordinationStatus: uvg.edu.rutau.core.model.CoordinationStatus,
     status: LiveLocationStatus,
     liveLocation: LiveTripLocation?,
+    issue: String?,
     modifier: Modifier = Modifier,
 ) {
     var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -502,6 +509,10 @@ private fun LiveLocationStatusCard(
     val title: String
     val message: String
     when {
+        issue != null -> {
+            title = "Ubicación no disponible"
+            message = issue
+        }
         coordinationStatus == uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED -> {
             title = "Viaje cancelado"
             message = "La coordinación fue cancelada. Ya no se comparte ubicación ni se ocupa una plaza."

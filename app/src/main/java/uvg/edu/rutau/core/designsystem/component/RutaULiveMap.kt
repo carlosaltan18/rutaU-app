@@ -57,9 +57,12 @@ fun RutaULiveMap(
         }
     }
 
-    LaunchedEffect(liveLocation?.latitude, liveLocation?.longitude, liveLocation?.updatedAtMillis) {
+    LaunchedEffect(mapView, liveLocation?.latitude, liveLocation?.longitude, liveLocation?.updatedAtMillis) {
         liveLocation?.let { location ->
-            mapView?.controller?.animateTo(GeoPoint(location.latitude, location.longitude))
+            mapView?.let { view ->
+                view.controller.setZoom(LiveLocationZoom)
+                view.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+            }
         }
     }
 
@@ -81,6 +84,8 @@ fun RutaULiveMap(
                 factory = { context ->
                     MapView(context).apply {
                         setTileSource(TileSourceFactory.MAPNIK)
+                        overlayManager.tilesOverlay.setLoadingBackgroundColor(Color.TRANSPARENT)
+                        overlayManager.tilesOverlay.setLoadingLineColor(Color.TRANSPARENT)
                         setMultiTouchControls(true)
                         controller.setZoom(DefaultZoom)
                         controller.setCenter(DefaultCenter)
@@ -161,3 +166,4 @@ private class LiveLocationOverlay : Overlay() {
 
 private val DefaultCenter = GeoPoint(14.6349, -90.5069)
 private const val DefaultZoom = 12.0
+private const val LiveLocationZoom = 16.0

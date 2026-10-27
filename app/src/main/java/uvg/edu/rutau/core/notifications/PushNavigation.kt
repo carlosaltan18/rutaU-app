@@ -1,15 +1,24 @@
 package uvg.edu.rutau.core.notifications
 
 import android.content.Intent
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 
 /** Describe el recurso que debe consultar la aplicación después de un aviso. */
 data class PushNavigationTarget(
     val type: RutaUPushType,
     val destination: String,
     val resourceId: String,
+)
+
+/** Guarda el aviso que se muestra dentro de la app cuando llega un push. */
+data class PushPopupMessage(
+    val title: String,
+    val body: String,
+    val target: PushNavigationTarget? = null,
 )
 
 /** Mantiene una navegación pendiente mientras se abre la aplicación. */
@@ -19,6 +28,16 @@ object PushNavigationStore {
 
     fun publish(intent: Intent?) {
         intent?.toPushNavigationTarget()?.let(mutableTargets::tryEmit)
+    }
+}
+
+/** Comparte un aviso con la interfaz mientras RutaU está abierta. */
+object PushPopupStore {
+    private val queuedMessages = Channel<PushPopupMessage>(Channel.BUFFERED)
+    val messages = queuedMessages.receiveAsFlow()
+
+    fun publish(message: PushPopupMessage) {
+        queuedMessages.trySend(message)
     }
 }
 

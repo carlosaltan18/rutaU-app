@@ -62,7 +62,10 @@ class RemoteRideRequestRepository(
         val sent = loadBox(SentBox)
         val received = loadBox(ReceivedBox)
         details.value = (sent + received)
-            .map { it.toDisplayDetails() }
+            .map { request ->
+                runCatching { request.toDisplayDetails() }
+                    .getOrElse { request.toRideRequestDetails() }
+            }
             .distinctBy { it.request.id }
     }
 

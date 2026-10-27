@@ -98,8 +98,15 @@ class RemoteCoordinationRepository(
             ).requireData().id
         } catch (error: BackendApiException) {
             if (error.code != RequestAlreadyExists) throw error
-            findExistingRequest(tripId, candidateTripId, type.name, travelDate)
-                ?: throw error
+            try {
+                findExistingRequest(tripId, candidateTripId, type.name, travelDate)
+                    ?: throw error
+            } catch (lookupError: BackendApiException) {
+                if (lookupError.code == RateLimited) {
+                    throw IllegalStateException("Ya existe una solicitud activa. Revísala en Solicitudes.")
+                }
+                throw lookupError
+            }
         }
         idempotencyKeys.complete(operation)
         return requestId
@@ -128,6 +135,7 @@ class RemoteCoordinationRepository(
     private companion object {
         const val CoordinationNotFound = "COORDINATION_NOT_FOUND"
         const val RequestAlreadyExists = "REQUEST_ALREADY_EXISTS"
+        const val RateLimited = "RATE_LIMITED"
         const val SentBox = "sent"
         const val PendingStatus = "PENDING"
         const val RefreshIntervalMillis = 30_000L
