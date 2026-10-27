@@ -42,6 +42,10 @@ class RemoteRideRequestRepository(
     override fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?> = observeRequestDetails()
         .map { current -> current.firstOrNull { it.request.id == requestId } }
 
+    override suspend fun refresh() {
+        refreshRequests()
+    }
+
     override suspend fun accept(requestId: String) {
         replace(backendApi.acceptRideRequest(requestId).requireData().toDisplayDetails())
     }

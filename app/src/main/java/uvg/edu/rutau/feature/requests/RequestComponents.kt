@@ -85,9 +85,8 @@ fun RequestFilterSelector(
                 label = {
                     Text(
                         when (filter) {
-                            RequestFilter.ALL -> "Todas"
                             RequestFilter.PENDING -> "Pendientes"
-                            RequestFilter.ACCEPTED -> "Aceptadas"
+                            RequestFilter.HISTORY -> "Historial"
                         },
                     )
                 },

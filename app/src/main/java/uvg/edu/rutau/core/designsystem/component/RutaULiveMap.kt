@@ -61,7 +61,7 @@ fun RutaULiveMap(
         liveLocation?.let { location ->
             mapView?.let { view ->
                 view.controller.setZoom(LiveLocationZoom)
-                view.controller.animateTo(GeoPoint(location.latitude, location.longitude))
+                view.controller.setCenter(GeoPoint(location.latitude, location.longitude))
             }
         }
     }
@@ -83,12 +83,15 @@ fun RutaULiveMap(
             AndroidView(
                 factory = { context ->
                     MapView(context).apply {
+                        val initialLocation = liveLocation
                         setTileSource(TileSourceFactory.MAPNIK)
                         overlayManager.tilesOverlay.setLoadingBackgroundColor(Color.TRANSPARENT)
                         overlayManager.tilesOverlay.setLoadingLineColor(Color.TRANSPARENT)
                         setMultiTouchControls(true)
-                        controller.setZoom(DefaultZoom)
-                        controller.setCenter(DefaultCenter)
+                        controller.setZoom(if (initialLocation == null) DefaultZoom else LiveLocationZoom)
+                        controller.setCenter(
+                            initialLocation?.let { GeoPoint(it.latitude, it.longitude) } ?: DefaultCenter,
+                        )
                         mapView = this
                     }
                 },
@@ -103,7 +106,7 @@ fun RutaULiveMap(
                 text = "Centrar ubicación",
                 onClick = {
                     liveLocation?.let { location ->
-                        mapView?.controller?.animateTo(GeoPoint(location.latitude, location.longitude))
+                        mapView?.controller?.setCenter(GeoPoint(location.latitude, location.longitude))
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),

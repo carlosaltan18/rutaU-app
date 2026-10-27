@@ -46,6 +46,7 @@ class RutaUFirebaseMessagingService : FirebaseMessagingService() {
 
         Log.i(LogTag, "Llegó un aviso de tipo ${type?.name ?: "sin tipo"}.")
         PushPopupStore.publish(PushPopupMessage(title, body, target))
+        RutaUAppDependencies.markNotificationHandled(notificationId)
         target?.let {
             RutaUNotificationManager(applicationContext).show(it, title, body, notificationId)
         }
@@ -110,7 +111,7 @@ class RutaUNotificationManager(
 }
 
 /** Da un título breve a cada aviso de Firebase. */
-private fun RutaUPushType.title(): String = when (this) {
+internal fun RutaUPushType.title(): String = when (this) {
     RutaUPushType.REQUEST_RECEIVED -> "Nueva solicitud de viaje"
     RutaUPushType.REQUEST_ACCEPTED -> "Solicitud aceptada"
     RutaUPushType.REQUEST_REJECTED -> "Solicitud rechazada"
@@ -120,7 +121,7 @@ private fun RutaUPushType.title(): String = when (this) {
 }
 
 /** Convierte un tipo técnico en un mensaje breve para la notificación. */
-private fun RutaUPushType.message(): String = when (this) {
+internal fun RutaUPushType.message(): String = when (this) {
     RutaUPushType.REQUEST_RECEIVED -> "Tienes una nueva solicitud de viaje."
     RutaUPushType.REQUEST_ACCEPTED -> "Tu solicitud fue aceptada."
     RutaUPushType.REQUEST_REJECTED -> "Tu solicitud fue rechazada."

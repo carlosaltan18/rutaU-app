@@ -96,8 +96,23 @@ fun RequestsScreen(
             if (state.selectedTab == RequestTab.RECEIVED) {
                 item {
                     RutaUInfoCard(
-                        title = "Solicitudes recibidas",
-                        message = "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor.",
+                        title = if (state.selectedFilter == RequestFilter.PENDING) {
+                            "Solicitudes recibidas"
+                        } else {
+                            "Historial de solicitudes"
+                        },
+                        message = if (state.selectedFilter == RequestFilter.PENDING) {
+                            "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor. Los viajes aceptados aparecen en Trayectos."
+                        } else {
+                            "Aquí puedes consultar las solicitudes rechazadas, canceladas o vencidas."
+                        },
+                    )
+                }
+            } else if (state.selectedFilter == RequestFilter.PENDING) {
+                item {
+                    RutaUInfoCard(
+                        title = "Solicitudes enviadas",
+                        message = "Cuando una solicitud se acepte, el viaje aparecerá en Trayectos.",
                     )
                 }
             }

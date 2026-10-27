@@ -38,7 +38,9 @@ import uvg.edu.rutau.core.model.UserAccount
 import uvg.edu.rutau.core.network.FirebaseIdTokenProvider
 import uvg.edu.rutau.core.network.RutaUNetworkClient
 import uvg.edu.rutau.core.notifications.BackendDeviceRegistrationRepository
+import uvg.edu.rutau.core.notifications.BackendNotificationPopupRepository
 import uvg.edu.rutau.core.notifications.DeviceRegistrationRepository
+import uvg.edu.rutau.core.notifications.NotificationPopupRepository
 import uvg.edu.rutau.core.preferences.DataStorePopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageFeedRepository
@@ -71,6 +73,8 @@ object RutaUAppDependencies {
     lateinit var catalogRepository: CatalogRepository
         private set
     lateinit var deviceRegistrationRepository: DeviceRegistrationRepository
+        private set
+    lateinit var notificationPopupRepository: NotificationPopupRepository
         private set
     lateinit var liveTripLocationRepository: LiveTripLocationRepository
         private set
@@ -133,6 +137,7 @@ object RutaUAppDependencies {
             sessionRepository = sessionRepository,
             backendApi = networkClient.api,
         )
+        notificationPopupRepository = BackendNotificationPopupRepository(networkClient.api)
         liveTripLocationRepository = if (BuildConfig.REALTIME_DATABASE_URL.isBlank()) {
             UnconfiguredLiveTripLocationRepository()
         } else {
@@ -149,6 +154,15 @@ object RutaUAppDependencies {
         appScope.launch {
             runCatching { deviceRegistrationRepository.registerToken(token) }
                 .onFailure { recordTechnicalError("fcm_token_refresh") }
+        }
+    }
+
+    /** Marca un aviso como visto después de mostrarlo en el teléfono. */
+    fun markNotificationHandled(notificationId: String) {
+        if (!initialized || !::notificationPopupRepository.isInitialized || notificationId.isBlank()) return
+        appScope.launch {
+            runCatching { notificationPopupRepository.markHandled(notificationId) }
+                .onFailure { recordTechnicalError("notification_mark_read") }
         }
     }
 

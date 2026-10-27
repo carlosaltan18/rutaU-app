@@ -49,8 +49,12 @@ import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
+import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
 
 private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.forLanguageTag("es-GT"))
+private val coordinatedTripDateFormatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.forLanguageTag("es-GT"))
 internal fun LocalTime.asUiTime(): String = format(timeFormatter).lowercase()
 internal fun TripRole.asUiRole(): String = if (this == TripRole.DRIVER) "Conductor" else "Pasajero"
 
@@ -125,6 +129,59 @@ fun TripCard(
             }
         }
     }
+}
+
+/** Muestra un viaje aceptado para abrir sus detalles sin pasar por solicitudes. */
+@Composable
+fun CoordinatedTripCard(
+    detail: CoordinatedTripSummary,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val isActive = detail.status == CoordinationStatus.CONFIRMED
+    Card(
+        onClick = onOpen,
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CoordinatedTripStatus(detail.status)
+                Text(detail.rideDate.format(coordinatedTripDateFormatter), style = MaterialTheme.typography.labelMedium)
+            }
+            Text(
+                "${detail.driverTrip.originZone} → ${detail.driverTrip.destinationCampus}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text("${detail.driverTrip.dayOfWeek} · ${detail.driverTrip.departureTime.asUiTime()}")
+            Text("Conductor: ${detail.driver.fullName}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Pasajeros: ${detail.passengers.joinToString { it.fullName }}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            RutaUPrimaryButton(
+                text = if (isActive) "Abrir viaje" else "Ver resumen",
+                onClick = onOpen,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** Muestra un texto claro para saber si un viaje sigue activo o ya terminó. */
+@Composable
+private fun CoordinatedTripStatus(status: CoordinationStatus) {
+    val (text, type) = when (status) {
+        CoordinationStatus.CONFIRMED -> "Viaje confirmado" to RutaUStatusType.SUCCESS
+        CoordinationStatus.CANCELLED -> "Viaje cancelado" to RutaUStatusType.NEUTRAL
+        CoordinationStatus.COMPLETED -> "Viaje finalizado" to RutaUStatusType.SUCCESS
+    }
+    RutaUStatusChip(text, type)
 }
 
 @Composable

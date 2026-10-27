@@ -10,6 +10,7 @@ import uvg.edu.rutau.core.navigation.CandidateProfileRoute as CandidateProfileDe
 import uvg.edu.rutau.core.navigation.ConfirmCoordinationRoute as ConfirmCoordinationDestination
 import uvg.edu.rutau.core.navigation.MatchesRoute as MatchesDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute
+import uvg.edu.rutau.core.navigation.CoordinatedRideRoute as CoordinatedRideDestination
 import uvg.edu.rutau.core.navigation.TripEditorRoute as TripEditorDestination
 import uvg.edu.rutau.core.navigation.TripsRoute as TripsDestination
 
@@ -20,7 +21,13 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             onCreateTrip = { navController.navigate(TripEditorDestination()) },
             onEditTrip = { navController.navigate(TripEditorDestination(it)) },
             onOpenMatches = { navController.navigate(MatchesDestination(it)) },
-            viewModel = viewModel(factory = TripsViewModel.factory(RutaUAppDependencies.tripRepository)),
+            onOpenCoordinatedRide = { navController.navigate(CoordinatedRideDestination(it)) },
+            viewModel = viewModel(
+                factory = TripsViewModel.factory(
+                    RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.rideRequestRepository,
+                ),
+            ),
         )
     }
     composable<TripEditorDestination> { entry ->
@@ -47,7 +54,11 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             },
             viewModel = viewModel(
                 key = "matches-${route.tripId}",
-                factory = MatchesViewModel.factory(route.tripId, RutaUAppDependencies.tripRepository),
+                factory = MatchesViewModel.factory(
+                    route.tripId,
+                    RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.rideRequestRepository,
+                ),
             ),
         )
     }

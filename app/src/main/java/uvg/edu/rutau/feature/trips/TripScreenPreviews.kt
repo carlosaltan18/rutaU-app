@@ -21,6 +21,7 @@ private fun TripsScreenPreview() {
             onCreateTrip = {},
             onEditTrip = {},
             onOpenMatches = {},
+            onOpenCoordinatedRide = {},
             onDeactivateTrip = {},
             onRemoveTrip = {},
         )

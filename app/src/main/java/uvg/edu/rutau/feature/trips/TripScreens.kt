@@ -41,12 +41,14 @@ import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
 import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.model.CoordinationStatus
 
 @Composable
 fun TripsRoute(
     onCreateTrip: () -> Unit,
     onEditTrip: (String) -> Unit,
     onOpenMatches: (String) -> Unit,
+    onOpenCoordinatedRide: (String) -> Unit,
     viewModel: TripsViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -55,6 +57,7 @@ fun TripsRoute(
         onCreateTrip = onCreateTrip,
         onEditTrip = onEditTrip,
         onOpenMatches = onOpenMatches,
+        onOpenCoordinatedRide = onOpenCoordinatedRide,
         onDeactivateTrip = { viewModel.deactivate(it) },
         onRemoveTrip = { viewModel.remove(it) },
     )
@@ -66,6 +69,7 @@ fun TripsScreen(
     onCreateTrip: () -> Unit,
     onEditTrip: (String) -> Unit,
     onOpenMatches: (String) -> Unit,
+    onOpenCoordinatedRide: (String) -> Unit,
     onDeactivateTrip: (String) -> Unit,
     onRemoveTrip: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -73,7 +77,7 @@ fun TripsScreen(
     var pendingRemoval by remember { mutableStateOf<Trip?>(null) }
     RutaUScreenContainer(
         modifier = modifier,
-        topBar = { RutaUTopAppBar("Trayectos base") },
+        topBar = { RutaUTopAppBar("Trayectos") },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onCreateTrip,
@@ -82,7 +86,7 @@ fun TripsScreen(
             )
         },
     ) { padding ->
-        if (state.trips.isEmpty()) {
+        if (state.trips.isEmpty() && state.coordinatedTrips.isEmpty()) {
             Column(
                 Modifier.fillMaxSize().padding(padding).padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -93,6 +97,12 @@ fun TripsScreen(
                 Text("Registra tu ruta habitual para encontrar estudiantes compatibles.")
             }
         } else {
+            val activeCoordinations = state.coordinatedTrips.filter {
+                it.status == CoordinationStatus.CONFIRMED
+            }
+            val tripHistory = state.coordinatedTrips.filter {
+                it.status != CoordinationStatus.CONFIRMED
+            }
             LazyColumn(
                 Modifier.fillMaxSize().padding(padding),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -105,21 +115,65 @@ fun TripsScreen(
             ) {
                 item {
                     RutaUInfoCard(
-                        title = "Trayectos base",
-                        message = "Son tus rutas habituales. Úsalas para buscar compatibilidades; no son viajes confirmados.",
+                        title = "Viajes coordinados",
+                        message = if (activeCoordinations.isEmpty()) {
+                            "Aquí aparecerán los viajes que aceptes o que te acepten."
+                        } else {
+                            "Abre un viaje para ver sus pasajeros, punto de encuentro, mapa y acciones."
+                        },
+                    )
+                }
+                if (activeCoordinations.isNotEmpty()) {
+                    item {
+                        Text("Viajes activos", style = MaterialTheme.typography.titleMedium)
+                    }
+                    items(activeCoordinations, key = { it.requestId }) { detail ->
+                        CoordinatedTripCard(
+                            detail = detail,
+                            onOpen = { onOpenCoordinatedRide(detail.requestId) },
+                        )
+                    }
+                }
+                if (tripHistory.isNotEmpty()) {
+                    item {
+                        Text("Historial de viajes", style = MaterialTheme.typography.titleMedium)
+                    }
+                    items(tripHistory, key = { it.requestId }) { detail ->
+                        CoordinatedTripCard(
+                            detail = detail,
+                            onOpen = { onOpenCoordinatedRide(detail.requestId) },
+                        )
+                    }
+                }
+                item {
+                    Text("Trayectos base", style = MaterialTheme.typography.titleMedium)
+                }
+                item {
+                    RutaUInfoCard(
+                        title = "Tus rutas habituales",
+                        message = "Úsalas para buscar compatibilidades; no son viajes confirmados.",
                     )
                 }
                 state.error?.let { message ->
                     item { Text(message, color = MaterialTheme.colorScheme.error) }
                 }
-                items(state.trips, key = Trip::id) { trip ->
-                    TripCard(
-                        trip,
-                        onEdit = { onEditTrip(trip.id) },
-                        onMatches = { onOpenMatches(trip.id) },
-                        onDeactivate = { onDeactivateTrip(trip.id) },
-                        onRemove = { pendingRemoval = trip },
-                    )
+                if (state.trips.isEmpty()) {
+                    item {
+                        Text(
+                            "Aún no tienes trayectos base. Registra una ruta habitual para buscar compatibilidades.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    items(state.trips, key = Trip::id) { trip ->
+                        TripCard(
+                            trip,
+                            onEdit = { onEditTrip(trip.id) },
+                            onMatches = { onOpenMatches(trip.id) },
+                            onDeactivate = { onDeactivateTrip(trip.id) },
+                            onRemove = { pendingRemoval = trip },
+                        )
+                    }
                 }
             }
         }
@@ -339,6 +393,7 @@ fun CandidateProfileScreen(
                     RutaUPrimaryButton(
                         when (state.existingRequestStatus) {
                             uvg.edu.rutau.core.model.RequestStatus.PENDING -> "Solicitud enviada · Ver detalle"
+                            uvg.edu.rutau.core.model.RequestStatus.ACCEPTED -> "Solicitud aceptada · Ver detalle"
                             else -> if (state.sourceTrip?.role == TripRole.PASSENGER) "Solicitar unirme" else "Invitar a mi trayecto"
                         },
                         { onCoordinate(state.existingRequestId, state.contributionQuetzales) },
