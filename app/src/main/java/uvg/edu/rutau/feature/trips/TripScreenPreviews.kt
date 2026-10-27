@@ -21,6 +21,7 @@ private fun TripsScreenPreview() {
             onCreateTrip = {},
             onEditTrip = {},
             onOpenMatches = {},
+            onOpenCoordinatedRide = {},
             onDeactivateTrip = {},
             onRemoveTrip = {},
         )
@@ -69,7 +70,7 @@ private fun CandidateProfileScreenPreview() {
                 student = driverStudent,
             ),
             onBack = {},
-            onCoordinate = {},
+            onCoordinate = { _, _ -> },
             onContributionChange = {},
         )
     }

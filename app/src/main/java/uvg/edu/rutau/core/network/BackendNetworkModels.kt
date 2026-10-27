@@ -184,8 +184,24 @@ data class CoordinationSummaryDto(
 data class LiveLocationDto(
     @SerializedName("occurrenceId") val occurrenceId: String,
     @SerializedName("status") val status: String,
+    @SerializedName("startedAt") val startedAt: String? = null,
+    @SerializedName("endedAt") val endedAt: String? = null,
     @SerializedName("canStart") val canStart: Boolean,
     @SerializedName("canEnd") val canEnd: Boolean,
+)
+
+/** Describe el punto de encuentro acordado dentro de una coordinación. */
+data class MeetingPointDto(
+    @SerializedName("value") val value: String,
+    @SerializedName("confirmedByCurrentUser") val confirmedByCurrentUser: Boolean,
+    @SerializedName("confirmedByOtherParticipant") val confirmedByOtherParticipant: Boolean,
+)
+
+/** Describe las plazas confirmadas y disponibles de un viaje coordinado. */
+data class CoordinationCapacityDto(
+    @SerializedName("totalSeats") val totalSeats: Int,
+    @SerializedName("confirmedPassengers") val confirmedPassengers: Int,
+    @SerializedName("availableSeats") val availableSeats: Int,
 )
 
 /** Describe una coordinación visible para uno de sus participantes. */
@@ -193,6 +209,8 @@ data class BackendCoordinationDto(
     @SerializedName("id") val id: String,
     @SerializedName("rideRequestId") val rideRequestId: String,
     @SerializedName("status") val status: String,
+    @SerializedName("driverTripId") val driverTripId: String? = null,
+    @SerializedName("passengerTripId") val passengerTripId: String? = null,
     @SerializedName("travelDate") val travelDate: String,
     @SerializedName("plannedDepartureTime") val plannedDepartureTime: String,
     @SerializedName("originZoneId") val originZoneId: String,
@@ -201,7 +219,14 @@ data class BackendCoordinationDto(
     @SerializedName("currency") val currency: String,
     @SerializedName("driver") val driver: PublicProfileDto,
     @SerializedName("passenger") val passenger: PublicProfileDto,
+    @SerializedName("meetingPoint") val meetingPoint: MeetingPointDto? = null,
+    @SerializedName("capacity") val capacity: CoordinationCapacityDto? = null,
     @SerializedName("liveLocation") val liveLocation: LiveLocationDto,
+)
+
+/** Guarda el texto del punto de encuentro que proponen los participantes. */
+data class UpdateMeetingPointRequestDto(
+    @SerializedName("meetingPoint") val meetingPoint: String,
 )
 
 /** Guarda el token de FCM que se asocia con el dispositivo actual. */

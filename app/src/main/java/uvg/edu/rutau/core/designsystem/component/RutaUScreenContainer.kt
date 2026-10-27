@@ -1,6 +1,7 @@
 package uvg.edu.rutau.core.designsystem.component
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -16,7 +17,7 @@ fun RutaUScreenContainer(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     Scaffold(
-        modifier = modifier,
+        modifier = modifier.imePadding(),
         topBar = topBar,
         bottomBar = bottomBar,
         floatingActionButton = floatingActionButton,

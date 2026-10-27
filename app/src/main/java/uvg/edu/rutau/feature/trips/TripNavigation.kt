@@ -10,6 +10,7 @@ import uvg.edu.rutau.core.navigation.CandidateProfileRoute as CandidateProfileDe
 import uvg.edu.rutau.core.navigation.ConfirmCoordinationRoute as ConfirmCoordinationDestination
 import uvg.edu.rutau.core.navigation.MatchesRoute as MatchesDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute
+import uvg.edu.rutau.core.navigation.CoordinatedRideRoute as CoordinatedRideDestination
 import uvg.edu.rutau.core.navigation.TripEditorRoute as TripEditorDestination
 import uvg.edu.rutau.core.navigation.TripsRoute as TripsDestination
 
@@ -20,7 +21,13 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             onCreateTrip = { navController.navigate(TripEditorDestination()) },
             onEditTrip = { navController.navigate(TripEditorDestination(it)) },
             onOpenMatches = { navController.navigate(MatchesDestination(it)) },
-            viewModel = viewModel(factory = TripsViewModel.factory(RutaUAppDependencies.tripRepository)),
+            onOpenCoordinatedRide = { navController.navigate(CoordinatedRideDestination(it)) },
+            viewModel = viewModel(
+                factory = TripsViewModel.factory(
+                    RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.rideRequestRepository,
+                ),
+            ),
         )
     }
     composable<TripEditorDestination> { entry ->
@@ -47,7 +54,11 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             },
             viewModel = viewModel(
                 key = "matches-${route.tripId}",
-                factory = MatchesViewModel.factory(route.tripId, RutaUAppDependencies.tripRepository),
+                factory = MatchesViewModel.factory(
+                    route.tripId,
+                    RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.rideRequestRepository,
+                ),
             ),
         )
     }
@@ -55,8 +66,18 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
         val route = entry.toRoute<CandidateProfileDestination>()
         CandidateProfileRoute(
             onBack = { navController.popBackStack() },
-            onCoordinate = {
-                navController.navigate(ConfirmCoordinationDestination(route.tripId, route.candidateTripId))
+            onCoordinate = { existingRequestId, contribution ->
+                if (existingRequestId != null) {
+                    navController.navigate(RequestDetailRoute(existingRequestId))
+                } else {
+                    navController.navigate(
+                        ConfirmCoordinationDestination(
+                            tripId = route.tripId,
+                            candidateTripId = route.candidateTripId,
+                            suggestedContribution = contribution,
+                        ),
+                    )
+                }
             },
             viewModel = viewModel(
                 key = "candidate-${route.tripId}-${route.candidateTripId}",
@@ -64,6 +85,7 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
                     route.tripId,
                     route.candidateTripId,
                     RutaUAppDependencies.tripRepository,
+                    RutaUAppDependencies.rideRequestRepository,
                 ),
             ),
         )
@@ -74,10 +96,11 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
             onBack = { navController.popBackStack() },
             onConfirmed = { requestId -> navController.navigate(RequestDetailRoute(requestId)) },
             viewModel = viewModel(
-                key = "confirm-${route.tripId}-${route.candidateTripId}",
+                key = "confirm-${route.tripId}-${route.candidateTripId}-${route.suggestedContribution}",
                 factory = ConfirmCoordinationViewModel.factory(
                     route.tripId,
                     route.candidateTripId,
+                    route.suggestedContribution,
                     RutaUAppDependencies.tripRepository,
                     RutaUAppDependencies.coordinationRepository,
                 ),

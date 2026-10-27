@@ -62,6 +62,7 @@ data class CandidateProfileRoute(
 data class ConfirmCoordinationRoute(
     val tripId: String,
     val candidateTripId: String,
+    val suggestedContribution: Int = 10,
 ) : AppDestination
 
 /** Lleva a la lista de solicitudes. */

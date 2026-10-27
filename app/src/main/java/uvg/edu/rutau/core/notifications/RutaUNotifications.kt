@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -27,22 +28,36 @@ enum class RutaUPushType {
 class RutaUFirebaseMessagingService : FirebaseMessagingService() {
     @Deprecated("Firebase mantiene este método para renovar el token.")
     override fun onNewToken(token: String) {
+        Log.i(LogTag, "Firebase renovó el token de avisos.")
         RutaUAppDependencies.registerFcmToken(token)
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
         val type = message.data[PushTypeKey]
             ?.let { value -> RutaUPushType.entries.firstOrNull { it.name == value } }
-            ?: return
         val destination = message.data[DestinationKey].orEmpty()
         val resourceId = message.data[ResourceIdKey].orEmpty()
-        RutaUNotificationManager(applicationContext).show(PushNavigationTarget(type, destination, resourceId))
+        val target = type
+            ?.takeIf { destination.isNotBlank() && resourceId.isNotBlank() }
+            ?.let { PushNavigationTarget(it, destination, resourceId) }
+        val title = message.notification?.title ?: type?.title() ?: "Actualización de RutaU"
+        val body = message.notification?.body ?: type?.message() ?: "Tienes una nueva actualización."
+        val notificationId = message.data[NotificationIdKey].orEmpty()
+
+        Log.i(LogTag, "Llegó un aviso de tipo ${type?.name ?: "sin tipo"}.")
+        PushPopupStore.publish(PushPopupMessage(title, body, target))
+        RutaUAppDependencies.markNotificationHandled(notificationId)
+        target?.let {
+            RutaUNotificationManager(applicationContext).show(it, title, body, notificationId)
+        }
     }
 
     private companion object {
         const val PushTypeKey = "type"
         const val DestinationKey = "destination"
         const val ResourceIdKey = "resourceId"
+        const val NotificationIdKey = "notificationId"
+        const val LogTag = "RutaUPush"
     }
 }
 
@@ -50,7 +65,12 @@ class RutaUFirebaseMessagingService : FirebaseMessagingService() {
 class RutaUNotificationManager(
     private val context: Context,
 ) {
-    fun show(target: PushNavigationTarget) {
+    fun show(
+        target: PushNavigationTarget,
+        title: String = "Actualización de RutaU",
+        body: String = target.type.message(),
+        notificationId: String = "",
+    ) {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
         ensureChannel()
         val intent = Intent(context, MainActivity::class.java).apply {
@@ -65,13 +85,14 @@ class RutaUNotificationManager(
         )
         val notification = NotificationCompat.Builder(context, RideChannelId)
             .setSmallIcon(R.drawable.ic_stat_notification)
-            .setContentTitle("Actualización de RutaU")
-            .setContentText(target.type.message())
+            .setContentTitle(title)
+            .setContentText(body)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-        NotificationManagerCompat.from(context).notify(target.type.ordinal, notification)
+        val id = notificationId.takeIf(String::isNotBlank)?.hashCode() ?: target.type.ordinal
+        NotificationManagerCompat.from(context).notify(id, notification)
     }
 
     /** Crea el canal antes de que Firebase muestre un aviso en segundo plano. */
@@ -89,8 +110,18 @@ class RutaUNotificationManager(
     }
 }
 
+/** Da un título breve a cada aviso de Firebase. */
+internal fun RutaUPushType.title(): String = when (this) {
+    RutaUPushType.REQUEST_RECEIVED -> "Nueva solicitud de viaje"
+    RutaUPushType.REQUEST_ACCEPTED -> "Solicitud aceptada"
+    RutaUPushType.REQUEST_REJECTED -> "Solicitud rechazada"
+    RutaUPushType.REQUEST_CANCELLED -> "Solicitud cancelada"
+    RutaUPushType.REQUEST_EXPIRED -> "Solicitud expirada"
+    RutaUPushType.COORDINATION_CANCELLED -> "Viaje cancelado"
+}
+
 /** Convierte un tipo técnico en un mensaje breve para la notificación. */
-private fun RutaUPushType.message(): String = when (this) {
+internal fun RutaUPushType.message(): String = when (this) {
     RutaUPushType.REQUEST_RECEIVED -> "Tienes una nueva solicitud de viaje."
     RutaUPushType.REQUEST_ACCEPTED -> "Tu solicitud fue aceptada."
     RutaUPushType.REQUEST_REJECTED -> "Tu solicitud fue rechazada."

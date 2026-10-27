@@ -47,6 +47,8 @@ interface BackendApi {
     @GET("coordinations/{id}") suspend fun getCoordination(@Path("id") coordinationId: String): Response<ApiEnvelopeDto<BackendCoordinationDto>>
     @GET("ride-requests/{id}/coordination") suspend fun getCoordinationForRequest(@Path("id") requestId: String): Response<ApiEnvelopeDto<BackendCoordinationDto>>
     @POST("coordinations/{id}/cancel") suspend fun cancelCoordination(@Path("id") coordinationId: String): Response<ApiEnvelopeDto<BackendCoordinationDto>>
+    @PATCH("coordinations/{id}/meeting-point") suspend fun updateMeetingPoint(@Path("id") coordinationId: String, @Body body: UpdateMeetingPointRequestDto): Response<ApiEnvelopeDto<BackendCoordinationDto>>
+    @POST("coordinations/{id}/meeting-point/confirm") suspend fun confirmMeetingPoint(@Path("id") coordinationId: String): Response<ApiEnvelopeDto<BackendCoordinationDto>>
     @POST("coordinations/{id}/live-location/start") suspend fun startLiveLocation(@Path("id") coordinationId: String): Response<ApiEnvelopeDto<BackendCoordinationDto>>
     @POST("coordinations/{id}/live-location/end") suspend fun endLiveLocation(@Path("id") coordinationId: String): Response<ApiEnvelopeDto<BackendCoordinationDto>>
 

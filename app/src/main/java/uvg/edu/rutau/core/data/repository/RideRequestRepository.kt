@@ -11,6 +11,9 @@ interface RideRequestRepository {
     fun observeRequestDetails(): Flow<List<RideRequestDetails>>
     fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?>
 
+    /** Actualiza la lista para mostrar de inmediato los cambios de un viaje. */
+    suspend fun refresh()
+
     suspend fun accept(requestId: String)
     suspend fun reject(requestId: String)
     suspend fun cancel(requestId: String)

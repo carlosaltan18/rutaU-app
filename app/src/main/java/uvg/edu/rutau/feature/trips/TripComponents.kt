@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
@@ -47,8 +49,12 @@ import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
+import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
 
 private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.forLanguageTag("es-GT"))
+private val coordinatedTripDateFormatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.forLanguageTag("es-GT"))
 internal fun LocalTime.asUiTime(): String = format(timeFormatter).lowercase()
 internal fun TripRole.asUiRole(): String = if (this == TripRole.DRIVER) "Conductor" else "Pasajero"
 
@@ -123,6 +129,59 @@ fun TripCard(
             }
         }
     }
+}
+
+/** Muestra un viaje aceptado para abrir sus detalles sin pasar por solicitudes. */
+@Composable
+fun CoordinatedTripCard(
+    detail: CoordinatedTripSummary,
+    onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val isActive = detail.status == CoordinationStatus.CONFIRMED
+    Card(
+        onClick = onOpen,
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CoordinatedTripStatus(detail.status)
+                Text(detail.rideDate.format(coordinatedTripDateFormatter), style = MaterialTheme.typography.labelMedium)
+            }
+            Text(
+                "${detail.driverTrip.originZone} → ${detail.driverTrip.destinationCampus}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text("${detail.driverTrip.dayOfWeek} · ${detail.driverTrip.departureTime.asUiTime()}")
+            Text("Conductor: ${detail.driver.fullName}", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Pasajeros: ${detail.passengers.joinToString { it.fullName }}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            RutaUPrimaryButton(
+                text = if (isActive) "Abrir viaje" else "Ver resumen",
+                onClick = onOpen,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** Muestra un texto claro para saber si un viaje sigue activo o ya terminó. */
+@Composable
+private fun CoordinatedTripStatus(status: CoordinationStatus) {
+    val (text, type) = when (status) {
+        CoordinationStatus.CONFIRMED -> "Viaje confirmado" to RutaUStatusType.SUCCESS
+        CoordinationStatus.CANCELLED -> "Viaje cancelado" to RutaUStatusType.NEUTRAL
+        CoordinationStatus.COMPLETED -> "Viaje finalizado" to RutaUStatusType.SUCCESS
+    }
+    RutaUStatusChip(text, type)
 }
 
 @Composable
@@ -225,30 +284,33 @@ fun TimeSelector(selected: LocalTime, onSelected: (LocalTime) -> Unit) {
 @Composable
 fun MatchCard(match: TripMatch, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     Card(onClick = onOpen, modifier = modifier.fillMaxWidth()) {
-        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             RutaUAvatar(
                 fullName = match.student.fullName,
                 photoUrl = match.student.photoUrl,
                 size = 48.dp,
             )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(match.student.fullName, style = MaterialTheme.typography.titleMedium)
                 Text("${match.student.university} · ${match.student.campus}")
-                Text(match.trip.role.asUiRole())
-                Text(match.trip.departureTime.asUiTime())
-                Text(
-                    if (match.timeDifferenceMinutes == 0) "Misma hora" else {
-                        "${match.timeDifferenceMinutes} minutos de diferencia"
-                    },
-                )
-                Text(
-                    "✓ Misma zona · ✓ Mismo campus · ✓ Mismo día",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                RutaUOutlinedButton("Ver perfil", onOpen, Modifier.fillMaxWidth())
+                }
             }
-            if (match.trip.role == TripRole.DRIVER) Text("${match.trip.availableSeats} plazas disponibles")
+            Text("${match.trip.role.asUiRole()} · ${match.trip.departureTime.asUiTime()}")
+            if (match.trip.role == TripRole.DRIVER) {
+                Text("${match.trip.availableSeats} plazas disponibles", color = MaterialTheme.colorScheme.primary)
+            }
+            Text(
+                if (match.timeDifferenceMinutes == 0) "Misma hora" else {
+                    "${match.timeDifferenceMinutes} minutos de diferencia"
+                },
+            )
+            Text(
+                "✓ Misma zona · ✓ Mismo campus · ✓ Mismo día",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            RutaUOutlinedButton("Ver perfil", onOpen, Modifier.fillMaxWidth())
         }
     }
 }
@@ -308,9 +370,16 @@ fun CompatibilityReasonsCard(
 fun ContributionEditor(value: Int, onValueChange: (Int) -> Unit, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Contribución sugerida", style = MaterialTheme.typography.titleSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             listOf(0, 5, 10, 15, 20).forEach { amount ->
-                FilterChip(value == amount, { onValueChange(amount) }, { Text(if (amount == 0) "Sin aporte" else "Q$amount") })
+                FilterChip(
+                    selected = value == amount,
+                    onClick = { onValueChange(amount) },
+                    label = { Text(if (amount == 0) "Sin aporte" else "Q$amount", maxLines = 1) },
+                )
             }
         }
     }

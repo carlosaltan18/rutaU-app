@@ -29,15 +29,14 @@ enum class RequestTab {
 
 /** Indica el grupo de solicitudes que se muestra en la lista. */
 enum class RequestFilter {
-    ALL,
     PENDING,
-    ACCEPTED,
+    HISTORY,
 }
 
 /** Guarda la información que muestra la lista de solicitudes. */
 data class RequestsUiState(
     val selectedTab: RequestTab = RequestTab.RECEIVED,
-    val selectedFilter: RequestFilter = RequestFilter.ALL,
+    val selectedFilter: RequestFilter = RequestFilter.PENDING,
     val requests: List<RideRequestDetails> = emptyList(),
     val receivedCount: Int = 0,
     val sentCount: Int = 0,
@@ -53,7 +52,9 @@ class RequestsViewModel(
         savedStateHandle.get<String>(SelectedTabKey)?.let(RequestTab::valueOf) ?: RequestTab.RECEIVED,
     )
     private val filter = MutableStateFlow(
-        savedStateHandle.get<String>(SelectedFilterKey)?.let(RequestFilter::valueOf) ?: RequestFilter.ALL,
+        savedStateHandle.get<String>(SelectedFilterKey)
+            ?.let { saved -> RequestFilter.entries.firstOrNull { it.name == saved } }
+            ?: RequestFilter.PENDING,
     )
 
     val uiState: StateFlow<RequestsUiState> = combine(
@@ -72,9 +73,9 @@ class RequestsViewModel(
                 detail.senderTrip.ownerId == userId
             }
             val belongsToSelectedFilter = when (selectedFilter) {
-                RequestFilter.ALL -> true
                 RequestFilter.PENDING -> detail.request.status == RequestStatus.PENDING
-                RequestFilter.ACCEPTED -> detail.request.status == RequestStatus.ACCEPTED
+                RequestFilter.HISTORY -> detail.request.status != RequestStatus.PENDING &&
+                    detail.request.status != RequestStatus.ACCEPTED
             }
             belongsToSelectedTab && belongsToSelectedFilter
         }.sortedByDescending { it.request.rideDate }
@@ -82,8 +83,8 @@ class RequestsViewModel(
             selectedTab = selectedTab,
             selectedFilter = selectedFilter,
             requests = requests,
-            receivedCount = received.size,
-            sentCount = sent.size,
+            receivedCount = received.count { it.request.status == RequestStatus.PENDING },
+            sentCount = sent.count { it.request.status == RequestStatus.PENDING },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RequestsUiState())
 
@@ -199,7 +200,7 @@ class CoordinatedRideViewModel(
     requestId: String,
     private val coordinationRepository: CoordinationRepository,
     userRepository: UserRepository,
-    rideRequestRepository: RideRequestRepository,
+    private val rideRequestRepository: RideRequestRepository,
 ) : ViewModel() {
     private val saving = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
@@ -250,6 +251,48 @@ class CoordinatedRideViewModel(
         }
     }
 
+    /** Guarda una nueva propuesta para reunirse antes del viaje. */
+    fun updateMeetingPoint(meetingPoint: String) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        if (meetingPoint.trim().length < 3) {
+            error.value = "Escribe un punto de encuentro de al menos 3 caracteres."
+            return
+        }
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = coordinationRepository.updateMeetingPoint(
+                    coordinationId,
+                    meetingPoint,
+                )
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible guardar el punto de encuentro."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Confirma el punto de encuentro que propuso la otra persona. */
+    fun confirmMeetingPoint() {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = coordinationRepository.confirmMeetingPoint(coordinationId)
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible confirmar el punto de encuentro."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Explica por qué no se puede iniciar la ubicación si se niega el permiso. */
+    fun locationPermissionDenied() {
+        error.value = "RutaU necesita permiso de ubicación para compartir tu posición durante el viaje."
+    }
+
     /** Inicia la ubicación únicamente cuando el servidor confirmó que es conductor. */
     fun startLiveLocation(onStarted: (String) -> Unit) {
         val coordinationId = uiState.value.coordination?.id ?: return
@@ -276,6 +319,7 @@ class CoordinatedRideViewModel(
             error.value = null
             try {
                 liveCoordination.value = coordinationRepository.endLiveLocation(coordinationId)
+                runCatching { rideRequestRepository.refresh() }
                 onEnded()
             } catch (throwable: Throwable) {
                 error.value = throwable.message ?: "No fue posible finalizar el viaje."
@@ -284,12 +328,13 @@ class CoordinatedRideViewModel(
         }
     }
 
-    private fun cancel(onCancelled: () -> Unit, action: suspend () -> Unit) {
+    private fun cancel(onCancelled: () -> Unit, action: suspend () -> Coordination) {
         viewModelScope.launch {
             saving.value = true
             error.value = null
             try {
-                action()
+                liveCoordination.value = action()
+                runCatching { rideRequestRepository.refresh() }
                 onCancelled()
             } catch (throwable: Throwable) {
                 error.value = throwable.message ?: "No fue posible cancelar el viaje."

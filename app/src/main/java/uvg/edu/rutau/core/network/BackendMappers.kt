@@ -5,6 +5,8 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequest
@@ -32,11 +34,14 @@ fun PrivateProfileDto.toUserAccount(
 )
 
 /** Convierte un perfil público sin mostrar datos privados. */
-fun PublicProfileDto.toStudent(): Student = Student(
+fun PublicProfileDto.toStudent(
+    universityName: String = universityId,
+    campusName: String = campusId,
+): Student = Student(
     id = id,
     fullName = displayName,
-    university = universityId,
-    campus = campusId,
+    university = universityName,
+    campus = campusName,
     photoUrl = photoUrl,
 )
 
@@ -85,6 +90,8 @@ fun TripSummaryDto.toTrip(
 fun BackendMatchDto.toTripMatch(
     originName: String = originZoneId,
     destinationName: String = destinationCampusId,
+    universityName: String = profile.universityId,
+    campusName: String = profile.campusId,
 ): TripMatch = TripMatch(
     trip = Trip(
         id = candidateTripId,
@@ -100,12 +107,21 @@ fun BackendMatchDto.toTripMatch(
         originZoneId = originZoneId,
         destinationCampusId = destinationCampusId,
     ),
-    student = profile.toStudent(),
+    student = profile.toStudent(universityName, campusName),
     timeDifferenceMinutes = timeDifferenceMinutes,
 )
 
 /** Convierte una solicitud completa para el detalle y su lista. */
-fun BackendRideRequestDto.toRideRequestDetails(): RideRequestDetails {
+fun BackendRideRequestDto.toRideRequestDetails(
+    senderOriginName: String = senderTrip.originZoneId,
+    senderDestinationName: String = senderTrip.destinationCampusId,
+    targetOriginName: String = targetTrip.originZoneId,
+    targetDestinationName: String = targetTrip.destinationCampusId,
+    senderUniversityName: String = sender.universityId,
+    senderCampusName: String = sender.campusId,
+    targetUniversityName: String = target.universityId,
+    targetCampusName: String = target.campusId,
+): RideRequestDetails {
     val request = RideRequest(
         id = id,
         senderTripId = senderTrip.id,
@@ -119,10 +135,11 @@ fun BackendRideRequestDto.toRideRequestDetails(): RideRequestDetails {
     )
     return RideRequestDetails(
         request = request,
-        senderTrip = senderTrip.toTrip(sender.id, availableSeats),
-        targetTrip = targetTrip.toTrip(target.id, availableSeats),
-        sender = sender.toStudent(),
-        target = target.toStudent(),
+        senderTrip = senderTrip.toTrip(sender.id, availableSeats, senderOriginName, senderDestinationName),
+        targetTrip = targetTrip.toTrip(target.id, availableSeats, targetOriginName, targetDestinationName),
+        sender = sender.toStudent(senderUniversityName, senderCampusName),
+        target = target.toStudent(targetUniversityName, targetCampusName),
+        coordinationStatus = coordination?.status?.toCoordinationStatus(),
     )
 }
 
@@ -130,14 +147,37 @@ fun BackendRideRequestDto.toRideRequestDetails(): RideRequestDetails {
 fun BackendCoordinationDto.toCoordination(): Coordination = Coordination(
     id = id,
     requestId = rideRequestId,
-    driverTripId = "",
-    passengerTripId = "",
+    driverTripId = driverTripId.orEmpty(),
+    passengerTripId = passengerTripId.orEmpty(),
     rideDate = LocalDate.parse(travelDate),
     contributionCents = agreedContributionMinor,
+    status = status.toCoordinationStatus(),
+    meetingPoint = meetingPoint?.value,
+    meetingPointConfirmedByCurrentUser = meetingPoint?.confirmedByCurrentUser ?: false,
+    meetingPointConfirmedByOtherParticipant = meetingPoint?.confirmedByOtherParticipant ?: false,
+    seatCapacity = capacity?.totalSeats ?: 0,
+    confirmedPassengerCount = capacity?.confirmedPassengers ?: 0,
+    availableSeatCount = capacity?.availableSeats ?: 0,
     liveOccurrenceId = liveLocation.occurrenceId,
+    liveLocationStatus = liveLocation.status.toLiveLocationStatus(),
     canStartLiveLocation = liveLocation.canStart,
     canEndLiveLocation = liveLocation.canEnd,
 )
+
+/** Convierte el estado publicado por el servidor al estado que muestra la app. */
+private fun String.toLiveLocationStatus(): LiveLocationStatus = when (this) {
+    "ACTIVE" -> LiveLocationStatus.ACTIVE
+    "ENDED" -> LiveLocationStatus.ENDED
+    else -> LiveLocationStatus.NOT_STARTED
+}
+
+/** Convierte el estado general recibido del servidor. */
+private fun String.toCoordinationStatus(): CoordinationStatus = when (this) {
+    "CONFIRMED" -> CoordinationStatus.CONFIRMED
+    "CANCELLED" -> CoordinationStatus.CANCELLED
+    "COMPLETED" -> CoordinationStatus.COMPLETED
+    else -> throw IllegalArgumentException("El servidor devolvió un estado de viaje desconocido.")
+}
 
 /** Convierte el texto del día del formulario al número ISO que usa el servidor. */
 fun String.toIsoDayOfWeek(): Int = when (trim().lowercase()) {

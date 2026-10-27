@@ -25,6 +25,20 @@ enum class RequestStatus {
     EXPIRED,
 }
 
+/** Indica si el conductor todavía no inicia, está compartiendo o terminó el viaje. */
+enum class LiveLocationStatus {
+    NOT_STARTED,
+    ACTIVE,
+    ENDED,
+}
+
+/** Indica si un viaje aceptado sigue activo, fue cancelado o ya terminó. */
+enum class CoordinationStatus {
+    CONFIRMED,
+    CANCELLED,
+    COMPLETED,
+}
+
 /** Información pública mínima de una persona mostrada dentro de la aplicación. */
 data class Student(
     val id: String,
@@ -148,7 +162,15 @@ data class Coordination(
     val passengerTripId: String,
     val rideDate: LocalDate,
     val contributionCents: Long,
+    val status: CoordinationStatus = CoordinationStatus.CONFIRMED,
+    val meetingPoint: String? = null,
+    val meetingPointConfirmedByCurrentUser: Boolean = false,
+    val meetingPointConfirmedByOtherParticipant: Boolean = false,
+    val seatCapacity: Int = 0,
+    val confirmedPassengerCount: Int = 0,
+    val availableSeatCount: Int = 0,
     val liveOccurrenceId: String? = null,
+    val liveLocationStatus: LiveLocationStatus = LiveLocationStatus.NOT_STARTED,
     val canStartLiveLocation: Boolean = false,
     val canEndLiveLocation: Boolean = false,
 )
@@ -160,4 +182,5 @@ data class RideRequestDetails(
     val targetTrip: Trip,
     val sender: Student,
     val target: Student,
+    val coordinationStatus: CoordinationStatus? = null,
 )

@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.CoordinationStatus
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequest
@@ -22,8 +23,8 @@ class FakeCoordinationRepository(
     override fun observeCoordinationById(coordinationId: String): Flow<Coordination?> =
         store.coordinations.map { coordinations -> coordinations.firstOrNull { it.id == coordinationId } }
 
-    override suspend fun cancelRide(coordinationId: String) {
-        synchronized(store) {
+    override suspend fun cancelRide(coordinationId: String): Coordination {
+        return synchronized(store) {
             val coordination = findAcceptedCoordination(coordinationId)
             val related = store.coordinations.value.filter {
                 it.driverTripId == coordination.driverTripId && it.rideDate == coordination.rideDate
@@ -40,14 +41,39 @@ class FakeCoordinationRepository(
                 }
             }
             store.coordinations.value = store.coordinations.value.filterNot { it in related }
+            coordination.copy(status = CoordinationStatus.CANCELLED)
         }
     }
 
-    override suspend fun cancelParticipation(coordinationId: String) {
-        synchronized(store) {
+    override suspend fun cancelParticipation(coordinationId: String): Coordination {
+        return synchronized(store) {
             val coordination = findAcceptedCoordination(coordinationId)
             cancelOneCoordination(coordination)
+            coordination.copy(status = CoordinationStatus.CANCELLED)
         }
+    }
+
+    override suspend fun updateMeetingPoint(coordinationId: String, meetingPoint: String): Coordination {
+        val current = findAcceptedCoordination(coordinationId)
+        val updated = current.copy(
+            meetingPoint = meetingPoint.trim(),
+            meetingPointConfirmedByCurrentUser = true,
+            meetingPointConfirmedByOtherParticipant = false,
+        )
+        store.coordinations.value = store.coordinations.value.map {
+            if (it.id == coordinationId) updated else it
+        }
+        return updated
+    }
+
+    override suspend fun confirmMeetingPoint(coordinationId: String): Coordination {
+        val current = findAcceptedCoordination(coordinationId)
+        check(!current.meetingPoint.isNullOrBlank()) { "Primero deben indicar un punto de encuentro." }
+        val updated = current.copy(meetingPointConfirmedByCurrentUser = true)
+        store.coordinations.value = store.coordinations.value.map {
+            if (it.id == coordinationId) updated else it
+        }
+        return updated
     }
 
     override suspend fun startLiveLocation(coordinationId: String): Coordination =

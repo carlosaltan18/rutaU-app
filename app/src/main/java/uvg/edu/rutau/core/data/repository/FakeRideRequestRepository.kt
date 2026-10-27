@@ -41,6 +41,8 @@ class FakeRideRequestRepository(
     override fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?> =
         observeRequestDetails().map { details -> details.firstOrNull { it.request.id == requestId } }
 
+    override suspend fun refresh() = Unit
+
     override suspend fun accept(requestId: String) {
         synchronized(store) {
             val request = requirePendingRequest(requestId)

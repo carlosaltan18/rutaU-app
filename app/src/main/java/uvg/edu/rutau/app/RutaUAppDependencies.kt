@@ -13,6 +13,7 @@ import uvg.edu.rutau.BuildConfig
 import uvg.edu.rutau.core.auth.GoogleSignInCoordinator
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
+import uvg.edu.rutau.core.data.catalog.CatalogLabelResolver
 import uvg.edu.rutau.core.data.catalog.RemoteCatalogRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.FakeCoordinationRepository
@@ -37,7 +38,9 @@ import uvg.edu.rutau.core.model.UserAccount
 import uvg.edu.rutau.core.network.FirebaseIdTokenProvider
 import uvg.edu.rutau.core.network.RutaUNetworkClient
 import uvg.edu.rutau.core.notifications.BackendDeviceRegistrationRepository
+import uvg.edu.rutau.core.notifications.BackendNotificationPopupRepository
 import uvg.edu.rutau.core.notifications.DeviceRegistrationRepository
+import uvg.edu.rutau.core.notifications.NotificationPopupRepository
 import uvg.edu.rutau.core.preferences.DataStorePopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageFeedRepository
@@ -70,6 +73,8 @@ object RutaUAppDependencies {
     lateinit var catalogRepository: CatalogRepository
         private set
     lateinit var deviceRegistrationRepository: DeviceRegistrationRepository
+        private set
+    lateinit var notificationPopupRepository: NotificationPopupRepository
         private set
     lateinit var liveTripLocationRepository: LiveTripLocationRepository
         private set
@@ -109,15 +114,16 @@ object RutaUAppDependencies {
         )
         sessionRepository = firebaseSessionRepository
         catalogRepository = RemoteCatalogRepository(networkClient.api)
+        val catalogLabels = CatalogLabelResolver(networkClient.api)
         userRepository = FirebaseUserRepository(
             firebaseAuth,
             sessionRepository,
             networkClient.api,
             catalogRepository,
         )
-        tripRepository = RemoteTripRepository(networkClient.api)
+        tripRepository = RemoteTripRepository(networkClient.api, catalogLabels)
         coordinationRepository = RemoteCoordinationRepository(networkClient.api)
-        rideRequestRepository = RemoteRideRequestRepository(networkClient.api)
+        rideRequestRepository = RemoteRideRequestRepository(networkClient.api, catalogLabels)
         googleSignInCoordinator = GoogleSignInCoordinator(appContext)
         popupMessageRepository = DataStorePopupMessageRepository(appContext)
         themePreferenceRepository = DataStoreThemePreferenceRepository(appContext)
@@ -131,6 +137,7 @@ object RutaUAppDependencies {
             sessionRepository = sessionRepository,
             backendApi = networkClient.api,
         )
+        notificationPopupRepository = BackendNotificationPopupRepository(networkClient.api)
         liveTripLocationRepository = if (BuildConfig.REALTIME_DATABASE_URL.isBlank()) {
             UnconfiguredLiveTripLocationRepository()
         } else {
@@ -147,6 +154,15 @@ object RutaUAppDependencies {
         appScope.launch {
             runCatching { deviceRegistrationRepository.registerToken(token) }
                 .onFailure { recordTechnicalError("fcm_token_refresh") }
+        }
+    }
+
+    /** Marca un aviso como visto después de mostrarlo en el teléfono. */
+    fun markNotificationHandled(notificationId: String) {
+        if (!initialized || !::notificationPopupRepository.isInitialized || notificationId.isBlank()) return
+        appScope.launch {
+            runCatching { notificationPopupRepository.markHandled(notificationId) }
+                .onFailure { recordTechnicalError("notification_mark_read") }
         }
     }
 

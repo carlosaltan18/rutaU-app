@@ -3,6 +3,7 @@ package uvg.edu.rutau.feature.trips
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,25 +18,55 @@ import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.TripRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
+import uvg.edu.rutau.core.data.repository.RideRequestRepository
+import uvg.edu.rutau.core.data.repository.driverAndPassengerTripIds
 import uvg.edu.rutau.core.model.RequestType
+import uvg.edu.rutau.core.model.RequestStatus
+import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripInput
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
+import uvg.edu.rutau.core.network.BackendApiException
+import uvg.edu.rutau.core.network.nextTravelDate
 
 /** Guarda los trayectos que se muestran en la lista principal. */
 data class TripsUiState(
     val trips: List<Trip> = emptyList(),
+    val coordinatedTrips: List<CoordinatedTripSummary> = emptyList(),
     val error: String? = null,
 )
 
+/** Resume un viaje coordinado para abrirlo directamente desde Trayectos. */
+data class CoordinatedTripSummary(
+    val requestId: String,
+    val driverTrip: Trip,
+    val driver: Student,
+    val passengers: List<Student>,
+    val rideDate: LocalDate,
+    val status: CoordinationStatus,
+)
+
 /** Maneja la lista de trayectos de la persona actual. */
-class TripsViewModel(private val repository: TripRepository) : ViewModel() {
+class TripsViewModel(
+    private val repository: TripRepository,
+    rideRequestRepository: RideRequestRepository,
+) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
 
-    val uiState: StateFlow<TripsUiState> = repository.observeTrips()
-        .combine(error) { trips, message -> TripsUiState(trips, message) }
+    val uiState: StateFlow<TripsUiState> = combine(
+        repository.observeTrips(),
+        rideRequestRepository.observeRequestDetails(),
+        error,
+    ) { trips, requests, message ->
+        TripsUiState(
+            trips = trips.map { trip -> trip.withOccupiedSeats(requests) },
+            coordinatedTrips = requests.toCoordinatedTripSummaries(),
+            error = message,
+        )
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsUiState())
 
     fun remove(tripId: String) = viewModelScope.launch {
@@ -51,7 +82,10 @@ class TripsViewModel(private val repository: TripRepository) : ViewModel() {
     }
 
     companion object {
-        fun factory(repository: TripRepository) = viewModelFactory { TripsViewModel(repository) }
+        fun factory(
+            repository: TripRepository,
+            rideRequestRepository: RideRequestRepository,
+        ) = viewModelFactory { TripsViewModel(repository, rideRequestRepository) }
     }
 }
 
@@ -84,15 +118,17 @@ class TripEditorViewModel(
         if (tripId != null) {
             viewModelScope.launch {
                 val trip = repository.observeTrip(tripId).filterNotNull().first()
-                uiState.value = TripEditorUiState(
-                    originZone = trip.originZoneId,
-                    destinationCampus = trip.destinationCampusId,
-                    dayOfWeek = trip.dayOfWeek,
-                    departureTime = trip.departureTime,
-                    role = trip.role,
-                    offeredSeats = trip.offeredSeats.coerceAtLeast(1),
-                    isEditing = true,
-                )
+                update {
+                    copy(
+                        originZone = trip.originZoneId,
+                        destinationCampus = trip.destinationCampusId,
+                        dayOfWeek = trip.dayOfWeek,
+                        departureTime = trip.departureTime,
+                        role = trip.role,
+                        offeredSeats = trip.offeredSeats.coerceAtLeast(1),
+                        isEditing = true,
+                    )
+                }
             }
         }
     }
@@ -181,14 +217,37 @@ data class MatchesUiState(
 )
 
 /** Busca personas compatibles para un trayecto. */
-class MatchesViewModel(tripId: String, repository: TripRepository) : ViewModel() {
-    val uiState = combine(repository.observeTrip(tripId), repository.observeMatches(tripId)) { trip, matches ->
-        MatchesUiState(trip, matches)
+class MatchesViewModel(
+    tripId: String,
+    repository: TripRepository,
+    rideRequestRepository: RideRequestRepository,
+) : ViewModel() {
+    val uiState = combine(
+        repository.observeTrip(tripId),
+        repository.observeMatches(tripId),
+        rideRequestRepository.observeRequestDetails(),
+    ) { trip, matches, requests ->
+        val hiddenCandidateIds = trip?.let { source ->
+            requests.asSequence()
+                .filter { detail -> detail.blocksNewRequestFor(source.id, source.dayOfWeek) }
+                .map { detail ->
+                    if (detail.request.senderTripId == source.id) {
+                        detail.request.targetTripId
+                    } else {
+                        detail.request.senderTripId
+                    }
+                }
+                .toSet()
+        }.orEmpty()
+        MatchesUiState(trip, matches.filterNot { it.trip.id in hiddenCandidateIds })
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MatchesUiState())
 
     companion object {
-        fun factory(tripId: String, repository: TripRepository) =
-            viewModelFactory { MatchesViewModel(tripId, repository) }
+        fun factory(
+            tripId: String,
+            repository: TripRepository,
+            rideRequestRepository: RideRequestRepository,
+        ) = viewModelFactory { MatchesViewModel(tripId, repository, rideRequestRepository) }
     }
 }
 
@@ -198,6 +257,8 @@ data class CandidateProfileUiState(
     val candidateTrip: Trip? = null,
     val student: Student? = null,
     val contributionQuetzales: Int = 10,
+    val existingRequestId: String? = null,
+    val existingRequestStatus: RequestStatus? = null,
 )
 
 /** Maneja la información de una persona compatible. */
@@ -205,22 +266,45 @@ class CandidateProfileViewModel(
     tripId: String,
     candidateTripId: String,
     repository: TripRepository,
+    requestRepository: RideRequestRepository,
 ) : ViewModel() {
     private val contribution = MutableStateFlow(10)
     val uiState = combine(
         repository.observeTrip(tripId),
         repository.observeMatches(tripId),
         contribution,
-    ) { source, matches, amount ->
+        requestRepository.observeRequestDetails(),
+    ) { source, matches, amount, requests ->
         val match = matches.firstOrNull { it.trip.id == candidateTripId }
-        CandidateProfileUiState(source, match?.trip, match?.student, amount)
+        val existing = match?.let { candidate ->
+            requests.firstOrNull { detail ->
+                source != null &&
+                    detail.blocksNewRequestFor(source.id, source.dayOfWeek) &&
+                    (detail.request.senderTripId == candidate.trip.id ||
+                        detail.request.targetTripId == candidate.trip.id)
+            }
+        }
+        CandidateProfileUiState(
+            sourceTrip = source,
+            candidateTrip = match?.trip,
+            student = match?.student,
+            contributionQuetzales = amount,
+            existingRequestId = existing?.request?.id,
+            existingRequestStatus = existing?.request?.status,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CandidateProfileUiState())
 
     fun setContribution(value: Int) { contribution.value = value.coerceIn(0, 100) }
 
     companion object {
-        fun factory(tripId: String, candidateTripId: String, repository: TripRepository) =
-            viewModelFactory { CandidateProfileViewModel(tripId, candidateTripId, repository) }
+        fun factory(
+            tripId: String,
+            candidateTripId: String,
+            repository: TripRepository,
+            requestRepository: RideRequestRepository,
+        ) = viewModelFactory {
+            CandidateProfileViewModel(tripId, candidateTripId, repository, requestRepository)
+        }
     }
 }
 
@@ -239,10 +323,13 @@ data class ConfirmCoordinationUiState(
 class ConfirmCoordinationViewModel(
     private val tripId: String,
     private val candidateTripId: String,
+    initialContribution: Int,
     tripRepository: TripRepository,
     private val coordinationRepository: CoordinationRepository,
 ) : ViewModel() {
-    private val form = MutableStateFlow(ConfirmCoordinationUiState())
+    private val form = MutableStateFlow(
+        ConfirmCoordinationUiState(contributionQuetzales = initialContribution.coerceIn(0, 100)),
+    )
     val uiState = combine(
         tripRepository.observeTrip(tripId),
         tripRepository.observeMatches(tripId),
@@ -274,8 +361,11 @@ class ConfirmCoordinationViewModel(
                     message = state.message,
                     contributionCents = state.contributionQuetzales * 100L,
                 )
-            }.onSuccess(onConfirmed).onFailure {
-                form.value = state.copy(error = "No fue posible enviar la coordinación.")
+            }.onSuccess(onConfirmed).onFailure { error ->
+                form.value = state.copy(
+                    isSubmitting = false,
+                    error = error.asCoordinationError(),
+                )
             }
         }
     }
@@ -284,12 +374,85 @@ class ConfirmCoordinationViewModel(
         fun factory(
             tripId: String,
             candidateTripId: String,
+            initialContribution: Int = 10,
             tripRepository: TripRepository,
             coordinationRepository: CoordinationRepository,
         ) = viewModelFactory {
-            ConfirmCoordinationViewModel(tripId, candidateTripId, tripRepository, coordinationRepository)
+            ConfirmCoordinationViewModel(
+                tripId,
+                candidateTripId,
+                initialContribution,
+                tripRepository,
+                coordinationRepository,
+            )
         }
     }
+}
+
+/** Calcula las plazas ya confirmadas para la próxima salida del conductor. */
+private fun Trip.withOccupiedSeats(requests: List<uvg.edu.rutau.core.model.RideRequestDetails>): Trip {
+    if (role != TripRole.DRIVER) return copy(occupiedSeats = 0)
+    val nextDate = nextTravelDate(dayOfWeek)
+    val occupied = requests.count { detail ->
+        val (driverTripId, _) = detail.request.driverAndPassengerTripIds()
+        driverTripId == id &&
+            detail.request.rideDate.toString() == nextDate &&
+            detail.request.status == RequestStatus.ACCEPTED &&
+            detail.coordinationStatus == uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED
+    }
+    return copy(occupiedSeats = occupied.coerceAtMost(offeredSeats))
+}
+
+/** Agrupa a los pasajeros de un mismo viaje para no repetirlo en la lista. */
+private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<CoordinatedTripSummary> =
+    filter { detail ->
+        detail.request.status == RequestStatus.ACCEPTED && detail.coordinationStatus != null
+    }
+        .groupBy { detail ->
+            val (driverTripId, _) = detail.request.driverAndPassengerTripIds()
+            Triple(driverTripId, detail.request.rideDate, detail.coordinationStatus!!)
+        }
+        .mapNotNull { (_, details) ->
+            val first = details.firstOrNull() ?: return@mapNotNull null
+            val driverIsSender = first.senderTrip.role == TripRole.DRIVER
+            val driverTrip = if (driverIsSender) first.senderTrip else first.targetTrip
+            val driver = if (driverIsSender) first.sender else first.target
+            val passengers = details.map { detail ->
+                if (detail.senderTrip.role == TripRole.PASSENGER) detail.sender else detail.target
+            }.distinctBy(Student::id)
+            CoordinatedTripSummary(
+                requestId = first.request.id,
+                driverTrip = driverTrip,
+                driver = driver,
+                passengers = passengers,
+                rideDate = first.request.rideDate,
+                status = first.coordinationStatus!!,
+            )
+        }
+        .sortedWith(
+            compareBy<CoordinatedTripSummary> {
+                if (it.status == CoordinationStatus.CONFIRMED) 0 else 1
+            }.thenByDescending { it.rideDate },
+        )
+
+/** Decide si una solicitud de la misma fecha evita enviar otra a esa persona. */
+private fun uvg.edu.rutau.core.model.RideRequestDetails.blocksNewRequestFor(
+    sourceTripId: String,
+    dayOfWeek: String,
+): Boolean {
+    val rideRequest = request
+    val includesSource = rideRequest.senderTripId == sourceTripId || rideRequest.targetTripId == sourceTripId
+    if (!includesSource || rideRequest.rideDate.toString() != nextTravelDate(dayOfWeek)) return false
+    return rideRequest.status == RequestStatus.PENDING ||
+        (rideRequest.status == RequestStatus.ACCEPTED &&
+            coordinationStatus == uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED)
+}
+
+/** Convierte un error temporal del servidor en un mensaje claro para la persona. */
+private fun Throwable.asCoordinationError(): String = when {
+    this is BackendApiException && code == "RATE_LIMITED" ->
+        "Hay muchas solicitudes en este momento. Espera unos segundos e inténtalo de nuevo."
+    else -> message ?: "No fue posible enviar la coordinación."
 }
 
 private inline fun <reified T : ViewModel> viewModelFactory(crossinline create: () -> T): ViewModelProvider.Factory =
