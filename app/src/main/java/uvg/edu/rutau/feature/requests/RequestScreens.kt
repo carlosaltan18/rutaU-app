@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.content.Intent
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,12 +44,13 @@ import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.CoordinationStatus
-import uvg.edu.rutau.core.location.LiveTripLocationPermissions
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationService
 import uvg.edu.rutau.core.location.rememberLiveTripLocationPermissionRequester
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+
+private val coordinatedRideTimeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.forLanguageTag("es-GT"))
 
 /** Conecta la lista de solicitudes con los datos compartidos. */
 @Composable
@@ -338,6 +341,7 @@ fun CoordinatedRideScreen(
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
+    var confirmStart by remember { mutableStateOf(false) }
     val context = LocalContext.current
     RutaUScreenContainer(
         modifier = modifier,
@@ -368,6 +372,12 @@ fun CoordinatedRideScreen(
             val isTerminal = state.coordination.status != uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED
             val isLocationActive = !isTerminal &&
                 (state.coordination.liveLocationStatus == LiveLocationStatus.ACTIVE || liveLocation != null)
+            val canStartJourney = !isTerminal &&
+                currentUserIsDriver &&
+                state.coordination.liveLocationStatus == LiveLocationStatus.NOT_STARTED
+            val canEndJourney = !isTerminal &&
+                currentUserIsDriver &&
+                state.coordination.liveLocationStatus == LiveLocationStatus.ACTIVE
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -376,29 +386,40 @@ fun CoordinatedRideScreen(
                 item {
                     CoordinationStateCard(state.coordination.status, detail.asRequestDate())
                 }
-                if (!isTerminal) item { RequestStatusChip(RequestStatus.ACCEPTED) }
-                item { RequestTripSummary(detail) }
                 item {
-                    CoordinationCapacityCard(
-                        confirmedPassengers = state.coordination.confirmedPassengerCount,
-                        totalSeats = state.coordination.seatCapacity,
-                        availableSeats = state.coordination.availableSeatCount,
+                    CoordinatedRideSummaryCard(
+                        detail = detail,
+                        coordination = state.coordination,
                         fallbackConfirmedPassengers = confirmedPassengerCount,
                     )
                 }
-                item {
-                    RutaUInfoCard(
-                        title = "Contribución acordada",
-                        message = "La contribución simulada para este viaje es ${state.coordination.contributionCents.asQuetzales()}. No se realiza ningún cobro desde RutaU.",
-                    )
-                }
                 if (!isTerminal && currentUserIsDriver) {
-                    item { Text("Pasajeros confirmados", style = MaterialTheme.typography.titleMedium) }
-                    items(state.confirmedRequests, key = { it.request.id }) { confirmed ->
-                        ConfirmedPassengerCard(confirmed)
+                    item {
+                        val passengers = state.confirmedRequests
+                            .map { confirmed ->
+                                if (confirmed.senderTrip.role == TripRole.PASSENGER) confirmed.sender else confirmed.target
+                            }
+                            .distinctBy { it.id }
+                        RutaUInfoCard(
+                            title = "Pasajeros confirmados (${passengers.size})",
+                            message = passengers.joinToString("\n") { it.fullName },
+                        )
                     }
                 } else if (!isTerminal) {
-                    item { Text("Plaza confirmada", style = MaterialTheme.typography.titleMedium) }
+                    item {
+                        RutaUInfoCard(
+                            title = "Tu plaza está confirmada",
+                            message = "El conductor es ${otherPerson.fullName}. Puedes ver el viaje desde Trayectos cuando lo necesites.",
+                        )
+                    }
+                }
+                if (canStartJourney) item {
+                    RutaUPrimaryButton(
+                        "Iniciar viaje",
+                        onClick = { confirmStart = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isSaving,
+                    )
                 }
                 if (!isTerminal) item { AuthorizedContactCard(otherPerson.fullName, otherPerson.phone) }
                 if (!isTerminal) item {
@@ -419,7 +440,6 @@ fun CoordinatedRideScreen(
                         },
                     )
                 }
-                if (!isTerminal) item { ContactNoticeCard() }
                 if (!isTerminal) item {
                     MeetingPointCard(
                         meetingPoint = state.coordination.meetingPoint,
@@ -430,7 +450,6 @@ fun CoordinatedRideScreen(
                         onConfirm = onConfirmMeetingPoint,
                     )
                 }
-                if (!isTerminal) item { CoordinationTimeline() }
                 item {
                     LiveLocationStatusCard(
                         coordinationStatus = state.coordination.status,
@@ -447,25 +466,9 @@ fun CoordinatedRideScreen(
                         )
                     }
                 }
-                if (!isTerminal && state.coordination.canStartLiveLocation) {
-                    item {
-                        RutaUInfoCard(
-                            title = "Ubicación durante el viaje",
-                            message = LiveTripLocationPermissions.Explanation,
-                        )
-                    }
+                if (canEndJourney) {
                     item {
                         RutaUPrimaryButton(
-                            "Iniciar viaje y ubicación",
-                            onStartLiveLocation,
-                            Modifier.fillMaxWidth(),
-                            enabled = !state.isSaving,
-                        )
-                    }
-                }
-                if (!isTerminal && state.coordination.canEndLiveLocation) {
-                    item {
-                        RutaUDestructiveButton(
                             "Finalizar viaje",
                             onEndLiveLocation,
                             Modifier.fillMaxWidth(),
@@ -498,8 +501,49 @@ fun CoordinatedRideScreen(
                     isDestructive = true,
                 )
             }
+            if (confirmStart) {
+                RutaUConfirmationDialog(
+                    title = "Iniciar viaje",
+                    message = "Comenzarás a compartir tu ubicación con los pasajeros confirmados hasta finalizar el viaje.",
+                    confirmLabel = "Iniciar viaje",
+                    onConfirm = {
+                        confirmStart = false
+                        onStartLiveLocation()
+                    },
+                    onDismiss = { confirmStart = false },
+                )
+            }
         }
     }
+}
+
+/** Reúne los datos importantes del viaje para no repetir tarjetas largas. */
+@Composable
+private fun CoordinatedRideSummaryCard(
+    detail: RideRequestDetails,
+    coordination: uvg.edu.rutau.core.model.Coordination,
+    fallbackConfirmedPassengers: Int,
+) {
+    val driver = listOf(detail.senderTrip, detail.targetTrip).first { it.role == TripRole.DRIVER }
+    val confirmed = if (coordination.confirmedPassengerCount > 0) {
+        coordination.confirmedPassengerCount
+    } else {
+        fallbackConfirmedPassengers
+    }
+    val capacity = if (coordination.seatCapacity > 0) {
+        "$confirmed de ${coordination.seatCapacity} plazas confirmadas · ${coordination.availableSeatCount} disponibles"
+    } else {
+        "$confirmed plaza${if (confirmed == 1) "" else "s"} confirmada${if (confirmed == 1) "" else "s"}"
+    }
+    RutaUInfoCard(
+        title = "Resumen del viaje",
+        message = buildString {
+            append("${driver.originZone} → ${driver.destinationCampus}\n")
+            append("${detail.asRequestDate()} · ${driver.departureTime.format(coordinatedRideTimeFormatter).lowercase()}\n")
+            append("$capacity\n")
+            append("Contribución simulada: ${coordination.contributionCents.asQuetzales()}")
+        },
+    )
 }
 
 /** Informa si el viaje aún espera, comparte o ya terminó la ubicación. */

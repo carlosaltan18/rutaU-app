@@ -2,6 +2,7 @@ package uvg.edu.rutau.feature.trips
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -28,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -42,6 +45,13 @@ import uvg.edu.rutau.core.designsystem.component.RutaUTopAppBar
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.CoordinationStatus
+
+/** Separa las rutas habituales de los viajes actuales y de los ya terminados. */
+private enum class TripSection {
+    ACTIVE,
+    BASE,
+    HISTORY,
+}
 
 @Composable
 fun TripsRoute(
@@ -75,104 +85,104 @@ fun TripsScreen(
     modifier: Modifier = Modifier,
 ) {
     var pendingRemoval by remember { mutableStateOf<Trip?>(null) }
+    val activeCoordinations = state.coordinatedTrips.filter {
+        it.status == CoordinationStatus.CONFIRMED
+    }
+    val tripHistory = state.coordinatedTrips.filter {
+        it.status != CoordinationStatus.CONFIRMED
+    }
+    var savedSection by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedSection = savedSection
+        ?.let { saved -> TripSection.entries.firstOrNull { it.name == saved } }
+        ?: if (activeCoordinations.isNotEmpty()) TripSection.ACTIVE else TripSection.BASE
     RutaUScreenContainer(
         modifier = modifier,
         topBar = { RutaUTopAppBar("Trayectos") },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onCreateTrip,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Nuevo trayecto base") },
-            )
+            if (selectedSection == TripSection.BASE) {
+                ExtendedFloatingActionButton(
+                    onClick = onCreateTrip,
+                    icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                    text = { Text("Nuevo trayecto base") },
+                )
+            }
         },
     ) { padding ->
-        if (state.trips.isEmpty() && state.coordinatedTrips.isEmpty()) {
-            Column(
-                Modifier.fillMaxSize().padding(padding).padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text("Aún no tienes trayectos base", style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.size(8.dp))
-                Text("Registra tu ruta habitual para encontrar estudiantes compatibles.")
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                start = 16.dp,
+                top = 12.dp,
+                end = 16.dp,
+                bottom = 96.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                TripSectionSelector(
+                    selected = selectedSection,
+                    onSelected = { section -> savedSection = section.name },
+                )
             }
-        } else {
-            val activeCoordinations = state.coordinatedTrips.filter {
-                it.status == CoordinationStatus.CONFIRMED
+            state.error?.let { message ->
+                item { Text(message, color = MaterialTheme.colorScheme.error) }
             }
-            val tripHistory = state.coordinatedTrips.filter {
-                it.status != CoordinationStatus.CONFIRMED
-            }
-            LazyColumn(
-                Modifier.fillMaxSize().padding(padding),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 16.dp,
-                    top = 12.dp,
-                    end = 16.dp,
-                    bottom = 96.dp,
-                ),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item {
-                    RutaUInfoCard(
-                        title = "Viajes coordinados",
-                        message = if (activeCoordinations.isEmpty()) {
-                            "Aquí aparecerán los viajes que aceptes o que te acepten."
-                        } else {
-                            "Abre un viaje para ver sus pasajeros, punto de encuentro, mapa y acciones."
-                        },
-                    )
-                }
-                if (activeCoordinations.isNotEmpty()) {
+            when (selectedSection) {
+                TripSection.ACTIVE -> {
                     item {
-                        Text("Viajes activos", style = MaterialTheme.typography.titleMedium)
-                    }
-                    items(activeCoordinations, key = { it.requestId }) { detail ->
-                        CoordinatedTripCard(
-                            detail = detail,
-                            onOpen = { onOpenCoordinatedRide(detail.requestId) },
+                        RutaUInfoCard(
+                            title = "Viajes activos",
+                            message = "Abre un viaje para ver sus pasajeros, punto de encuentro, mapa y acciones.",
                         )
                     }
+                    if (activeCoordinations.isEmpty()) {
+                        item {
+                            EmptyTripSection("No tienes viajes activos por ahora.")
+                        }
+                    } else {
+                        items(activeCoordinations, key = { it.requestId }) { detail ->
+                            CoordinatedTripCard(detail, onOpen = { onOpenCoordinatedRide(detail.requestId) })
+                        }
+                    }
                 }
-                if (tripHistory.isNotEmpty()) {
+                TripSection.BASE -> {
                     item {
-                        Text("Historial de viajes", style = MaterialTheme.typography.titleMedium)
-                    }
-                    items(tripHistory, key = { it.requestId }) { detail ->
-                        CoordinatedTripCard(
-                            detail = detail,
-                            onOpen = { onOpenCoordinatedRide(detail.requestId) },
+                        RutaUInfoCard(
+                            title = "Trayectos base",
+                            message = "Son tus rutas habituales para buscar compatibilidades; no son viajes confirmados.",
                         )
                     }
+                    if (state.trips.isEmpty()) {
+                        item {
+                            EmptyTripSection("Aún no tienes trayectos base. Usa el botón para crear el primero.")
+                        }
+                    } else {
+                        items(state.trips, key = Trip::id) { trip ->
+                            TripCard(
+                                trip,
+                                onEdit = { onEditTrip(trip.id) },
+                                onMatches = { onOpenMatches(trip.id) },
+                                onDeactivate = { onDeactivateTrip(trip.id) },
+                                onRemove = { pendingRemoval = trip },
+                            )
+                        }
+                    }
                 }
-                item {
-                    Text("Trayectos base", style = MaterialTheme.typography.titleMedium)
-                }
-                item {
-                    RutaUInfoCard(
-                        title = "Tus rutas habituales",
-                        message = "Úsalas para buscar compatibilidades; no son viajes confirmados.",
-                    )
-                }
-                state.error?.let { message ->
-                    item { Text(message, color = MaterialTheme.colorScheme.error) }
-                }
-                if (state.trips.isEmpty()) {
+                TripSection.HISTORY -> {
                     item {
-                        Text(
-                            "Aún no tienes trayectos base. Registra una ruta habitual para buscar compatibilidades.",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        RutaUInfoCard(
+                            title = "Historial de viajes",
+                            message = "Consulta aquí los viajes que finalizaste o cancelaste.",
                         )
                     }
-                } else {
-                    items(state.trips, key = Trip::id) { trip ->
-                        TripCard(
-                            trip,
-                            onEdit = { onEditTrip(trip.id) },
-                            onMatches = { onOpenMatches(trip.id) },
-                            onDeactivate = { onDeactivateTrip(trip.id) },
-                            onRemove = { pendingRemoval = trip },
-                        )
+                    if (tripHistory.isEmpty()) {
+                        item {
+                            EmptyTripSection("Aún no tienes viajes finalizados ni cancelados.")
+                        }
+                    } else {
+                        items(tripHistory, key = { it.requestId }) { detail ->
+                            CoordinatedTripCard(detail, onOpen = { onOpenCoordinatedRide(detail.requestId) })
+                        }
                     }
                 }
             }
@@ -189,6 +199,35 @@ fun TripsScreen(
             dismissButton = { TextButton(onClick = { pendingRemoval = null }) { Text("Cancelar") } },
         )
     }
+}
+
+/** Muestra los botones que cambian la sección principal de Trayectos. */
+@Composable
+private fun TripSectionSelector(
+    selected: TripSection,
+    onSelected: (TripSection) -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TripSection.entries.forEach { section ->
+            val label = when (section) {
+                TripSection.ACTIVE -> "Activos"
+                TripSection.BASE -> "Base"
+                TripSection.HISTORY -> "Historial"
+            }
+            FilterChip(
+                selected = selected == section,
+                onClick = { onSelected(section) },
+                label = { Text(label) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** Explica con claridad cuando la sección elegida todavía no tiene elementos. */
+@Composable
+private fun EmptyTripSection(message: String) {
+    RutaUInfoCard(title = "Sin resultados", message = message)
 }
 
 @Composable

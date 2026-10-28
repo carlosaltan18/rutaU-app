@@ -8,6 +8,7 @@ import android.content.Intent
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import uvg.edu.rutau.MainActivity
@@ -87,6 +88,9 @@ class RutaUNotificationManager(
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(title)
             .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setColor(ContextCompat.getColor(context, R.color.rutau_notification))
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)

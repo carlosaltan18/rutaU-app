@@ -34,7 +34,7 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
     composable<RequestDetailDestination> { entry ->
         val route = entry.toRoute<RequestDetailDestination>()
         RequestDetailRoute(
-            onBack = { navController.popBackStack() },
+            onBack = { navController.openRequestsHome() },
             onOpenCoordinatedRide = {
                 navController.navigate(CoordinatedRideDestination(route.requestId))
             },
@@ -78,5 +78,13 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
             }
         }
         Box(Modifier.fillMaxSize())
+    }
+}
+
+/** Vuelve a la lista principal sin regresar a formularios que ya terminaron. */
+private fun NavHostController.openRequestsHome() {
+    navigate(RequestsDestination) {
+        popUpTo<RequestsDestination> { inclusive = false }
+        launchSingleTop = true
     }
 }
