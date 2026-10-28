@@ -1,144 +1,289 @@
-# RutaU
+# RutaU Android
 
-Aplicación Android nativa para que estudiantes universitarios encuentren compañeros compatibles y coordinen trayectos habituales hacia su campus.
+Aplicación Android nativa de RutaU. Permite a estudiantes publicar sus trayectos habituales, encontrar compatibilidades, enviar solicitudes o invitaciones y coordinar viajes. Se conecta a la API NestJS de RutaU, usa Firebase para identidad, avisos y datos en tiempo real, y conserva únicamente preferencias locales con DataStore.
 
-> Estado: MVP de frontend integrado. Todas las pantallas y flujos definidos para el proyecto funcionan con datos locales en memoria.
+> La fuente de verdad de perfiles, trayectos, plazas, solicitudes, coordinaciones y notificaciones es PostgreSQL a través de la API. Firestore no duplica esos datos.
 
-## Funcionalidades disponibles
+## Arquitectura
 
-- Inicio de sesión con sesión local.
-- Registro de cuenta con foto opcional y catálogo de universidad/campus.
-- Recuperación y restablecimiento simulado de contraseña.
-- Perfil de cuenta: datos personales, foto, correo, contraseña, notificaciones y acciones legales.
-- Confirmación para cerrar sesión y eliminación de cuenta.
-- Navegación tipada con Navigation Compose y barra inferior persistente.
-- Sistema visual RutaU basado en Material 3: colores, tipografía, espaciados, formas y componentes reutilizables.
-- Datos compartidos en memoria mediante repositorios fake para el MVP.
-- Publicación y edición de trayectos como pasajero o conductor (de 1 a 3 plazas).
-- Compatibilidad por zona, campus, día, diferencia máxima de 30 minutos y roles complementarios.
-- Perfiles públicos de candidatos y confirmación de solicitudes o invitaciones pendientes.
-- Bandeja de solicitudes recibidas y enviadas, con filtros por estado.
-- Detalle de solicitudes, aceptación, rechazo, cancelación y vencimiento simulado.
-- Viajes coordinados con capacidad, pasajeros confirmados y contacto protegido hasta la aceptación.
+RutaU se mantiene en un único módulo Android (`app`) organizado por funcionalidad. Cada pantalla usa un `ViewModel`; este llama a una interfaz de repositorio; y el repositorio usa Firebase, la API o DataStore según corresponda. Las pantallas no conocen Retrofit ni las clases de red directamente.
 
-## Alcance actual
-
-| Área | Estado |
-| --- | --- |
-| Diseño, tema y componentes reutilizables | Implementado |
-| Modelos, rutas tipadas y `RutaUNavHost` | Implementado |
-| Autenticación y recuperación de contraseña | Implementado con datos locales |
-| Cuenta y configuración | Implementado con datos locales |
-| Trayectos y compatibilidad | Implementado con datos locales |
-| Solicitudes y viajes coordinados | Implementado con datos locales |
-| Persistencia remota, backend y notificaciones reales | Fuera del alcance actual del frontend MVP |
-
-## Tecnologías
-
-- Kotlin y Jetpack Compose.
-- Material 3.
-- Navigation Compose con rutas serializables.
-- ViewModel, StateFlow y Lifecycle.
-- Coil para imágenes de perfil.
-- JUnit y Compose UI Test.
-- Gradle 9.4.1 y Android Gradle Plugin 9.2.1.
-
-## Requisitos
-
-- Android Studio actualizado con su JDK integrado (JDK 17 o superior).
-- Android SDK Platform 37.1 instalado.
-- Emulador o dispositivo con Android API 33 o superior.
-
-Configuración Android actual:
-
-| Propiedad | Valor |
-| --- | --- |
-| `applicationId` | `uvg.edu.rutau` |
-| `minSdk` | 33 |
-| `targetSdk` | 36 |
-| `compileSdk` | 37.1 |
-
-## Ejecutar el proyecto
-
-1. Clona el repositorio y ábrelo desde Android Studio.
-2. Permite que Gradle sincronice las dependencias.
-3. Selecciona un emulador o dispositivo compatible.
-4. Ejecuta la configuración `app`.
-
-También puedes compilar desde PowerShell en Windows:
-
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-.\gradlew.bat :app:assembleDebug
+```text
+Pantalla Compose
+      |
+ViewModel y estado de pantalla
+      |
+Repositorio (contrato de dominio)
+      |
++------------------+--------------------+-------------------+
+| API NestJS       | Firebase            | DataStore         |
+| Retrofit/OkHttp  | Auth, FCM,          | tema y estado     |
+| PostgreSQL       | Firestore, RTDB     | local de avisos   |
++------------------+--------------------+-------------------+
 ```
 
-La APK generada estará en `app/build/outputs/apk/debug/`.
+Las pantallas y componentes visuales muestran texto en español. Los identificadores de Kotlin, rutas y modelos se mantienen en inglés para que el código sea consistente.
 
-## Credenciales del mock
+### Flujo principal
 
-El MVP utiliza datos en memoria, por lo que se reinician al cerrar la aplicación o al reinstalarla.
-
-| Campo | Valor |
-| --- | --- |
-| Correo | `mateo@ejemplo.com` |
-| Contraseña | `RutaU123` |
-
-También se puede crear una cuenta nueva desde la pantalla de registro.
-
-## Pruebas
-
-Pruebas unitarias:
-
-```powershell
-$env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
-.\gradlew.bat testDebugUnitTest
-```
-
-Pruebas instrumentadas, con un emulador o dispositivo conectado:
-
-```powershell
-.\gradlew.bat connectedDebugAndroidTest
-```
-
-Las pruebas de interfaz cubren estos recorridos:
-
-- Inicio de sesión hacia Trayectos.
-- Registro hacia Trayectos.
-- Recuperación hacia Restablecer contraseña mediante el enlace de demostración.
-- Cierre de sesión que limpia el historial.
-- Restauración de estado al cambiar en la barra inferior.
-- Actualización de datos de Cuenta en el mock compartido.
-- Conservación de pestaña y filtro de Solicitudes al cambiar de sección.
-- Aceptación de solicitud hacia el viaje coordinado.
+1. La persona inicia sesión con correo/contraseña o Google usando Firebase Authentication.
+2. `FirebaseSessionRepository` obtiene el ID token de Firebase y llama a `POST /auth/session` para crear o recuperar el perfil de RutaU.
+3. Las pantallas autenticadas leen y escriben información mediante repositorios remotos, que consumen la API NestJS.
+4. Cuando hay una coordinación aceptada, conductor y pasajero ven el detalle del viaje. Solo el conductor puede iniciar el viaje y compartir ubicación.
+5. Al cerrar sesión se elimina el registro FCM del dispositivo, se detiene el servicio de ubicación y se limpia el historial de navegación.
 
 ## Estructura del proyecto
 
 ```text
 app/src/main/java/uvg/edu/rutau/
-├── app/                  # Shell, scaffold, estado y navegación global
-├── core/
-│   ├── data/             # Catálogos, mocks y contratos/repositorios fake
-│   ├── designsystem/     # Componentes reutilizables de RutaU
-│   ├── model/            # Modelos compartidos
-│   └── navigation/       # Contrato de rutas tipadas
-├── feature/
-│   ├── account/          # Cuenta y configuración
-│   ├── auth/             # Inicio de sesión, registro y recuperación
-│   ├── requests/         # Solicitudes, detalle y viajes coordinados
-│   └── trips/            # Trayectos, compatibilidad, perfiles y confirmación
-└── ui/theme/             # Colores, tipografía, espaciado y formas
+├── app/                         Shell y navegación global
+├── core/                        Código compartido entre funcionalidades
+├── feature/                     Pantallas y ViewModels por funcionalidad
+├── ui/theme/                    Tema visual de RutaU
+├── MainActivity.kt              Punto de entrada de la interfaz
+└── RutaUApplication.kt          Inicializa Firebase y servicios compartidos
 ```
 
-## Convenciones de integración
+### `app/`: el contenedor de la aplicación
 
-- El código fuente usa identificadores en inglés; la interfaz visible permanece en español.
-- Las rutas de navegación transportan solo IDs, nunca objetos completos.
-- Cada módulo agrega sus rutas mediante `authGraph`, `tripGraph`, `requestGraph` y `accountGraph`.
-- Los módulos nuevos deben usar los modelos y componentes de `core/` antes de crear duplicados.
-- Durante el MVP, los repositorios fake comparten `MockRutaUStore` como fuente de verdad.
+| Archivo | Responsabilidad |
+| --- | --- |
+| `RutaUApp.kt` | Une tema, `Scaffold`, navegación, diálogos de avisos y permiso de notificaciones. También consulta avisos internos mientras la app está visible. |
+| `RutaUAppState.kt` | Conserva el `NavController`, cambia entre las tres secciones principales y abre el recurso indicado por una notificación. |
+| `RutaUNavHost.kt` | Declara todas las rutas tipadas de Navigation Compose. |
+| `RutaUScaffold.kt` | Aplica de forma consistente barra superior y barra inferior. |
+| `RutaUBottomNavigation.kt` | Navega a **Trayectos**, **Solicitudes** y **Cuenta** conservando el estado de cada sección. |
+| `RutaUAppDependencies.kt` | Crea las implementaciones reales de repositorios. Es el punto temporal de composición de dependencias; evita crear clientes de red dentro de pantallas. |
 
-## Limitaciones conocidas del MVP
+### `feature/`: funcionalidades de interfaz
 
-- No hay backend ni persistencia entre sesiones.
-- El enlace de recuperación es una simulación visible en la pantalla “Revisa tu correo”.
-- Las fotos seleccionadas se manejan como URI local mientras la app está activa.
+| Paquete | Contenido |
+| --- | --- |
+| `feature/auth/` | Inicio de sesión, registro, Google Sign-In, recuperación y restablecimiento de contraseña. `LoginViewModel`, `SignUpViewModel`, `PasswordRecoveryViewModel` y `ResetPasswordViewModel` contienen la lógica de cada recorrido. |
+| `feature/account/` | Perfil, cambio de foto, catálogos de universidad/campus, credenciales, preferencias, tema y documentos legales. |
+| `feature/trips/` | Lista y edición de trayectos base, coincidencias, perfil compatible, explicación de compatibilidad y confirmación de solicitud/invitación. |
+| `feature/requests/` | Bandeja de recibidas/enviadas e historial, detalle, decisiones sobre solicitudes y detalle del viaje coordinado. |
+
+Cada funcionalidad usa normalmente cuatro archivos: `*Screens.kt` para la UI, `*ViewModels.kt` para estado y acciones, `*Navigation.kt` para enlazar rutas, y `*Previews.kt` para verificar los composables sin abrir toda la app.
+
+### `core/`: código reutilizable
+
+| Paquete | Para qué sirve |
+| --- | --- |
+| `core/model/` | Modelos de dominio compartidos: estudiante, trayecto, solicitud, coordinación, roles y estados. No contiene DTO de Retrofit. |
+| `core/data/repository/` | Contratos de repositorio e implementaciones reales. `RemoteTripRepository`, `RemoteRideRequestRepository` y `RemoteCoordinationRepository` hablan con la API; `FirebaseSessionRepository` y `FirebaseUserRepository` coordinan Auth y perfil. Las clases `Fake*` y `MockRutaUStore` se conservan solo para pruebas y previews. |
+| `core/data/catalog/` | Lee universidades, campus y zonas de la API y transforma identificadores en nombres visibles. |
+| `core/network/` | `BackendApi` define Retrofit; DTOs, mapeadores, envolturas de respuesta, token Firebase e idempotencia viven aquí. |
+| `core/auth/` | `GoogleSignInCoordinator` abre Credential Manager y devuelve el ID token de Google que consume Firebase Auth. |
+| `core/notifications/` | Registro de dispositivos FCM, recepción de push, canal Android, aviso del sistema, popup dentro de la app y lectura de notificaciones internas del backend. |
+| `core/preferences/` | Repositorios DataStore para tema y mensajes de Firestore ya vistos. |
+| `core/location/` | Permisos, servicio foreground y repositorio de Firebase Realtime Database para ubicación durante un viaje activo. |
+| `core/firebase/` | Configura Firebase App Check según el tipo de compilación. |
+| `core/diagnostics/` | Reporta errores técnicos no fatales a Crashlytics sin enviar datos personales. |
+| `core/designsystem/component/` | Botones, campos, listas, barra superior/inferior, mapa y demás composables reutilizables de RutaU. |
+| `core/navigation/` | Rutas serializables. Las rutas llevan IDs, no objetos enteros. |
+
+### Tema visual
+
+`ui/theme/` define `Color.kt`, `SemanticColors.kt`, `Type.kt`, `Shapes.kt` y `Dimensions.kt`. `RutaUTheme` aplica el tema claro, oscuro o del sistema. La preferencia se guarda localmente con `ThemePreferenceRepository`.
+
+## Servicios Firebase
+
+El proyecto Firebase configurado es `ruta-u-ebf74`. El archivo `app/google-services.json` debe corresponder a la aplicación Android con `applicationId` `com.apprutau.rutau`.
+
+### Firebase Authentication
+
+La app admite correo y contraseña, además de Google mediante Credential Manager y Firebase Auth. El recorrido está detrás de `SessionRepository` y su implementación real es `FirebaseSessionRepository`:
+
+```text
+Correo/Google -> FirebaseAuth -> Firebase ID token
+                         |             |
+                         +----> POST /auth/session
+                                         |
+                                  perfil de RutaU listo
+```
+
+No se generan JWT propios ni se guarda el ID token en DataStore. `FirebaseAuth` conserva la sesión de forma segura. `FirebaseIdTokenProvider` obtiene el token cuando OkHttp necesita una llamada protegida.
+
+Si la API responde `401`, `FirebaseTokenAuthenticator` solicita una renovación del token una sola vez y repite la llamada. Si el token renovado también es rechazado, se cierra la sesión local para evitar una cuenta inválida.
+
+Después de autenticar con Firebase, siempre se llama a `POST /auth/session`:
+
+- una cuenta existente puede enviar datos vacíos o de perfil ya conocidos;
+- una cuenta nueva aporta nombre, correo institucional, universidad y campus;
+- el servidor identifica a la persona por el `uid` validado, no por un ID que mande Android.
+
+### Cloud Firestore: anuncios generales dentro de la app
+
+Firestore se utiliza solamente para avisos generales en la colección `appMessages`; no contiene trayectos, solicitudes, plazas ni coordinaciones. La implementación está en `FirestorePopupMessageFeedRepository`.
+
+Cada documento válido tiene este formato:
+
+| Campo | Tipo | Uso |
+| --- | --- | --- |
+| `title` | texto | Título del popup. |
+| `body` | texto | Mensaje visible. |
+| `active` | booleano | Debe ser `true` para mostrarlo. |
+| `audience` | texto | `ALL`, `UNIVERSITY:<uuid>` o `CAMPUS:<uuid>`. |
+| `priority` | texto | `LOW`, `NORMAL` o `HIGH`. |
+| `actionType` | texto | `NONE`, `OPEN_PROFILE`, `OPEN_TRIPS` u `OPEN_REQUESTS`. |
+| `actionValue` | texto o `null` | Valor adicional reservado para acciones futuras. |
+| `minAppVersionCode` | número | Versión mínima que puede mostrarlo. |
+| `startsAt` / `endsAt` | Timestamp o ausente | Ventana opcional de publicación. |
+| `createdAt` | Timestamp | Ordena avisos de igual prioridad. |
+
+La app observa cambios en tiempo real, filtra por audiencia, versión y fechas, y muestra un solo anuncio a la vez. Un usuario autenticado solo necesita permiso de lectura. Las reglas versionadas están en [`firebase/firestore.rules`](firebase/firestore.rules).
+
+### Firebase Cloud Messaging (FCM)
+
+FCM se usa para eventos personales generados por el backend: solicitud recibida, aceptación, rechazo, cancelación, expiración y cancelación de una coordinación.
+
+1. `BackendDeviceRegistrationRepository` obtiene el token de FCM y lo registra mediante `POST /devices` después de crear la sesión del backend.
+2. `RutaUFirebaseMessagingService.onNewToken` vuelve a registrarlo al cambiar.
+3. `RutaUFirebaseMessagingService.onMessageReceived` procesa `notificationId`, `type`, `resourceId` y `destination`.
+4. `RutaUNotificationManager` publica un aviso del sistema en el canal `rutau_updates` cuando Android entrega el mensaje a la app.
+5. Al tocarlo, se abre el detalle de solicitud o coordinación y la pantalla vuelve a consultar la API; el push no se toma como información definitiva.
+
+Android 13 o superior exige aceptar el permiso de notificaciones. La app lo solicita después de iniciar sesión. Cuando llega una notificación con la app abierta también se muestra un popup dentro de RutaU. Como respaldo, la app consulta las notificaciones internas del backend cada 30 segundos mientras está en primer plano.
+
+> Los anuncios de Firestore y los push FCM son distintos: Firestore muestra información general dentro de la app; FCM entrega eventos personales desde NestJS al teléfono.
+
+### Realtime Database: ubicación en vivo
+
+Solo se guarda la última ubicación durante un viaje activo, en:
+
+```text
+liveTrips/{occurrenceId}/location
+```
+
+El conductor inicia la sesión con la API, ejecuta `LiveTripLocationService` como servicio foreground y publica aproximadamente cada 10 segundos. Los pasajeros confirmados solamente escuchan los cambios. Al terminar, cancelar o cerrar sesión se detiene el servicio y se borra el último punto desde Android; el backend también elimina la ocurrencia al cerrar el viaje.
+
+Los campos enviados son `latitude`, `longitude`, `accuracy`, `bearing`, `speed` y `updatedAt` con timestamp de servidor. Las reglas están en [`firebase/database.rules.json`](firebase/database.rules.json): solo miembros confirmados leen y únicamente el UID del conductor escribe.
+
+`RutaULiveMap` muestra el mapa con OpenStreetMap y osmdroid, sin una API key de Google Maps ni facturación de Google Cloud.
+
+### App Check
+
+`FirebaseAppCheckSetup` usa el proveedor Debug para compilaciones `debug` y Play Integrity para `release`. El enforcement debe mantenerse desactivado hasta validar métricas de dispositivos reales. Para APK distribuidas fuera de Google Play no se debe exigir la etiqueta `PLAY_RECOGNIZED`.
+
+### Crashlytics
+
+Crashlytics se inicializa en `RutaUApplication`. `SafeCrashReporter` registra solo una categoría técnica de error; no manda tokens, contraseñas, correos, teléfonos ni coordenadas. La recopilación está activada por build type mediante `CRASHLYTICS_COLLECTION_ENABLED`.
+
+Para confirmar la integración antes de una entrega, agregue temporalmente un botón o una llamada de prueba que lance una excepción, instale la app, provoque el error y vuelva a abrirla. Después elimine esa prueba. Nunca debe dejarse un crash intencional en una versión distribuida.
+
+## Comunicación con el backend
+
+### Dirección y configuración de red
+
+`app/build.gradle.kts` genera estas variables `BuildConfig`:
+
+| Variable | Valor actual |
+| --- | --- |
+| `API_BASE_URL` | `https://rutau-back.onrender.com/api/v1/` |
+| `REALTIME_DATABASE_URL` | `https://ruta-u-ebf74-default-rtdb.firebaseio.com/` |
+| `CRASHLYTICS_COLLECTION_ENABLED` | `true` |
+
+Actualmente `debug` y `release` usan la API desplegada. Para probar una API local desde el emulador, la URL es `http://10.0.2.2:3000/api/v1/`; en ese caso hay que habilitar tráfico HTTP solo para el build local de desarrollo.
+
+### Retrofit y manejo de errores
+
+`RutaUNetworkClient` crea Retrofit y OkHttp. `BackendApi` declara endpoints, `BackendNetworkModels.kt` contiene DTOs de red y `BackendMappers.kt` los convierte a modelos de `core/model`.
+
+Todas las respuestas exitosas del backend siguen esta forma:
+
+```json
+{
+  "data": {},
+  "meta": { "requestId": "...", "nextCursor": null }
+}
+```
+
+Los errores usan `error.code`. Las pantallas muestran errores entendibles, pero las decisiones de lógica se toman con el código, no comparando el texto.
+
+Las listas utilizan `meta.nextCursor`; no hay paginación por número. La contribución simulada se transmite en centavos enteros de GTQ, nunca como `Float` o `Double`. Las operaciones de creación que admite el servidor usan `IdempotencyKeyStore` para reutilizar una misma clave al reintentar una operación.
+
+## Datos locales y privacidad
+
+### DataStore
+
+DataStore no reemplaza la base de datos remota. Solo almacena:
+
+| Archivo | Archivo local lógico | Información guardada |
+| --- | --- | --- |
+| `ThemePreferenceRepository.kt` | `rutau_theme` | `SYSTEM`, `LIGHT` o `DARK`. |
+| `PopupMessageRepository.kt` | `rutau_popup_messages` | IDs de anuncios vistos, fecha de visualización y preferencia de popups. |
+
+No se almacenan ID tokens, contraseñas, perfiles, coordenadas ni objetos de negocio sensibles en DataStore.
+
+### Permisos Android
+
+El `AndroidManifest.xml` declara internet, notificaciones, ubicación aproximada y precisa, y servicio foreground de ubicación. La aplicación solicita cada permiso cuando hace falta: notificaciones al iniciar sesión y ubicación al iniciar un viaje como conductor.
+
+## Configuración y ejecución
+
+### Requisitos
+
+- Android Studio actualizado con JDK integrado (JDK 17 o superior; JDK 21 está probado en el proyecto).
+- Android SDK Platform 37.1.
+- Un dispositivo o emulador con Android 13 / API 33 o superior.
+- Acceso al proyecto Firebase `ruta-u-ebf74` para habilitar proveedores de inicio de sesión y consultar Crashlytics/Firestore si corresponde.
+
+### Configuración relevante
+
+| Propiedad | Valor |
+| --- | --- |
+| `applicationId` | `com.apprutau.rutau` |
+| `namespace` Kotlin | `uvg.edu.rutau` |
+| `minSdk` | 33 |
+| `targetSdk` | 37 |
+| `compileSdk` | 37.1 |
+| `versionCode` | 1 |
+| Distribución configurada | APK con Firebase App Distribution |
+
+1. Abra este proyecto en Android Studio y espere la sincronización de Gradle.
+2. Confirme que `app/google-services.json` está presente y pertenece al proyecto Firebase correcto.
+3. En Firebase Authentication, habilite **Email/Password** y **Google**.
+4. Registre los SHA-1/SHA-256 de la firma que use para probar Google Sign-In.
+5. Seleccione un dispositivo, acepte permisos al ejecutar y pruebe una cuenta Firebase real.
+
+Compilación desde PowerShell:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+.\gradlew.bat :app:assembleDebug
+```
+
+La APK queda en `app/build/outputs/apk/debug/`.
+
+Para distribuir una APK mediante Firebase App Distribution se debe usar una cuenta con acceso a Firebase y ejecutar la tarea correspondiente después de compilar. No se guardan credenciales de distribución en este repositorio.
+
+## Pruebas y diagnóstico
+
+Pruebas unitarias y compilación Kotlin:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+.\gradlew.bat :app:compileDebugKotlin :app:testDebugUnitTest
+```
+
+Pruebas instrumentadas, con dispositivo o emulador conectado:
+
+```powershell
+.\gradlew.bat :app:connectedDebugAndroidTest
+```
+
+Lint:
+
+```powershell
+.\gradlew.bat :app:lintDebug
+```
+
+Las pruebas, mocks y previews permiten comprobar UI y mapeos sin depender de Render. Las pruebas manuales contra servicios reales deberían cubrir como mínimo inicio de sesión, renovación del ID token, trayectos, solicitudes, registro FCM, anuncio de Firestore, ubicación con dos cuentas, falta de red y primer inicio lento del servicio gratuito de Render.
+
+## Límites de responsabilidad
+
+- Android presenta y solicita datos; no decide cupos ni estados de negocio.
+- NestJS/PostgreSQL valida roles, plazas, solicitudes y coordinaciones.
+- Firebase Auth prueba la identidad; Firebase Realtime Database comparte solo ubicación activa; Firestore sirve anuncios generales; FCM entrega eventos personales.
+- No añadir servicios Firebase nuevos ni campos de API sin actualizar primero el contrato OpenAPI y las reglas de seguridad correspondientes.

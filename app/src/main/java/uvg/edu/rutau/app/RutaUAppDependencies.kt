@@ -130,6 +130,8 @@ object RutaUAppDependencies {
         popupMessageFeedRepository = FirestorePopupMessageFeedRepository(
             FirebaseFirestore.getInstance(),
             popupMessageRepository,
+            userRepository,
+            BuildConfig.VERSION_CODE,
         )
         deviceRegistrationRepository = BackendDeviceRegistrationRepository(
             context = appContext,

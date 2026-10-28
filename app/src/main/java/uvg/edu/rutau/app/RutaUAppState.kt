@@ -17,6 +17,7 @@ import uvg.edu.rutau.core.navigation.RequestDetailRoute
 import uvg.edu.rutau.core.navigation.CoordinatedRideRoute
 import uvg.edu.rutau.core.navigation.CoordinationDetailRoute
 import uvg.edu.rutau.core.notifications.PushNavigationTarget
+import uvg.edu.rutau.core.preferences.PopupMessageAction
 
 /** Maneja la navegación principal de la aplicación. */
 @Stable
@@ -69,6 +70,16 @@ class RutaUAppState internal constructor(
         when (target.destination) {
             "RIDE_REQUEST_DETAIL" -> navController.navigate(RequestDetailRoute(target.resourceId))
             "COORDINATION_DETAIL" -> navController.navigate(CoordinationDetailRoute(target.resourceId))
+        }
+    }
+
+    /** Abre una sección principal cuando el anuncio de Firestore lo solicita. */
+    fun navigateFromPopup(action: PopupMessageAction, actionValue: String?) {
+        when (action) {
+            PopupMessageAction.OPEN_PROFILE -> navigateToTopLevel(RutaUTopLevelDestination.ACCOUNT)
+            PopupMessageAction.OPEN_TRIPS -> navigateToTopLevel(RutaUTopLevelDestination.TRIPS)
+            PopupMessageAction.OPEN_REQUESTS -> navigateToTopLevel(RutaUTopLevelDestination.REQUESTS)
+            PopupMessageAction.NONE -> Unit
         }
     }
 }

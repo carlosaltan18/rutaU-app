@@ -1,6 +1,10 @@
 package uvg.edu.rutau.core.notifications
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -14,11 +18,23 @@ fun PushPopupHost(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(message.title) },
-        text = { Text(message.body) },
+        icon = {
+            Icon(
+                imageVector = Icons.Default.NotificationsActive,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        },
+        title = { Text(message.title, style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Text(
+                text = message.body,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cerrar")
+                Text("Ahora no")
             }
         },
         confirmButton = {
@@ -28,7 +44,7 @@ fun PushPopupHost(
                     if (target != null) onOpen(target) else onDismiss()
                 },
             ) {
-                Text(if (target != null) "Ver detalle" else "Entendido")
+                Text(if (target != null) "Ver actualización" else "Entendido")
             }
         },
     )

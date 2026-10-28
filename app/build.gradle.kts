@@ -32,8 +32,9 @@ android {
         debug {
             buildConfigField("String", "API_BASE_URL", "\"$rutauApiBaseUrl\"")
             buildConfigField("String", "REALTIME_DATABASE_URL", "\"$rutauRealtimeDatabaseUrl\"")
+            buildConfigField("boolean", "CRASHLYTICS_COLLECTION_ENABLED", "true")
             manifestPlaceholders["usesCleartextTraffic"] = false
-            manifestPlaceholders["crashlyticsCollectionEnabled"] = false
+            manifestPlaceholders["crashlyticsCollectionEnabled"] = true
         }
         release {
             optimization {
@@ -41,6 +42,7 @@ android {
             }
             buildConfigField("String", "API_BASE_URL", "\"$rutauApiBaseUrl\"")
             buildConfigField("String", "REALTIME_DATABASE_URL", "\"$rutauRealtimeDatabaseUrl\"")
+            buildConfigField("boolean", "CRASHLYTICS_COLLECTION_ENABLED", "true")
             manifestPlaceholders["usesCleartextTraffic"] = false
             manifestPlaceholders["crashlyticsCollectionEnabled"] = true
         }
