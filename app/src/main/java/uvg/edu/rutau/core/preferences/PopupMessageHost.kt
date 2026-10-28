@@ -1,10 +1,10 @@
 package uvg.edu.rutau.core.preferences
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 fun PopupMessageHost(
     feedRepository: PopupMessageFeedRepository,
     localRepository: PopupMessageRepository,
+    onAction: (PopupMessageAction, String?) -> Unit,
 ) {
     val messages by feedRepository.observeAvailableMessages().collectAsStateWithLifecycle(emptyList())
     val scope = rememberCoroutineScope()
@@ -22,13 +23,29 @@ fun PopupMessageHost(
     if (message != null) {
         AlertDialog(
             onDismissRequest = { scope.launch { localRepository.markAsSeen(message.id) } },
-            title = { Text(message.title) },
-            text = { Text(message.body) },
+            title = { Text(message.title, style = MaterialTheme.typography.titleLarge) },
+            text = { Text(message.body, style = MaterialTheme.typography.bodyLarge) },
             confirmButton = {
-                TextButton(onClick = { scope.launch { localRepository.markAsSeen(message.id) } }) {
-                    Text("Entendido")
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            localRepository.markAsSeen(message.id)
+                            onAction(message.action, message.actionValue)
+                        }
+                    },
+                ) {
+                    Text(message.action.buttonLabel)
                 }
             },
         )
     }
 }
+
+/** Da un texto breve al botón según la acción elegida para el anuncio. */
+private val PopupMessageAction.buttonLabel: String
+    get() = when (this) {
+        PopupMessageAction.NONE -> "Entendido"
+        PopupMessageAction.OPEN_PROFILE -> "Ver perfil"
+        PopupMessageAction.OPEN_TRIPS -> "Ver trayectos"
+        PopupMessageAction.OPEN_REQUESTS -> "Ver solicitudes"
+    }

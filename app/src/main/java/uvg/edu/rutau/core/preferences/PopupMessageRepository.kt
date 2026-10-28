@@ -9,11 +9,19 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.DocumentSnapshot
+import java.util.Locale
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
+import uvg.edu.rutau.core.data.repository.UserRepository
+import uvg.edu.rutau.core.model.UserAccount
 
 private val Context.popupMessageDataStore: DataStore<Preferences> by preferencesDataStore(
     name = "rutau_popup_messages",
@@ -38,7 +46,30 @@ data class AppPopupMessage(
     val id: String,
     val title: String,
     val body: String,
+    val audience: String,
+    val priority: PopupMessagePriority,
+    val action: PopupMessageAction,
+    val actionValue: String? = null,
+    val startsAtMillis: Long? = null,
+    val endsAtMillis: Long? = null,
+    val minAppVersionCode: Int = 1,
+    val createdAtMillis: Long = 0L,
 )
+
+/** Indica la importancia visual de un anuncio remoto. */
+enum class PopupMessagePriority {
+    LOW,
+    NORMAL,
+    HIGH,
+}
+
+/** Indica la pantalla que puede abrir un anuncio al confirmarlo. */
+enum class PopupMessageAction {
+    NONE,
+    OPEN_PROFILE,
+    OPEN_TRIPS,
+    OPEN_REQUESTS,
+}
 
 /** Indica cómo leer mensajes remotos que la aplicación puede mostrar. */
 interface PopupMessageFeedRepository {
@@ -49,26 +80,110 @@ interface PopupMessageFeedRepository {
 class FirestorePopupMessageFeedRepository(
     private val firestore: FirebaseFirestore,
     private val localRepository: PopupMessageRepository,
+    private val userRepository: UserRepository,
+    private val appVersionCode: Int,
 ) : PopupMessageFeedRepository {
-    override fun observeAvailableMessages(): Flow<List<AppPopupMessage>> = callbackFlow {
+    override fun observeAvailableMessages(): Flow<List<AppPopupMessage>> = combine(
+        observeRemoteMessages(),
+        localRepository.observeState(),
+        userRepository.observeCurrentUser(),
+        clock(),
+    ) { messages, local, user, now ->
+        if (!local.popupsEnabled) {
+            emptyList()
+        } else {
+            messages
+                .asSequence()
+                .filterNot { it.id in local.seenMessageIds }
+                .filter { it.isVisibleTo(user, appVersionCode, now) }
+                .sortedWith(
+                    compareByDescending<AppPopupMessage> { it.priority.rank }
+                        .thenByDescending { it.createdAtMillis }
+                        .thenBy { it.id },
+                )
+                .toList()
+        }
+    }
+
+    /** Lee documentos remotos sin guardar mensajes ni datos personales localmente. */
+    private fun observeRemoteMessages(): Flow<List<AppPopupMessage>> = callbackFlow {
         val registration = firestore.collection("appMessages").addSnapshotListener { snapshot, error ->
             if (error != null) {
                 close(error)
                 return@addSnapshotListener
             }
-            trySend(
-                snapshot?.documents.orEmpty().mapNotNull { document ->
-                    val title = document.getString("title")?.trim().orEmpty()
-                    val body = document.getString("body")?.trim().orEmpty()
-                    if (title.isBlank() || body.isBlank()) null else AppPopupMessage(document.id, title, body)
-                },
-            )
+            trySend(snapshot?.documents.orEmpty().mapNotNull(DocumentSnapshot::toAppPopupMessage))
         }
         awaitClose { registration.remove() }
-    }.combine(localRepository.observeState()) { messages, local ->
-        if (!local.popupsEnabled) emptyList() else messages.filterNot { it.id in local.seenMessageIds }
+    }
+
+    /** Revisa cada minuto si un mensaje alcanzó su fecha de inicio o vencimiento. */
+    private fun clock(): Flow<Long> = flow {
+        while (currentCoroutineContext().isActive) {
+            emit(System.currentTimeMillis())
+            delay(ClockIntervalMillis)
+        }
+    }
+
+    private companion object {
+        const val ClockIntervalMillis = 60_000L
     }
 }
+
+/** Convierte un documento válido de Firestore en un mensaje que la app puede mostrar. */
+private fun DocumentSnapshot.toAppPopupMessage(): AppPopupMessage? {
+    val title = getString("title")?.trim().orEmpty()
+    val body = getString("body")?.trim().orEmpty()
+    if (title.isBlank() || body.isBlank() || getBoolean("active") != true) return null
+    val priority = getString("priority")
+        ?.trim()
+        ?.uppercase(Locale.ROOT)
+        ?.let { value -> PopupMessagePriority.entries.firstOrNull { it.name == value } }
+        ?: PopupMessagePriority.NORMAL
+    val action = getString("actionType")
+        ?.trim()
+        ?.uppercase(Locale.ROOT)
+        ?.let { value -> PopupMessageAction.entries.firstOrNull { it.name == value } }
+        ?: PopupMessageAction.NONE
+    return AppPopupMessage(
+        id = id,
+        title = title,
+        body = body,
+        audience = getString("audience")?.trim().orEmpty(),
+        priority = priority,
+        action = action,
+        actionValue = getString("actionValue")?.trim()?.takeIf(String::isNotEmpty),
+        startsAtMillis = getTimestamp("startsAt")?.toDate()?.time,
+        endsAtMillis = getTimestamp("endsAt")?.toDate()?.time,
+        minAppVersionCode = getLong("minAppVersionCode")?.toInt() ?: 1,
+        createdAtMillis = getTimestamp("createdAt")?.toDate()?.time ?: 0L,
+    )
+}
+
+/** Decide si el aviso corresponde a la cuenta y versión que está usando la persona. */
+internal fun AppPopupMessage.isVisibleTo(
+    user: UserAccount?,
+    appVersionCode: Int,
+    nowMillis: Long,
+): Boolean {
+    if (minAppVersionCode > appVersionCode) return false
+    if (startsAtMillis != null && nowMillis < startsAtMillis) return false
+    if (endsAtMillis != null && nowMillis > endsAtMillis) return false
+    return when {
+        audience == "ALL" -> true
+        audience.startsWith("UNIVERSITY:") -> user?.universityId == audience.substringAfter(':')
+        audience.startsWith("CAMPUS:") -> user?.campusId == audience.substringAfter(':')
+        else -> false
+    }
+}
+
+/** Devuelve el orden de atención que usa la lista de anuncios. */
+private val PopupMessagePriority.rank: Int
+    get() = when (this) {
+        PopupMessagePriority.HIGH -> 2
+        PopupMessagePriority.NORMAL -> 1
+        PopupMessagePriority.LOW -> 0
+    }
 
 /** Guarda las preferencias de mensajes sin almacenar tokens ni datos privados. */
 class DataStorePopupMessageRepository(
