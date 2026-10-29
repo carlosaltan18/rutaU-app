@@ -132,7 +132,11 @@ class RequestsViewModel(
             contentState = contentState,
             error = error,
         )
-    }
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        RequestsUiState(),
+    )
 
     init {
         refresh()
@@ -497,26 +501,6 @@ private data class CoordinatedRideInputs(
     val error: String?,
     val updatedCoordination: Coordination?,
 )
-
-/** Resuelve una coordinación antigua hacia el viaje que le corresponde. */
-class CoordinationRedirectViewModel(
-    coordinationId: String,
-    coordinationRepository: CoordinationRepository,
-) : ViewModel() {
-    val requestId: StateFlow<String?> = coordinationRepository
-        .observeCoordinationById(coordinationId)
-        .map { coordination -> coordination?.requestId }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    companion object {
-        fun factory(
-            coordinationId: String,
-            coordinationRepository: CoordinationRepository,
-        ) = requestViewModelFactory {
-            CoordinationRedirectViewModel(coordinationId, coordinationRepository)
-        }
-    }
-}
 
 /** Crea modelos de pantalla sin depender de una biblioteca adicional. */
 private inline fun <reified T : ViewModel> requestViewModelFactory(
