@@ -132,7 +132,9 @@ Cada documento válido tiene este formato:
 | `startsAt` / `endsAt` | Timestamp o ausente | Ventana opcional de publicación. |
 | `createdAt` | Timestamp | Ordena avisos de igual prioridad. |
 
-La app observa cambios en tiempo real, filtra por audiencia, versión y fechas, y muestra un solo anuncio a la vez. Un usuario autenticado solo necesita permiso de lectura. Las reglas versionadas están en [`firebase/firestore.rules`](firebase/firestore.rules).
+La app observa cambios en tiempo real, filtra por audiencia, versión y fechas, y muestra un solo anuncio a la vez. Un usuario autenticado solo necesita permiso de lectura para `appMessages`.
+
+Al mostrar, cerrar o abrir un anuncio, Android crea un evento inmutable en `appMessageEvents`. El evento contiene únicamente el UID de Firebase, ID del anuncio, tipo (`SHOWN`, `DISMISSED` u `OPENED`), versión de la app y timestamp de servidor. No bloquea la interfaz si no hay red y no contiene correo, ubicación, solicitudes ni trayectos. Los clientes no pueden leer, editar ni borrar estos eventos. Las reglas versionadas están en [`firebase/firestore.rules`](firebase/firestore.rules).
 
 ### Firebase Cloud Messaging (FCM)
 

@@ -45,6 +45,8 @@ import uvg.edu.rutau.core.preferences.DataStorePopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageRepository
 import uvg.edu.rutau.core.preferences.PopupMessageFeedRepository
 import uvg.edu.rutau.core.preferences.FirestorePopupMessageFeedRepository
+import uvg.edu.rutau.core.preferences.PopupMessageEventRepository
+import uvg.edu.rutau.core.preferences.FirestorePopupMessageEventRepository
 import uvg.edu.rutau.core.preferences.DataStoreThemePreferenceRepository
 import uvg.edu.rutau.core.preferences.ThemePreferenceRepository
 
@@ -69,6 +71,8 @@ object RutaUAppDependencies {
     lateinit var popupMessageRepository: PopupMessageRepository
         private set
     lateinit var popupMessageFeedRepository: PopupMessageFeedRepository
+        private set
+    lateinit var popupMessageEventRepository: PopupMessageEventRepository
         private set
     lateinit var catalogRepository: CatalogRepository
         private set
@@ -131,6 +135,11 @@ object RutaUAppDependencies {
             FirebaseFirestore.getInstance(),
             popupMessageRepository,
             userRepository,
+            BuildConfig.VERSION_CODE,
+        )
+        popupMessageEventRepository = FirestorePopupMessageEventRepository(
+            FirebaseFirestore.getInstance(),
+            firebaseAuth,
             BuildConfig.VERSION_CODE,
         )
         deviceRegistrationRepository = BackendDeviceRegistrationRepository(
