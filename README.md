@@ -22,7 +22,14 @@ Repositorio (contrato de dominio)
 +------------------+--------------------+-------------------+
 ```
 
-Las pantallas y componentes visuales muestran texto en español. Los identificadores de Kotlin, rutas y modelos se mantienen en inglés para que el código sea consistente.
+Las pantallas y componentes visuales muestran texto en español. Los identificadores de Kotlin, rutas y modelos se mantienen en inglés para que el código sea consistente. Cada pantalla con lógica recibe un estado inmutable desde un `ViewModel` y emite acciones mediante callbacks; un composable no consulta Firebase, Retrofit, DataStore ni Room directamente.
+
+Las listas principales usan estados visibles para evitar pantallas bloqueadas cuando falla la red:
+
+- `Loading`: la consulta todavía está en progreso.
+- `Content`: existen datos para mostrar.
+- `Empty`: la consulta terminó sin datos para la sección seleccionada.
+- `Error`: se informa el problema y se ofrece un botón **Reintentar**.
 
 ### Flujo principal
 
@@ -76,7 +83,7 @@ Cada funcionalidad usa normalmente cuatro archivos: `*Screens.kt` para la UI, `*
 | `core/network/` | `BackendApi` define Retrofit; DTOs, mapeadores, envolturas de respuesta, token Firebase e idempotencia viven aquí. |
 | `core/auth/` | `GoogleSignInCoordinator` abre Credential Manager y devuelve el ID token de Google que consume Firebase Auth. |
 | `core/notifications/` | Registro de dispositivos FCM, recepción de push, canal Android, aviso del sistema, popup dentro de la app y lectura de notificaciones internas del backend. |
-| `core/preferences/` | Repositorios DataStore para tema y mensajes de Firestore ya vistos. |
+| `core/preferences/` | Repositorios DataStore para tema y anuncios Firestore ya vistos. `PopupMessageViewModel` decide qué anuncio mostrar, guarda la interacción y pide la navegación; `PopupMessageHost` solo dibuja el diálogo. |
 | `core/location/` | Permisos, servicio foreground y repositorio de Firebase Realtime Database para ubicación durante un viaje activo. |
 | `core/firebase/` | Configura Firebase App Check según el tipo de compilación. |
 | `core/diagnostics/` | Reporta errores técnicos no fatales a Crashlytics sin enviar datos personales. |
@@ -113,6 +120,8 @@ Después de autenticar con Firebase, siempre se llama a `POST /auth/session`:
 - una cuenta nueva aporta nombre, correo institucional, universidad y campus;
 - el servidor identifica a la persona por el `uid` validado, no por un ID que mande Android.
 
+El registro valida nombre, universidad, campus, correo, contraseña, confirmación y aceptación de términos en cada cambio. **Crear cuenta** solo se habilita cuando todo el formulario es válido; el botón de Google valida únicamente los datos académicos y términos necesarios para ese proveedor.
+
 ### Cloud Firestore: anuncios generales dentro de la app
 
 Firestore se utiliza solamente para avisos generales en la colección `appMessages`; no contiene trayectos, solicitudes, plazas ni coordinaciones. La implementación está en `FirestorePopupMessageFeedRepository`.
@@ -132,7 +141,7 @@ Cada documento válido tiene este formato:
 | `startsAt` / `endsAt` | Timestamp o ausente | Ventana opcional de publicación. |
 | `createdAt` | Timestamp | Ordena avisos de igual prioridad. |
 
-La app observa cambios en tiempo real, filtra por audiencia, versión y fechas, y muestra un solo anuncio a la vez. Un usuario autenticado solo necesita permiso de lectura para `appMessages`.
+La app observa cambios en tiempo real, filtra por audiencia, versión y fechas, y muestra un solo anuncio a la vez. Un usuario autenticado solo necesita permiso de lectura para `appMessages`. `PopupMessageViewModel` recibe esta lista desde el repositorio y mantiene la lógica de mostrar, descartar y abrir un anuncio fuera de Compose.
 
 Al mostrar, cerrar o abrir un anuncio, Android crea un evento inmutable en `appMessageEvents`. El evento contiene únicamente el UID de Firebase, ID del anuncio, tipo (`SHOWN`, `DISMISSED` u `OPENED`), versión de la app y timestamp de servidor. No bloquea la interfaz si no hay red y no contiene correo, ubicación, solicitudes ni trayectos. Los clientes no pueden leer, editar ni borrar estos eventos. Las reglas versionadas están en [`firebase/firestore.rules`](firebase/firestore.rules).
 
@@ -282,6 +291,8 @@ Lint:
 ```
 
 Las pruebas, mocks y previews permiten comprobar UI y mapeos sin depender de Render. Las pruebas manuales contra servicios reales deberían cubrir como mínimo inicio de sesión, renovación del ID token, trayectos, solicitudes, registro FCM, anuncio de Firestore, ubicación con dos cuentas, falta de red y primer inicio lento del servicio gratuito de Render.
+
+Para verificar el comportamiento sin conexión, active el modo avión con la aplicación abierta. Trayectos y Solicitudes deben mostrar un estado de error con **Reintentar**, o datos que ya estén disponibles en memoria, sin cerrar la aplicación ni dejar un indicador de carga permanente.
 
 ## Límites de responsabilidad
 
