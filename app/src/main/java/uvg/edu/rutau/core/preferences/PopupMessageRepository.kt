@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -157,6 +158,9 @@ class FirestorePopupMessageFeedRepository(
             trySend(snapshot?.documents.orEmpty().mapNotNull(DocumentSnapshot::toAppPopupMessage))
         }
         awaitClose { registration.remove() }
+    }.catch {
+        // Al cerrar sesión o perder permisos, la app solo oculta los anuncios.
+        emit(emptyList())
     }
 
     /** Revisa cada minuto si un mensaje alcanzó su fecha de inicio o vencimiento. */
@@ -176,7 +180,8 @@ class FirestorePopupMessageFeedRepository(
 private fun DocumentSnapshot.toAppPopupMessage(): AppPopupMessage? {
     val title = getString("title")?.trim().orEmpty()
     val body = getString("body")?.trim().orEmpty()
-    if (title.isBlank() || body.isBlank() || getBoolean("active") != true) return null
+    val isActive = get("active") as? Boolean ?: false
+    if (title.isBlank() || body.isBlank() || !isActive) return null
     val priority = getString("priority")
         ?.trim()
         ?.uppercase(Locale.ROOT)
