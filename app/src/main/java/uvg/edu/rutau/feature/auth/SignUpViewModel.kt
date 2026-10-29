@@ -38,7 +38,17 @@ data class SignUpUiState(
     val passwordError: String? = null,
     val confirmPasswordError: String? = null,
     val termsError: String? = null,
-)
+) {
+    /** Indica si los datos mínimos del registro están listos para enviarse. */
+    val isFormValid: Boolean
+        get() = fullName.isNotBlank() &&
+            university.isNotBlank() &&
+            campus.isNotBlank() &&
+            email.isValidEmail() &&
+            PasswordRules.validationError(password) == null &&
+            password == confirmPassword &&
+            termsAccepted
+}
 
 /** Indica los resultados posibles al crear una cuenta. */
 sealed interface SignUpEvent {
@@ -60,20 +70,58 @@ class SignUpViewModel(
         if (catalogRepository != null) loadUniversities()
     }
 
-    fun onFullNameChange(value: String) = updateState { copy(fullName = value, fullNameError = null) }
+    fun onFullNameChange(value: String) = updateState {
+        copy(
+            fullName = value,
+            fullNameError = if (value.isBlank()) "Ingresa tu nombre completo." else null,
+        )
+    }
     fun onUniversityChange(value: String) = updateState {
-        copy(university = value, campus = "", universityError = null, campusError = null)
+        copy(
+            university = value,
+            campus = "",
+            universityError = if (value.isBlank()) "Selecciona tu universidad." else null,
+            campusError = "Selecciona tu campus o sede habitual.",
+        )
     }.also { loadCampuses(value) }
-    fun onCampusChange(value: String) = updateState { copy(campus = value, campusError = null) }
+    fun onCampusChange(value: String) = updateState {
+        copy(
+            campus = value,
+            campusError = if (value.isBlank()) "Selecciona tu campus o sede habitual." else null,
+        )
+    }
     fun onPhotoChange(value: String?) = updateState { copy(photoUrl = value) }
-    fun onEmailChange(value: String) = updateState { copy(email = value, emailError = null) }
+    fun onEmailChange(value: String) = updateState {
+        copy(
+            email = value,
+            emailError = if (value.isValidEmail()) null else "Ingresa un correo electrónico válido.",
+        )
+    }
     fun onPasswordChange(value: String) = updateState {
-        copy(password = value, passwordError = null, confirmPasswordError = null)
+        copy(
+            password = value,
+            passwordError = PasswordRules.validationError(value),
+            confirmPasswordError = confirmPassword.takeIf(String::isNotBlank)?.let {
+                confirmationError(value, it)
+            },
+        )
     }
     fun onConfirmPasswordChange(value: String) = updateState {
-        copy(confirmPassword = value, confirmPasswordError = null)
+        copy(
+            confirmPassword = value,
+            confirmPasswordError = if (value.isBlank()) {
+                "Confirma tu contraseña."
+            } else {
+                confirmationError(password, value)
+            },
+        )
     }
-    fun onTermsAcceptedChange(value: Boolean) = updateState { copy(termsAccepted = value, termsError = null) }
+    fun onTermsAcceptedChange(value: Boolean) = updateState {
+        copy(
+            termsAccepted = value,
+            termsError = if (value) null else "Debes aceptar los términos y condiciones.",
+        )
+    }
 
     fun createAccount() {
         val state = uiState.value
@@ -236,3 +284,8 @@ class SignUpViewModel(
         }
     }
 }
+
+private fun String.isValidEmail(): Boolean = isNotBlank() && contains('@')
+
+private fun confirmationError(password: String, confirmation: String): String? =
+    if (password == confirmation) null else "Las contraseñas no coinciden."

@@ -64,6 +64,7 @@ fun RequestsRoute(
         onTabSelected = viewModel::selectTab,
         onFilterSelected = viewModel::selectFilter,
         onOpenRequest = onOpenRequest,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -74,6 +75,7 @@ fun RequestsScreen(
     onTabSelected: (RequestTab) -> Unit,
     onFilterSelected: (RequestFilter) -> Unit,
     onOpenRequest: (String) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     RutaUScreenContainer(
@@ -119,7 +121,20 @@ fun RequestsScreen(
                     )
                 }
             }
-            if (state.requests.isEmpty()) {
+            state.error?.let { message ->
+                item {
+                    RutaUInfoCard("No fue posible actualizar las solicitudes", message)
+                    RutaUSecondaryButton("Reintentar", onRetry, Modifier.fillMaxWidth())
+                }
+            }
+            if (state.isLoading) {
+                item {
+                    RutaUInfoCard(
+                        title = "Cargando solicitudes",
+                        message = "Estamos consultando tus solicitudes recibidas y enviadas.",
+                    )
+                }
+            } else if (state.requests.isEmpty()) {
                 item { EmptyRequestsCard() }
             } else {
                 items(state.requests, key = { it.request.id }) { detail ->
@@ -281,16 +296,6 @@ fun CoordinatedRideRoute(
     viewModel: CoordinatedRideViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val activeOccurrenceId = state.coordination
-        ?.takeIf { it.liveLocationStatus == LiveLocationStatus.ACTIVE }
-        ?.liveOccurrenceId
-        .orEmpty()
-    val liveLocation by uvg.edu.rutau.app.RutaUAppDependencies.liveTripLocationRepository
-        .observe(activeOccurrenceId)
-        .collectAsStateWithLifecycle(null)
-    val liveLocationIssue by uvg.edu.rutau.app.RutaUAppDependencies.liveTripLocationRepository
-        .observeReadIssue(activeOccurrenceId)
-        .collectAsStateWithLifecycle(null)
     val context = LocalContext.current
     val requestLocationPermission = rememberLiveTripLocationPermissionRequester { granted ->
         if (granted) {
@@ -320,8 +325,6 @@ fun CoordinatedRideRoute(
         },
         onUpdateMeetingPoint = viewModel::updateMeetingPoint,
         onConfirmMeetingPoint = viewModel::confirmMeetingPoint,
-        liveLocation = liveLocation,
-        liveLocationIssue = liveLocationIssue,
     )
 }
 
@@ -336,8 +339,6 @@ fun CoordinatedRideScreen(
     onEndLiveLocation: () -> Unit,
     onUpdateMeetingPoint: (String) -> Unit,
     onConfirmMeetingPoint: () -> Unit,
-    liveLocation: LiveTripLocation? = null,
-    liveLocationIssue: String? = null,
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
@@ -371,7 +372,7 @@ fun CoordinatedRideScreen(
                 .size
             val isTerminal = state.coordination.status != uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED
             val isLocationActive = !isTerminal &&
-                (state.coordination.liveLocationStatus == LiveLocationStatus.ACTIVE || liveLocation != null)
+                (state.coordination.liveLocationStatus == LiveLocationStatus.ACTIVE || state.liveLocation != null)
             val canStartJourney = !isTerminal &&
                 currentUserIsDriver &&
                 state.coordination.liveLocationStatus == LiveLocationStatus.NOT_STARTED
@@ -454,14 +455,14 @@ fun CoordinatedRideScreen(
                     LiveLocationStatusCard(
                         coordinationStatus = state.coordination.status,
                         status = state.coordination.liveLocationStatus,
-                        liveLocation = liveLocation,
-                        issue = liveLocationIssue,
+                        liveLocation = state.liveLocation,
+                        issue = state.liveLocationIssue,
                     )
                 }
-                if (isLocationActive && liveLocation != null) {
+                if (isLocationActive && state.liveLocation != null) {
                     item {
                         RutaULiveMap(
-                            liveLocation = liveLocation,
+                            liveLocation = state.liveLocation,
                             currentUserIsDriver = currentUserIsDriver,
                         )
                     }

@@ -23,14 +23,18 @@ import uvg.edu.rutau.core.data.repository.FakeTripRepository
 import uvg.edu.rutau.core.data.repository.FakeUserRepository
 import uvg.edu.rutau.core.data.repository.FirebaseSessionRepository
 import uvg.edu.rutau.core.data.repository.FirebaseUserRepository
+import uvg.edu.rutau.core.data.repository.FavoriteTripRepository
+import uvg.edu.rutau.core.data.repository.InMemoryFavoriteTripRepository
 import uvg.edu.rutau.core.data.repository.RemoteCoordinationRepository
 import uvg.edu.rutau.core.data.repository.RemoteRideRequestRepository
 import uvg.edu.rutau.core.data.repository.RemoteTripRepository
+import uvg.edu.rutau.core.data.repository.RoomFavoriteTripRepository
 import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.data.repository.SessionRepository
 import uvg.edu.rutau.core.data.repository.TripRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.diagnostics.SafeCrashReporter
+import uvg.edu.rutau.core.data.local.RutaULocalDatabase
 import uvg.edu.rutau.core.location.FirebaseLiveTripLocationRepository
 import uvg.edu.rutau.core.location.LiveTripLocationRepository
 import uvg.edu.rutau.core.location.UnconfiguredLiveTripLocationRepository
@@ -63,6 +67,8 @@ object RutaUAppDependencies {
     var coordinationRepository: CoordinationRepository = FakeCoordinationRepository(store)
         private set
     var rideRequestRepository: RideRequestRepository = FakeRideRequestRepository(store)
+        private set
+    var favoriteTripRepository: FavoriteTripRepository = InMemoryFavoriteTripRepository()
         private set
     lateinit var googleSignInCoordinator: GoogleSignInCoordinator
         private set
@@ -124,6 +130,9 @@ object RutaUAppDependencies {
         tripRepository = RemoteTripRepository(networkClient.api, catalogLabels)
         coordinationRepository = RemoteCoordinationRepository(networkClient.api)
         rideRequestRepository = RemoteRideRequestRepository(networkClient.api, catalogLabels)
+        favoriteTripRepository = RoomFavoriteTripRepository(
+            RutaULocalDatabase.create(appContext).favoriteTripDao(),
+        )
         googleSignInCoordinator = GoogleSignInCoordinator(appContext)
         popupMessageRepository = DataStorePopupMessageRepository(appContext)
         themePreferenceRepository = DataStoreThemePreferenceRepository(appContext)
@@ -181,6 +190,7 @@ object RutaUAppDependencies {
         tripRepository = FakeTripRepository(store)
         coordinationRepository = FakeCoordinationRepository(store)
         rideRequestRepository = FakeRideRequestRepository(store)
+        favoriteTripRepository = InMemoryFavoriteTripRepository()
         liveTripLocationRepository = UnconfiguredLiveTripLocationRepository()
     }
 

@@ -123,6 +123,7 @@ fun SignUpRoute(
         onOpenPrivacy = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
         modifier = modifier,
         isLoading = state.isLoading,
+        isFormValid = state.isFormValid,
         fullNameError = state.fullNameError,
         universityError = state.universityError,
         campusError = state.campusError,

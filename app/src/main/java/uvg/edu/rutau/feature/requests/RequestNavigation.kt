@@ -3,7 +3,7 @@ package uvg.edu.rutau.feature.requests
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -61,18 +61,24 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
                     RutaUAppDependencies.coordinationRepository,
                     RutaUAppDependencies.userRepository,
                     RutaUAppDependencies.rideRequestRepository,
+                    RutaUAppDependencies.liveTripLocationRepository,
                 ),
             ),
         )
     }
     composable<CoordinationDetailDestination> { entry ->
         val route = entry.toRoute<CoordinationDetailDestination>()
-        val coordination by RutaUAppDependencies.coordinationRepository
-            .observeCoordinationById(route.coordinationId)
-            .collectAsState(initial = null)
-        LaunchedEffect(coordination?.requestId) {
-            coordination?.requestId?.let { requestId ->
-                navController.navigate(CoordinatedRideDestination(requestId)) {
+        val viewModel: CoordinationRedirectViewModel = viewModel(
+            key = "coordination-redirect-${route.coordinationId}",
+            factory = CoordinationRedirectViewModel.factory(
+                route.coordinationId,
+                RutaUAppDependencies.coordinationRepository,
+            ),
+        )
+        val requestId by viewModel.requestId.collectAsStateWithLifecycle()
+        LaunchedEffect(requestId) {
+            requestId?.let { resolvedRequestId ->
+                navController.navigate(CoordinatedRideDestination(resolvedRequestId)) {
                     popUpTo(CoordinationDetailDestination(route.coordinationId)) { inclusive = true }
                 }
             }

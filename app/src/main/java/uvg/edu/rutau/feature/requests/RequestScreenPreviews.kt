@@ -24,6 +24,7 @@ private fun RequestsScreenPreview() {
             onTabSelected = {},
             onFilterSelected = {},
             onOpenRequest = {},
+            onRetry = {},
         )
     }
 }
@@ -70,7 +71,6 @@ private fun CoordinatedRideScreenPreview() {
             onEndLiveLocation = {},
             onUpdateMeetingPoint = {},
             onConfirmMeetingPoint = {},
-            liveLocation = null,
         )
     }
 }

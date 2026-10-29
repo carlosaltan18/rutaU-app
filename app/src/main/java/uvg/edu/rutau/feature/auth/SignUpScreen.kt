@@ -61,6 +61,7 @@ fun SignUpScreen(
     onOpenPrivacy: () -> Unit,
     modifier: Modifier = Modifier,
     isLoading: Boolean = false,
+    isFormValid: Boolean = false,
     fullNameError: String? = null,
     universityError: String? = null,
     campusError: String? = null,
@@ -203,6 +204,7 @@ fun SignUpScreen(
                 onClick = onCreateAccount,
                 isLoading = isLoading,
                 modifier = Modifier.fillMaxWidth().testTag("SignUpSubmitButton"),
+                enabled = isFormValid,
             )
             TextButton(
                 onClick = onCreateAccountWithGoogle,
@@ -244,6 +246,7 @@ private fun SignUpScreenPreview() {
             onBack = {},
             onOpenTerms = {},
             onOpenPrivacy = {},
+            isFormValid = true,
         )
     }
 }

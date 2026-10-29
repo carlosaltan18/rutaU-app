@@ -8,14 +8,18 @@ import java.time.LocalTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.catalog.CatalogItem
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
+import uvg.edu.rutau.core.data.repository.FavoriteTripRepository
 import uvg.edu.rutau.core.data.repository.TripRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.data.repository.RideRequestRepository
@@ -23,6 +27,7 @@ import uvg.edu.rutau.core.data.repository.driverAndPassengerTripIds
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.FavoriteTrip
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Student
 import uvg.edu.rutau.core.model.Trip
@@ -36,6 +41,8 @@ import uvg.edu.rutau.core.network.nextTravelDate
 data class TripsUiState(
     val trips: List<Trip> = emptyList(),
     val coordinatedTrips: List<CoordinatedTripSummary> = emptyList(),
+    val favorites: List<FavoriteTrip> = emptyList(),
+    val isLoading: Boolean = true,
     val error: String? = null,
 )
 
@@ -53,21 +60,52 @@ data class CoordinatedTripSummary(
 class TripsViewModel(
     private val repository: TripRepository,
     rideRequestRepository: RideRequestRepository,
+    private val favoriteTripRepository: FavoriteTripRepository,
 ) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
+    private val trips = MutableStateFlow<List<Trip>>(emptyList())
+    private val isLoading = MutableStateFlow(true)
+    private var tripsLoadJob: Job? = null
+
+    init {
+        loadTrips()
+    }
 
     val uiState: StateFlow<TripsUiState> = combine(
-        repository.observeTrips(),
+        trips,
         rideRequestRepository.observeRequestDetails(),
+        favoriteTripRepository.observeFavorites(),
         error,
-    ) { trips, requests, message ->
+        isLoading,
+    ) { loadedTrips, requests, favorites, message, loading ->
         TripsUiState(
-            trips = trips.map { trip -> trip.withOccupiedSeats(requests) },
+            trips = loadedTrips.map { trip -> trip.withOccupiedSeats(requests) },
             coordinatedTrips = requests.toCoordinatedTripSummaries(),
+            favorites = favorites,
+            isLoading = loading,
             error = message,
         )
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsUiState())
+
+    private fun loadTrips() {
+        tripsLoadJob?.cancel()
+        tripsLoadJob = viewModelScope.launch {
+            isLoading.value = true
+            error.value = null
+            repository.observeTrips()
+                .catch { throwable ->
+                    error.value = throwable.message ?: "No fue posible cargar los trayectos."
+                    isLoading.value = false
+                }
+                .collect { loadedTrips ->
+                    trips.value = loadedTrips
+                    isLoading.value = false
+                }
+        }
+    }
+
+    fun retry() = loadTrips()
 
     fun remove(tripId: String) = viewModelScope.launch {
         runCatching { repository.deleteTrip(tripId) }
@@ -81,11 +119,17 @@ class TripsViewModel(
             .onFailure { error.value = it.message ?: "No fue posible desactivar el trayecto." }
     }
 
+    fun removeFavorite(tripId: String) = viewModelScope.launch {
+        runCatching { favoriteTripRepository.remove(tripId) }
+            .onFailure { error.value = "No fue posible quitar el perfil guardado." }
+    }
+
     companion object {
         fun factory(
             repository: TripRepository,
             rideRequestRepository: RideRequestRepository,
-        ) = viewModelFactory { TripsViewModel(repository, rideRequestRepository) }
+            favoriteTripRepository: FavoriteTripRepository,
+        ) = viewModelFactory { TripsViewModel(repository, rideRequestRepository, favoriteTripRepository) }
     }
 }
 
@@ -111,7 +155,8 @@ class TripEditorViewModel(
     private val catalogRepository: CatalogRepository? = null,
     private val userRepository: UserRepository? = null,
 ) : ViewModel() {
-    val uiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
+    private val _uiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
+    val uiState = _uiState.asStateFlow()
 
     init {
         loadCatalogs()
@@ -141,13 +186,13 @@ class TripEditorViewModel(
     fun setSeats(value: Int) = update { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
 
     fun save(onSaved: (String) -> Unit) {
-        val state = uiState.value
+        val state = _uiState.value
         if (state.originZone.isBlank()) {
-            uiState.value = state.copy(error = "Selecciona una zona de origen.")
+            _uiState.value = state.copy(error = "Selecciona una zona de origen.")
             return
         }
         viewModelScope.launch {
-            uiState.value = state.copy(isSaving = true, error = null)
+            _uiState.value = state.copy(isSaving = true, error = null)
             runCatching {
                 val input = TripInput(
                     originZone = state.originZone,
@@ -162,7 +207,7 @@ class TripEditorViewModel(
                     tripId
                 }
             }.onSuccess(onSaved).onFailure { error ->
-                uiState.value = state.copy(
+                _uiState.value = state.copy(
                     isSaving = false,
                     error = error.message ?: "No fue posible guardar el trayecto.",
                 )
@@ -182,7 +227,7 @@ class TripEditorViewModel(
     }
 
     private fun update(transform: TripEditorUiState.() -> TripEditorUiState) {
-        uiState.value = uiState.value.transform()
+        _uiState.value = _uiState.value.transform()
     }
 
     private fun loadCatalogs() {
@@ -259,6 +304,7 @@ data class CandidateProfileUiState(
     val contributionQuetzales: Int = 10,
     val existingRequestId: String? = null,
     val existingRequestStatus: RequestStatus? = null,
+    val isFavorite: Boolean = false,
 )
 
 /** Maneja la información de una persona compatible. */
@@ -267,6 +313,7 @@ class CandidateProfileViewModel(
     candidateTripId: String,
     repository: TripRepository,
     requestRepository: RideRequestRepository,
+    private val favoriteTripRepository: FavoriteTripRepository,
 ) : ViewModel() {
     private val contribution = MutableStateFlow(10)
     val uiState = combine(
@@ -274,7 +321,8 @@ class CandidateProfileViewModel(
         repository.observeMatches(tripId),
         contribution,
         requestRepository.observeRequestDetails(),
-    ) { source, matches, amount, requests ->
+        favoriteTripRepository.observeFavoriteTripIds(),
+    ) { source, matches, amount, requests, favoriteTripIds ->
         val match = matches.firstOrNull { it.trip.id == candidateTripId }
         val existing = match?.let { candidate ->
             requests.firstOrNull { detail ->
@@ -291,10 +339,31 @@ class CandidateProfileViewModel(
             contributionQuetzales = amount,
             existingRequestId = existing?.request?.id,
             existingRequestStatus = existing?.request?.status,
+            isFavorite = match?.trip?.id?.let(favoriteTripIds::contains) == true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CandidateProfileUiState())
 
     fun setContribution(value: Int) { contribution.value = value.coerceIn(0, 100) }
+
+    fun toggleFavorite() = viewModelScope.launch {
+        val state = uiState.value
+        val trip = state.candidateTrip ?: return@launch
+        val student = state.student ?: return@launch
+        if (state.isFavorite) {
+            favoriteTripRepository.remove(trip.id)
+        } else {
+            favoriteTripRepository.save(
+                FavoriteTrip(
+                    tripId = trip.id,
+                    studentName = student.fullName,
+                    studentPhotoUrl = student.photoUrl,
+                    routeDescription = "${trip.originZone} → ${trip.destinationCampus}",
+                    scheduleDescription = "${trip.dayOfWeek} · ${trip.departureTime}",
+                    savedAtMillis = System.currentTimeMillis(),
+                ),
+            )
+        }
+    }
 
     companion object {
         fun factory(
@@ -302,8 +371,15 @@ class CandidateProfileViewModel(
             candidateTripId: String,
             repository: TripRepository,
             requestRepository: RideRequestRepository,
+            favoriteTripRepository: FavoriteTripRepository,
         ) = viewModelFactory {
-            CandidateProfileViewModel(tripId, candidateTripId, repository, requestRepository)
+            CandidateProfileViewModel(
+                tripId,
+                candidateTripId,
+                repository,
+                requestRepository,
+                favoriteTripRepository,
+            )
         }
     }
 }
@@ -410,7 +486,11 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<Coordina
     }
         .groupBy { detail ->
             val (driverTripId, _) = detail.request.driverAndPassengerTripIds()
-            Triple(driverTripId, detail.request.rideDate, detail.coordinationStatus!!)
+            Triple(
+                driverTripId,
+                detail.request.rideDate,
+                requireNotNull(detail.coordinationStatus),
+            )
         }
         .mapNotNull { (_, details) ->
             val first = details.firstOrNull() ?: return@mapNotNull null
@@ -426,7 +506,7 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<Coordina
                 driver = driver,
                 passengers = passengers,
                 rideDate = first.request.rideDate,
-                status = first.coordinationStatus!!,
+                status = requireNotNull(first.coordinationStatus),
             )
         }
         .sortedWith(
