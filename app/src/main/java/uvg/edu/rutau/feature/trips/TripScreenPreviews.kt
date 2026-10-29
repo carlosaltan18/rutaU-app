@@ -19,7 +19,7 @@ private fun TripsScreenPreview() {
         TripsScreen(
             state = TripsUiState(
                 trips = MockSeed.trips.filter { it.ownerId == MockSeed.currentUser.id },
-                isLoading = false,
+                contentState = TripListContentState.CONTENT,
             ),
             onCreateTrip = {},
             onEditTrip = {},

@@ -124,6 +124,7 @@ fun SignUpRoute(
         modifier = modifier,
         isLoading = state.isLoading,
         isFormValid = state.isFormValid,
+        isGoogleFormValid = state.isGoogleFormValid,
         fullNameError = state.fullNameError,
         universityError = state.universityError,
         campusError = state.campusError,

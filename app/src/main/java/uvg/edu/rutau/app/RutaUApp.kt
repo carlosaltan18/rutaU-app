@@ -19,12 +19,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import uvg.edu.rutau.core.data.repository.SessionState
 import uvg.edu.rutau.core.notifications.PushNavigationStore
 import uvg.edu.rutau.core.notifications.PushPopupHost
 import uvg.edu.rutau.core.notifications.PushPopupMessage
 import uvg.edu.rutau.core.notifications.PushPopupStore
 import uvg.edu.rutau.core.preferences.PopupMessageHost
+import uvg.edu.rutau.core.preferences.PopupMessageViewModel
 import uvg.edu.rutau.core.preferences.ThemeMode
 import uvg.edu.rutau.ui.theme.RutaUTheme
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -112,14 +114,33 @@ fun RutaUApp(
             )
         }
         if (sessionState is SessionState.SignedIn && pushPopup == null) {
-            PopupMessageHost(
-                RutaUAppDependencies.popupMessageFeedRepository,
-                RutaUAppDependencies.popupMessageRepository,
-                RutaUAppDependencies.popupMessageEventRepository,
-                onAction = appState::navigateFromPopup,
-            )
+            PopupMessageRoute(onAction = appState::navigateFromPopup)
         }
     }
+}
+
+/** Conecta los anuncios Firestore con su modelo antes de mostrarlos. */
+@Composable
+private fun PopupMessageRoute(
+    onAction: (uvg.edu.rutau.core.preferences.PopupMessageAction, String?) -> Unit,
+) {
+    val viewModel: PopupMessageViewModel = viewModel(
+        factory = PopupMessageViewModel.factory(
+            RutaUAppDependencies.popupMessageFeedRepository,
+            RutaUAppDependencies.popupMessageRepository,
+            RutaUAppDependencies.popupMessageEventRepository,
+        ),
+    )
+    val state = viewModel.uiState.collectAsStateWithLifecycle().value
+    LaunchedEffect(viewModel) {
+        viewModel.navigation.collect { event -> onAction(event.action, event.actionValue) }
+    }
+    PopupMessageHost(
+        message = state.message,
+        onShown = viewModel::onMessageShown,
+        onDismiss = viewModel::dismiss,
+        onConfirm = viewModel::confirm,
+    )
 }
 
 private const val NotificationRefreshIntervalMillis = 30_000L

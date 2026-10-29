@@ -5,7 +5,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -29,7 +28,6 @@ enum class RutaUPushType {
 class RutaUFirebaseMessagingService : FirebaseMessagingService() {
     @Deprecated("Firebase mantiene este método para renovar el token.")
     override fun onNewToken(token: String) {
-        Log.i(LogTag, "Firebase renovó el token de avisos.")
         RutaUAppDependencies.registerFcmToken(token)
     }
 
@@ -45,7 +43,6 @@ class RutaUFirebaseMessagingService : FirebaseMessagingService() {
         val body = message.notification?.body ?: type?.message() ?: "Tienes una nueva actualización."
         val notificationId = message.data[NotificationIdKey].orEmpty()
 
-        Log.i(LogTag, "Llegó un aviso de tipo ${type?.name ?: "sin tipo"}.")
         PushPopupStore.publish(PushPopupMessage(title, body, target))
         RutaUAppDependencies.markNotificationHandled(notificationId)
         target?.let {
@@ -58,7 +55,6 @@ class RutaUFirebaseMessagingService : FirebaseMessagingService() {
         const val DestinationKey = "destination"
         const val ResourceIdKey = "resourceId"
         const val NotificationIdKey = "notificationId"
-        const val LogTag = "RutaUPush"
     }
 }
 

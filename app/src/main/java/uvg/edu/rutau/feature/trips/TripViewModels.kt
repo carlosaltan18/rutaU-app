@@ -12,9 +12,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import uvg.edu.rutau.core.data.catalog.CatalogItem
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
@@ -42,9 +46,24 @@ data class TripsUiState(
     val trips: List<Trip> = emptyList(),
     val coordinatedTrips: List<CoordinatedTripSummary> = emptyList(),
     val favorites: List<FavoriteTrip> = emptyList(),
-    val isLoading: Boolean = true,
     val error: String? = null,
+    val contentState: TripListContentState = TripListContentState.LOADING,
 )
+
+/** Indica si la lista principal espera datos, los muestra o necesita atención. */
+enum class TripListContentState {
+    LOADING,
+    CONTENT,
+    EMPTY,
+    ERROR,
+}
+
+/** Reúne el resultado de una consulta de trayectos sin cerrar la pantalla ante un fallo. */
+private sealed interface TripsLoadResult {
+    data object Loading : TripsLoadResult
+    data class Content(val trips: List<Trip>) : TripsLoadResult
+    data class Error(val message: String) : TripsLoadResult
+}
 
 /** Resume un viaje coordinado para abrirlo directamente desde Trayectos. */
 data class CoordinatedTripSummary(
@@ -63,49 +82,46 @@ class TripsViewModel(
     private val favoriteTripRepository: FavoriteTripRepository,
 ) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
-    private val trips = MutableStateFlow<List<Trip>>(emptyList())
-    private val isLoading = MutableStateFlow(true)
-    private var tripsLoadJob: Job? = null
-
-    init {
-        loadTrips()
-    }
+    private val refreshSignal = MutableStateFlow(0)
+    private val tripsLoad = refreshSignal.flatMapLatest {
+        repository.observeTrips()
+            .map<List<Trip>, TripsLoadResult> { trips -> TripsLoadResult.Content(trips) }
+            .onStart { emit(TripsLoadResult.Loading) }
+            .catch { throwable ->
+                emit(
+                    TripsLoadResult.Error(
+                        throwable.message ?: "No fue posible cargar los trayectos. Revisa tu conexión e inténtalo de nuevo.",
+                    ),
+                )
+            }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsLoadResult.Loading)
 
     val uiState: StateFlow<TripsUiState> = combine(
-        trips,
+        tripsLoad,
         rideRequestRepository.observeRequestDetails(),
         favoriteTripRepository.observeFavorites(),
         error,
-        isLoading,
-    ) { loadedTrips, requests, favorites, message, loading ->
+    ) { loadResult, requests, favorites, actionError ->
+        val trips = (loadResult as? TripsLoadResult.Content)?.trips.orEmpty()
+        val loadError = (loadResult as? TripsLoadResult.Error)?.message
+        val contentState = when (loadResult) {
+            TripsLoadResult.Loading -> TripListContentState.LOADING
+            is TripsLoadResult.Error -> TripListContentState.ERROR
+            is TripsLoadResult.Content -> if (trips.isEmpty() && requests.isEmpty()) {
+                TripListContentState.EMPTY
+            } else {
+                TripListContentState.CONTENT
+            }
+        }
         TripsUiState(
-            trips = loadedTrips.map { trip -> trip.withOccupiedSeats(requests) },
+            trips = trips.map { trip -> trip.withOccupiedSeats(requests) },
             coordinatedTrips = requests.toCoordinatedTripSummaries(),
             favorites = favorites,
-            isLoading = loading,
-            error = message,
+            error = loadError ?: actionError,
+            contentState = contentState,
         )
     }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsUiState())
-
-    private fun loadTrips() {
-        tripsLoadJob?.cancel()
-        tripsLoadJob = viewModelScope.launch {
-            isLoading.value = true
-            error.value = null
-            repository.observeTrips()
-                .catch { throwable ->
-                    error.value = throwable.message ?: "No fue posible cargar los trayectos."
-                    isLoading.value = false
-                }
-                .collect { loadedTrips ->
-                    trips.value = loadedTrips
-                    isLoading.value = false
-                }
-        }
-    }
-
-    fun retry() = loadTrips()
 
     fun remove(tripId: String) = viewModelScope.launch {
         runCatching { repository.deleteTrip(tripId) }
@@ -122,6 +138,11 @@ class TripsViewModel(
     fun removeFavorite(tripId: String) = viewModelScope.launch {
         runCatching { favoriteTripRepository.remove(tripId) }
             .onFailure { error.value = "No fue posible quitar el perfil guardado." }
+    }
+
+    /** Vuelve a consultar la lista cuando el servidor o la red fallaron. */
+    fun retry() {
+        refreshSignal.update { current -> current + 1 }
     }
 
     companion object {
@@ -155,8 +176,8 @@ class TripEditorViewModel(
     private val catalogRepository: CatalogRepository? = null,
     private val userRepository: UserRepository? = null,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
-    val uiState = _uiState.asStateFlow()
+    private val mutableUiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
+    val uiState: StateFlow<TripEditorUiState> = mutableUiState.asStateFlow()
 
     init {
         loadCatalogs()
@@ -186,13 +207,13 @@ class TripEditorViewModel(
     fun setSeats(value: Int) = update { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
 
     fun save(onSaved: (String) -> Unit) {
-        val state = _uiState.value
+        val state = uiState.value
         if (state.originZone.isBlank()) {
-            _uiState.value = state.copy(error = "Selecciona una zona de origen.")
+            mutableUiState.value = state.copy(error = "Selecciona una zona de origen.")
             return
         }
         viewModelScope.launch {
-            _uiState.value = state.copy(isSaving = true, error = null)
+            mutableUiState.value = state.copy(isSaving = true, error = null)
             runCatching {
                 val input = TripInput(
                     originZone = state.originZone,
@@ -207,7 +228,7 @@ class TripEditorViewModel(
                     tripId
                 }
             }.onSuccess(onSaved).onFailure { error ->
-                _uiState.value = state.copy(
+                mutableUiState.value = state.copy(
                     isSaving = false,
                     error = error.message ?: "No fue posible guardar el trayecto.",
                 )
@@ -227,7 +248,7 @@ class TripEditorViewModel(
     }
 
     private fun update(transform: TripEditorUiState.() -> TripEditorUiState) {
-        _uiState.value = _uiState.value.transform()
+        mutableUiState.value = mutableUiState.value.transform()
     }
 
     private fun loadCatalogs() {
@@ -481,23 +502,21 @@ private fun Trip.withOccupiedSeats(requests: List<uvg.edu.rutau.core.model.RideR
 
 /** Agrupa a los pasajeros de un mismo viaje para no repetirlo en la lista. */
 private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<CoordinatedTripSummary> =
-    filter { detail ->
-        detail.request.status == RequestStatus.ACCEPTED && detail.coordinationStatus != null
+    mapNotNull { detail ->
+        if (detail.request.status != RequestStatus.ACCEPTED) return@mapNotNull null
+        val status = detail.coordinationStatus ?: return@mapNotNull null
+        detail to status
     }
         .groupBy { detail ->
-            val (driverTripId, _) = detail.request.driverAndPassengerTripIds()
-            Triple(
-                driverTripId,
-                detail.request.rideDate,
-                requireNotNull(detail.coordinationStatus),
-            )
+            val (driverTripId, _) = detail.first.request.driverAndPassengerTripIds()
+            Triple(driverTripId, detail.first.request.rideDate, detail.second)
         }
         .mapNotNull { (_, details) ->
-            val first = details.firstOrNull() ?: return@mapNotNull null
+            val first = details.firstOrNull()?.first ?: return@mapNotNull null
             val driverIsSender = first.senderTrip.role == TripRole.DRIVER
             val driverTrip = if (driverIsSender) first.senderTrip else first.targetTrip
             val driver = if (driverIsSender) first.sender else first.target
-            val passengers = details.map { detail ->
+            val passengers = details.map { (detail) ->
                 if (detail.senderTrip.role == TripRole.PASSENGER) detail.sender else detail.target
             }.distinctBy(Student::id)
             CoordinatedTripSummary(
@@ -506,7 +525,7 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<Coordina
                 driver = driver,
                 passengers = passengers,
                 rideDate = first.request.rideDate,
-                status = requireNotNull(first.coordinationStatus),
+                status = details.first().second,
             )
         }
         .sortedWith(

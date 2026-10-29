@@ -64,7 +64,7 @@ fun RequestsRoute(
         onTabSelected = viewModel::selectTab,
         onFilterSelected = viewModel::selectFilter,
         onOpenRequest = onOpenRequest,
-        onRetry = viewModel::retry,
+        onRetry = viewModel::refresh,
     )
 }
 
@@ -121,31 +121,54 @@ fun RequestsScreen(
                     )
                 }
             }
-            state.error?.let { message ->
-                item {
-                    RutaUInfoCard("No fue posible actualizar las solicitudes", message)
-                    RutaUSecondaryButton("Reintentar", onRetry, Modifier.fillMaxWidth())
-                }
-            }
-            if (state.isLoading) {
-                item {
-                    RutaUInfoCard(
-                        title = "Cargando solicitudes",
-                        message = "Estamos consultando tus solicitudes recibidas y enviadas.",
+            when (state.contentState) {
+                ScreenContentState.LOADING -> item { LoadingRequestsCard() }
+                ScreenContentState.ERROR -> item {
+                    RequestsErrorCard(
+                        message = state.error.orEmpty(),
+                        onRetry = onRetry,
                     )
                 }
-            } else if (state.requests.isEmpty()) {
-                item { EmptyRequestsCard() }
-            } else {
-                items(state.requests, key = { it.request.id }) { detail ->
-                    RequestCard(
-                        detail = detail,
-                        isReceived = state.selectedTab == RequestTab.RECEIVED,
-                        onOpen = { onOpenRequest(detail.request.id) },
-                    )
+                ScreenContentState.EMPTY -> item { EmptyRequestsCard() }
+                ScreenContentState.CONTENT -> {
+                    items(state.requests, key = { it.request.id }) { detail ->
+                        RequestCard(
+                            detail = detail,
+                            isReceived = state.selectedTab == RequestTab.RECEIVED,
+                            onOpen = { onOpenRequest(detail.request.id) },
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+/** Muestra una espera breve mientras se consulta la lista. */
+@Composable
+private fun LoadingRequestsCard() {
+    RutaUInfoCard(
+        title = "Cargando solicitudes",
+        message = "Estamos consultando tus solicitudes.",
+    )
+}
+
+/** Explica el problema y permite volver a intentar sin cerrar la aplicación. */
+@Composable
+private fun RequestsErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RutaUInfoCard(
+            title = "No pudimos cargar las solicitudes",
+            message = message.ifBlank { "Revisa tu conexión e inténtalo de nuevo." },
+        )
+        RutaUPrimaryButton(
+            text = "Reintentar",
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 

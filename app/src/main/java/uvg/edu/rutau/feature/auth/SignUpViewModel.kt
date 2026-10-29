@@ -38,17 +38,9 @@ data class SignUpUiState(
     val passwordError: String? = null,
     val confirmPasswordError: String? = null,
     val termsError: String? = null,
-) {
-    /** Indica si los datos mínimos del registro están listos para enviarse. */
-    val isFormValid: Boolean
-        get() = fullName.isNotBlank() &&
-            university.isNotBlank() &&
-            campus.isNotBlank() &&
-            email.isValidEmail() &&
-            PasswordRules.validationError(password) == null &&
-            password == confirmPassword &&
-            termsAccepted
-}
+    val isFormValid: Boolean = false,
+    val isGoogleFormValid: Boolean = false,
+)
 
 /** Indica los resultados posibles al crear una cuenta. */
 sealed interface SignUpEvent {
@@ -70,91 +62,25 @@ class SignUpViewModel(
         if (catalogRepository != null) loadUniversities()
     }
 
-    fun onFullNameChange(value: String) = updateState {
-        copy(
-            fullName = value,
-            fullNameError = if (value.isBlank()) "Ingresa tu nombre completo." else null,
-        )
-    }
-    fun onUniversityChange(value: String) = updateState {
-        copy(
-            university = value,
-            campus = "",
-            universityError = if (value.isBlank()) "Selecciona tu universidad." else null,
-            campusError = "Selecciona tu campus o sede habitual.",
-        )
+    fun onFullNameChange(value: String) = updateValidatedState { copy(fullName = value) }
+    fun onUniversityChange(value: String) = updateValidatedState {
+        copy(university = value, campus = "")
     }.also { loadCampuses(value) }
-    fun onCampusChange(value: String) = updateState {
-        copy(
-            campus = value,
-            campusError = if (value.isBlank()) "Selecciona tu campus o sede habitual." else null,
-        )
-    }
+    fun onCampusChange(value: String) = updateValidatedState { copy(campus = value) }
     fun onPhotoChange(value: String?) = updateState { copy(photoUrl = value) }
-    fun onEmailChange(value: String) = updateState {
-        copy(
-            email = value,
-            emailError = if (value.isValidEmail()) null else "Ingresa un correo electrónico válido.",
-        )
+    fun onEmailChange(value: String) = updateValidatedState { copy(email = value) }
+    fun onPasswordChange(value: String) = updateValidatedState {
+        copy(password = value)
     }
-    fun onPasswordChange(value: String) = updateState {
-        copy(
-            password = value,
-            passwordError = PasswordRules.validationError(value),
-            confirmPasswordError = confirmPassword.takeIf(String::isNotBlank)?.let {
-                confirmationError(value, it)
-            },
-        )
+    fun onConfirmPasswordChange(value: String) = updateValidatedState {
+        copy(confirmPassword = value)
     }
-    fun onConfirmPasswordChange(value: String) = updateState {
-        copy(
-            confirmPassword = value,
-            confirmPasswordError = if (value.isBlank()) {
-                "Confirma tu contraseña."
-            } else {
-                confirmationError(password, value)
-            },
-        )
-    }
-    fun onTermsAcceptedChange(value: Boolean) = updateState {
-        copy(
-            termsAccepted = value,
-            termsError = if (value) null else "Debes aceptar los términos y condiciones.",
-        )
-    }
+    fun onTermsAcceptedChange(value: Boolean) = updateValidatedState { copy(termsAccepted = value) }
 
     fun createAccount() {
-        val state = uiState.value
-        val passwordError = PasswordRules.validationError(state.password)
-        val emailError = if (state.email.isBlank() || !state.email.contains('@')) {
-            "Ingresa un correo electrónico válido."
-        } else {
-            null
-        }
-        val confirmPasswordError = when {
-            state.confirmPassword.isBlank() -> "Confirma tu contraseña."
-            state.password != state.confirmPassword -> "Las contraseñas no coinciden."
-            else -> null
-        }
-        val fullNameError = if (state.fullName.isBlank()) "Ingresa tu nombre completo." else null
-        val universityError = if (state.university.isBlank()) "Selecciona tu universidad." else null
-        val campusError = if (state.campus.isBlank()) "Selecciona tu campus o sede habitual." else null
-        val termsError = if (!state.termsAccepted) "Debes aceptar los términos y condiciones." else null
-        if (
-            fullNameError != null || universityError != null || campusError != null ||
-            emailError != null || passwordError != null || confirmPasswordError != null || termsError != null
-        ) {
-            updateState {
-                copy(
-                    fullNameError = fullNameError,
-                    universityError = universityError,
-                    campusError = campusError,
-                    emailError = emailError,
-                    passwordError = passwordError,
-                    confirmPasswordError = confirmPasswordError,
-                    termsError = termsError,
-                )
-            }
+        val state = uiState.value.withValidation()
+        mutableUiState.value = state
+        if (!state.isFormValid) {
             return
         }
         viewModelScope.launch {
@@ -207,13 +133,12 @@ class SignUpViewModel(
 
     /** Crea una cuenta de Google después de validar los datos académicos. */
     fun createAccountWithGoogle(idToken: String?) {
-        val state = uiState.value
-        val termsError = if (!state.termsAccepted) "Debes aceptar los términos y condiciones." else null
-        if (idToken.isNullOrBlank() || termsError != null) {
+        val state = uiState.value.withValidation()
+        mutableUiState.value = state
+        if (idToken.isNullOrBlank() || !state.isGoogleFormValid) {
             updateState {
                 copy(
                     emailError = if (idToken.isNullOrBlank()) "No fue posible continuar con Google." else null,
-                    termsError = termsError,
                 )
             }
             return
@@ -257,6 +182,11 @@ class SignUpViewModel(
         mutableUiState.update(transform)
     }
 
+    /** Actualiza el formulario y revisa sus errores en el mismo momento. */
+    private fun updateValidatedState(transform: SignUpUiState.() -> SignUpUiState) {
+        mutableUiState.update { current -> current.transform().withValidation() }
+    }
+
     private fun loadUniversities() {
         val repository = catalogRepository ?: return
         viewModelScope.launch {
@@ -285,7 +215,34 @@ class SignUpViewModel(
     }
 }
 
-private fun String.isValidEmail(): Boolean = isNotBlank() && contains('@')
-
-private fun confirmationError(password: String, confirmation: String): String? =
-    if (password == confirmation) null else "Las contraseñas no coinciden."
+/** Revisa los campos visibles para habilitar cada forma de registro. */
+private fun SignUpUiState.withValidation(): SignUpUiState {
+    val fullNameError = if (fullName.isBlank()) "Ingresa tu nombre completo." else null
+    val universityError = if (university.isBlank()) "Selecciona tu universidad." else null
+    val campusError = if (campus.isBlank()) "Selecciona tu campus o sede habitual." else null
+    val emailError = if (email.isBlank() || !email.contains('@')) {
+        "Ingresa un correo electrónico válido."
+    } else {
+        null
+    }
+    val passwordError = PasswordRules.validationError(password)
+    val confirmPasswordError = when {
+        confirmPassword.isBlank() -> "Confirma tu contraseña."
+        password != confirmPassword -> "Las contraseñas no coinciden."
+        else -> null
+    }
+    val termsError = if (!termsAccepted) "Debes aceptar los términos y condiciones." else null
+    val isGoogleFormValid = listOf(fullNameError, universityError, campusError, termsError).all { it == null }
+    val isFormValid = isGoogleFormValid && listOf(emailError, passwordError, confirmPasswordError).all { it == null }
+    return copy(
+        fullNameError = fullNameError,
+        universityError = universityError,
+        campusError = campusError,
+        emailError = emailError,
+        passwordError = passwordError,
+        confirmPasswordError = confirmPasswordError,
+        termsError = termsError,
+        isFormValid = isFormValid,
+        isGoogleFormValid = isGoogleFormValid,
+    )
+}

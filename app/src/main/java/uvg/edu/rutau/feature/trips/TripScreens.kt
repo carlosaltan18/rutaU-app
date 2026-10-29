@@ -129,23 +129,18 @@ fun TripsScreen(
                     onSelected = { section -> savedSection = section.name },
                 )
             }
-            state.error?.let { message ->
-                item {
-                    RutaUInfoCard(
-                        title = "No fue posible actualizar los trayectos",
-                        message = message,
-                    )
-                    RutaUSecondaryButton("Reintentar", onRetry, Modifier.fillMaxWidth())
+            when (state.contentState) {
+                TripListContentState.LOADING -> item { LoadingTripsCard() }
+                TripListContentState.ERROR -> item {
+                    TripsErrorCard(state.error.orEmpty(), onRetry)
                 }
-            }
-            if (state.isLoading) {
-                item {
-                    RutaUInfoCard(
-                        title = "Cargando trayectos",
-                        message = "Estamos actualizando tus rutas, viajes y perfiles guardados.",
-                    )
-                }
-            } else when (selectedSection) {
+                TripListContentState.CONTENT,
+                TripListContentState.EMPTY,
+                -> {
+                    state.error?.let { message ->
+                        item { Text(message, color = MaterialTheme.colorScheme.error) }
+                    }
+                    when (selectedSection) {
                 TripSection.ACTIVE -> {
                     item {
                         RutaUInfoCard(
@@ -218,6 +213,8 @@ fun TripsScreen(
                         }
                     }
                 }
+                    }
+                }
             }
         }
     }
@@ -230,6 +227,34 @@ fun TripsScreen(
                 TextButton(onClick = { onRemoveTrip(trip.id); pendingRemoval = null }) { Text("Eliminar") }
             },
             dismissButton = { TextButton(onClick = { pendingRemoval = null }) { Text("Cancelar") } },
+        )
+    }
+}
+
+/** Muestra una espera clara mientras llegan los trayectos de la cuenta. */
+@Composable
+private fun LoadingTripsCard() {
+    RutaUInfoCard(
+        title = "Cargando trayectos",
+        message = "Estamos consultando tus rutas y viajes coordinados.",
+    )
+}
+
+/** Explica que la lista falló y ofrece volver a consultar sin cerrar la app. */
+@Composable
+private fun TripsErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RutaUInfoCard(
+            title = "No pudimos cargar los trayectos",
+            message = message.ifBlank { "Revisa tu conexión e inténtalo de nuevo." },
+        )
+        RutaUPrimaryButton(
+            text = "Reintentar",
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

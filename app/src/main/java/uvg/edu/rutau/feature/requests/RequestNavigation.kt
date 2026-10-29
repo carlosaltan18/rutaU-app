@@ -75,10 +75,10 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
                 RutaUAppDependencies.coordinationRepository,
             ),
         )
-        val requestId by viewModel.requestId.collectAsStateWithLifecycle()
-        LaunchedEffect(requestId) {
-            requestId?.let { resolvedRequestId ->
-                navController.navigate(CoordinatedRideDestination(resolvedRequestId)) {
+        val state by viewModel.uiState.collectAsStateWithLifecycle()
+        LaunchedEffect(state.requestId) {
+            state.requestId?.let { requestId ->
+                navController.navigate(CoordinatedRideDestination(requestId)) {
                     popUpTo(CoordinationDetailDestination(route.coordinationId)) { inclusive = true }
                 }
             }
