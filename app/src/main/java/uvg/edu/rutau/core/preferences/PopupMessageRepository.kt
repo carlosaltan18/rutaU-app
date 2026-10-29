@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.DocumentSnapshot
 import java.util.Locale
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.tasks.await
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.UserAccount
 
@@ -74,6 +77,45 @@ enum class PopupMessageAction {
 /** Indica cómo leer mensajes remotos que la aplicación puede mostrar. */
 interface PopupMessageFeedRepository {
     fun observeAvailableMessages(): Flow<List<AppPopupMessage>>
+}
+
+/** Registra en Firestore las interacciones con anuncios generales. */
+interface PopupMessageEventRepository {
+    suspend fun record(messageId: String, eventType: PopupMessageEventType)
+}
+
+/** Indica si un anuncio se mostró, se cerró o abrió una sección. */
+enum class PopupMessageEventType {
+    SHOWN,
+    DISMISSED,
+    OPENED,
+}
+
+/** Envía eventos simples a Firestore sin afectar la lectura local del anuncio. */
+class FirestorePopupMessageEventRepository(
+    private val firestore: FirebaseFirestore,
+    private val firebaseAuth: FirebaseAuth,
+    private val appVersionCode: Int,
+) : PopupMessageEventRepository {
+    override suspend fun record(messageId: String, eventType: PopupMessageEventType) {
+        val userId = firebaseAuth.currentUser?.uid?.takeIf(String::isNotBlank) ?: return
+        if (messageId.isBlank()) return
+        runCatching {
+            firestore.collection(AppMessageEventsCollection).add(
+                mapOf(
+                    "userId" to userId,
+                    "messageId" to messageId,
+                    "eventType" to eventType.name,
+                    "appVersionCode" to appVersionCode,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                ),
+            ).await()
+        }
+    }
+
+    private companion object {
+        const val AppMessageEventsCollection = "appMessageEvents"
+    }
 }
 
 /** Lee mensajes de Firestore y excluye los que ya fueron descartados localmente. */

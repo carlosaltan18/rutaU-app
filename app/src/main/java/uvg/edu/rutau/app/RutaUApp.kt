@@ -115,6 +115,7 @@ fun RutaUApp(
             PopupMessageHost(
                 RutaUAppDependencies.popupMessageFeedRepository,
                 RutaUAppDependencies.popupMessageRepository,
+                RutaUAppDependencies.popupMessageEventRepository,
                 onAction = appState::navigateFromPopup,
             )
         }
