@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -76,6 +77,7 @@ data class CoordinatedTripSummary(
 )
 
 /** Maneja la lista de trayectos de la persona actual. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class TripsViewModel(
     private val repository: TripRepository,
     rideRequestRepository: RideRequestRepository,
@@ -280,33 +282,63 @@ class TripEditorViewModel(
 data class MatchesUiState(
     val sourceTrip: Trip? = null,
     val matches: List<TripMatch> = emptyList(),
+    val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 /** Busca personas compatibles para un trayecto. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class MatchesViewModel(
     tripId: String,
     repository: TripRepository,
     rideRequestRepository: RideRequestRepository,
 ) : ViewModel() {
-    val uiState = combine(
-        repository.observeTrip(tripId),
-        repository.observeMatches(tripId),
-        rideRequestRepository.observeRequestDetails(),
-    ) { trip, matches, requests ->
-        val hiddenCandidateIds = trip?.let { source ->
-            requests.asSequence()
-                .filter { detail -> detail.blocksNewRequestFor(source.id, source.dayOfWeek) }
-                .map { detail ->
-                    if (detail.request.senderTripId == source.id) {
-                        detail.request.targetTripId
-                    } else {
-                        detail.request.senderTripId
+    private val refreshSignal = MutableStateFlow(0)
+
+    val uiState = refreshSignal.flatMapLatest {
+        combine(
+            repository.observeTrip(tripId),
+            repository.observeMatches(tripId),
+            rideRequestRepository.observeRequestDetails(),
+        ) { trip, matches, requests ->
+            val hiddenCandidateIds = trip?.let { source ->
+                requests.asSequence()
+                    .filter { detail -> detail.blocksNewRequestFor(source.id, source.dayOfWeek) }
+                    .map { detail ->
+                        if (detail.request.senderTripId == source.id) {
+                            detail.request.targetTripId
+                        } else {
+                            detail.request.senderTripId
+                        }
                     }
-                }
-                .toSet()
-        }.orEmpty()
-        MatchesUiState(trip, matches.filterNot { it.trip.id in hiddenCandidateIds })
+                    .toSet()
+            }.orEmpty()
+            MatchesUiState(
+                sourceTrip = trip,
+                matches = matches.filterNot { it.trip.id in hiddenCandidateIds },
+                isLoading = false,
+            )
+        }
+            .onStart { emit(MatchesUiState(isLoading = true)) }
+            .catch { throwable ->
+                emit(
+                    MatchesUiState(
+                        isLoading = false,
+                        error = if (throwable is java.io.IOException) {
+                            "Sin conexión. Revisa tu red e inténtalo de nuevo."
+                        } else {
+                            throwable.message
+                                ?: "No fue posible buscar personas compatibles. Inténtalo de nuevo."
+                        },
+                    ),
+                )
+            }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MatchesUiState())
+
+    /** Repite las consultas después de recuperar la conexión. */
+    fun retry() {
+        refreshSignal.update { current -> current + 1 }
+    }
 
     companion object {
         fun factory(

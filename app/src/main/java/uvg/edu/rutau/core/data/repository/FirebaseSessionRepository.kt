@@ -3,6 +3,7 @@ package uvg.edu.rutau.core.data.repository
 import android.content.Context
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
+import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -31,7 +32,9 @@ class FirebaseSessionRepository(
 ) : SessionRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val credentialManager = CredentialManager.create(context.applicationContext)
-    private val mutableSessionState = MutableStateFlow<SessionState>(SessionState.SignedOut)
+    // Firebase persiste la autenticación entre procesos. Reflejarla desde el
+    // inicio evita enviar al login a una persona que abre la app sin conexión.
+    private val mutableSessionState = MutableStateFlow(firebaseUidToSessionState(firebaseAuth.currentUser?.uid))
     override val sessionState: StateFlow<SessionState> = mutableSessionState
 
     private val authStateListener = FirebaseAuth.AuthStateListener { auth ->
@@ -49,7 +52,7 @@ class FirebaseSessionRepository(
         createBackendSession(SessionRequestDto())
     }.getOrElse { error ->
         // Un fallo de red no invalida una sesión válida de Firebase.
-        if (error is java.io.IOException) throw error
+        error.asLoginFailure()?.let { throw it }
         signOutFirebase()
         false
     }
@@ -67,7 +70,7 @@ class FirebaseSessionRepository(
         )
     }.getOrElse { error ->
         // Un fallo de red no invalida una sesión válida de Firebase.
-        if (error is java.io.IOException) throw error
+        error.asLoginFailure()?.let { throw it }
         signOutFirebase()
         false
     }
@@ -188,6 +191,14 @@ class FirebaseSessionRepository(
         firebaseAuth.signOut()
         mutableSessionState.value = SessionState.SignedOut
     }
+}
+
+/** Normaliza los errores remotos para que la UI pueda explicar la falta de red. */
+private fun Throwable.asLoginFailure(): java.io.IOException? = when (this) {
+    is BackendApiException -> this
+    is java.io.IOException -> this
+    is FirebaseNetworkException -> BackendNetworkException()
+    else -> null
 }
 
 /** Convierte el identificador de Firebase al estado que usa la aplicación. */

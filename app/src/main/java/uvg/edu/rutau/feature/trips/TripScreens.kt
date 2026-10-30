@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -390,7 +391,12 @@ fun TripEditorScreen(
 @Composable
 fun MatchesRoute(onBack: () -> Unit, onOpenCandidate: (String) -> Unit, viewModel: MatchesViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    MatchesScreen(state = state, onBack = onBack, onOpenCandidate = onOpenCandidate)
+    MatchesScreen(
+        state = state,
+        onBack = onBack,
+        onOpenCandidate = onOpenCandidate,
+        onRetry = viewModel::retry,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -399,6 +405,7 @@ fun MatchesScreen(
     state: MatchesUiState,
     onBack: () -> Unit,
     onOpenCandidate: (String) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showRules by remember { mutableStateOf(false) }
@@ -414,18 +421,55 @@ fun MatchesScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            state.sourceTrip?.let { trip -> item { TripSummaryCard(trip) } }
-            item { CompatibilitySummaryCard(state.matches.size) }
-            item {
-                TextButton(onClick = { showRules = true }) {
-                    Text("Cómo calculamos la compatibilidad")
+            when {
+                state.isLoading -> item {
+                    Column(
+                        modifier = Modifier.fillParentMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text("Buscando personas compatibles…")
+                    }
                 }
-            }
-            if (state.matches.isEmpty()) {
-                item { RutaUInfoCard("Sin resultados por ahora", "Prueba otro horario o vuelve más tarde cuando haya nuevos trayectos.") }
-            } else {
-                items(state.matches, key = { it.trip.id }) { match ->
-                    MatchCard(match, onOpen = { onOpenCandidate(match.trip.id) })
+
+                state.error != null -> item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RutaUInfoCard(
+                            title = "No pudimos buscar personas compatibles",
+                            message = state.error.ifBlank {
+                                "Revisa tu conexión e inténtalo de nuevo."
+                            },
+                        )
+                        RutaUPrimaryButton(
+                            text = "Reintentar",
+                            onClick = onRetry,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                else -> {
+                    state.sourceTrip?.let { trip -> item { TripSummaryCard(trip) } }
+                    item { CompatibilitySummaryCard(state.matches.size) }
+                    item {
+                        TextButton(onClick = { showRules = true }) {
+                            Text("Cómo calculamos la compatibilidad")
+                        }
+                    }
+                    if (state.matches.isEmpty()) {
+                        item {
+                            RutaUInfoCard(
+                                "Sin resultados por ahora",
+                                "Prueba otro horario o vuelve más tarde cuando haya nuevos trayectos.",
+                            )
+                        }
+                    } else {
+                        items(state.matches, key = { it.trip.id }) { match ->
+                            MatchCard(match, onOpen = { onOpenCandidate(match.trip.id) })
+                        }
+                    }
                 }
             }
         }

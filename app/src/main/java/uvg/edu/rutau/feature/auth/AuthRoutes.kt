@@ -61,6 +61,7 @@ fun LoginRoute(
         isLoading = state.isLoading,
         emailError = state.emailError,
         passwordError = state.passwordError,
+        formError = state.formError,
     )
 }
 

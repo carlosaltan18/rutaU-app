@@ -60,6 +60,7 @@ private fun MatchesScreenPreview() {
             state = MatchesUiState(sourceTrip = passengerTrip, matches = listOf(driverMatch)),
             onBack = {},
             onOpenCandidate = {},
+            onRetry = {},
         )
     }
 }
