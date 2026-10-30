@@ -61,6 +61,7 @@ fun LoginRoute(
         isLoading = state.isLoading,
         emailError = state.emailError,
         passwordError = state.passwordError,
+        formError = state.formError,
     )
 }
 
@@ -123,6 +124,8 @@ fun SignUpRoute(
         onOpenPrivacy = { onOpenLegalDocument(LegalDocumentType.PRIVACY) },
         modifier = modifier,
         isLoading = state.isLoading,
+        isFormValid = state.isFormValid,
+        isGoogleFormValid = state.isGoogleFormValid,
         fullNameError = state.fullNameError,
         universityError = state.universityError,
         campusError = state.campusError,

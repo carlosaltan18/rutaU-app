@@ -17,13 +17,18 @@ private val driverMatch = TripMatch(driverTrip, driverStudent, timeDifferenceMin
 private fun TripsScreenPreview() {
     RutaUTheme {
         TripsScreen(
-            state = TripsUiState(MockSeed.trips.filter { it.ownerId == MockSeed.currentUser.id }),
+            state = TripsUiState(
+                trips = MockSeed.trips.filter { it.ownerId == MockSeed.currentUser.id },
+                contentState = TripListContentState.CONTENT,
+            ),
             onCreateTrip = {},
             onEditTrip = {},
             onOpenMatches = {},
             onOpenCoordinatedRide = {},
             onDeactivateTrip = {},
             onRemoveTrip = {},
+            onRemoveFavorite = {},
+            onRetry = {},
         )
     }
 }
@@ -55,6 +60,7 @@ private fun MatchesScreenPreview() {
             state = MatchesUiState(sourceTrip = passengerTrip, matches = listOf(driverMatch)),
             onBack = {},
             onOpenCandidate = {},
+            onRetry = {},
         )
     }
 }
@@ -72,6 +78,7 @@ private fun CandidateProfileScreenPreview() {
             onBack = {},
             onCoordinate = { _, _ -> },
             onContributionChange = {},
+            onToggleFavorite = {},
         )
     }
 }

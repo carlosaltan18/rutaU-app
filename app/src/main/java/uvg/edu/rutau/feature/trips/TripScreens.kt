@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +51,7 @@ import uvg.edu.rutau.core.model.CoordinationStatus
 private enum class TripSection {
     ACTIVE,
     BASE,
+    SAVED,
     HISTORY,
 }
 
@@ -70,6 +72,8 @@ fun TripsRoute(
         onOpenCoordinatedRide = onOpenCoordinatedRide,
         onDeactivateTrip = { viewModel.deactivate(it) },
         onRemoveTrip = { viewModel.remove(it) },
+        onRemoveFavorite = viewModel::removeFavorite,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -82,6 +86,8 @@ fun TripsScreen(
     onOpenCoordinatedRide: (String) -> Unit,
     onDeactivateTrip: (String) -> Unit,
     onRemoveTrip: (String) -> Unit,
+    onRemoveFavorite: (String) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pendingRemoval by remember { mutableStateOf<Trip?>(null) }
@@ -94,7 +100,7 @@ fun TripsScreen(
     var savedSection by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedSection = savedSection
         ?.let { saved -> TripSection.entries.firstOrNull { it.name == saved } }
-        ?: if (activeCoordinations.isNotEmpty()) TripSection.ACTIVE else TripSection.BASE
+        ?: TripSection.BASE
     RutaUScreenContainer(
         modifier = modifier,
         topBar = { RutaUTopAppBar("Trayectos") },
@@ -103,7 +109,7 @@ fun TripsScreen(
                 ExtendedFloatingActionButton(
                     onClick = onCreateTrip,
                     icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                    text = { Text("Nuevo trayecto base") },
+                    text = { Text("Crear ruta habitual") },
                 )
             }
         },
@@ -124,20 +130,28 @@ fun TripsScreen(
                     onSelected = { section -> savedSection = section.name },
                 )
             }
-            state.error?.let { message ->
-                item { Text(message, color = MaterialTheme.colorScheme.error) }
-            }
-            when (selectedSection) {
+            when (state.contentState) {
+                TripListContentState.LOADING -> item { LoadingTripsCard() }
+                TripListContentState.ERROR -> item {
+                    TripsErrorCard(state.error.orEmpty(), onRetry)
+                }
+                TripListContentState.CONTENT,
+                TripListContentState.EMPTY,
+                -> {
+                    state.error?.let { message ->
+                        item { Text(message, color = MaterialTheme.colorScheme.error) }
+                    }
+                    when (selectedSection) {
                 TripSection.ACTIVE -> {
                     item {
                         RutaUInfoCard(
-                            title = "Viajes activos",
-                            message = "Abre un viaje para ver sus pasajeros, punto de encuentro, mapa y acciones.",
+                            title = "Viajes coordinados",
+                            message = "Aquí aparecen los viajes que ya aceptaron ambas personas. Abre uno para ver pasajeros, punto de encuentro y acciones.",
                         )
                     }
                     if (activeCoordinations.isEmpty()) {
                         item {
-                            EmptyTripSection("No tienes viajes activos por ahora.")
+                            EmptyTripSection("Aún no tienes viajes coordinados. Primero crea una ruta habitual y envía una solicitud a una persona compatible.")
                         }
                     } else {
                         items(activeCoordinations, key = { it.requestId }) { detail ->
@@ -148,13 +162,13 @@ fun TripsScreen(
                 TripSection.BASE -> {
                     item {
                         RutaUInfoCard(
-                            title = "Trayectos base",
-                            message = "Son tus rutas habituales para buscar compatibilidades; no son viajes confirmados.",
+                            title = "Rutas habituales",
+                            message = "Paso 1: registra aquí la ruta que sueles recorrer. Después podrás buscar personas compatibles; esto todavía no confirma un viaje.",
                         )
                     }
                     if (state.trips.isEmpty()) {
                         item {
-                            EmptyTripSection("Aún no tienes trayectos base. Usa el botón para crear el primero.")
+                            EmptyTripSection("Aún no tienes rutas habituales. Usa “Crear ruta habitual” para registrar la primera.")
                         }
                     } else {
                         items(state.trips, key = Trip::id) { trip ->
@@ -168,10 +182,25 @@ fun TripsScreen(
                         }
                     }
                 }
+                TripSection.SAVED -> {
+                    item {
+                        RutaUInfoCard(
+                            title = "Perfiles guardados",
+                            message = "Guarda perfiles compatibles para consultarlos aunque cierres la aplicación.",
+                        )
+                    }
+                    if (state.favorites.isEmpty()) {
+                        item { EmptyTripSection("Aún no has guardado perfiles compatibles.") }
+                    } else {
+                        items(state.favorites, key = { it.tripId }) { favorite ->
+                            FavoriteTripCard(favorite, onRemove = { onRemoveFavorite(favorite.tripId) })
+                        }
+                    }
+                }
                 TripSection.HISTORY -> {
                     item {
                         RutaUInfoCard(
-                            title = "Historial de viajes",
+                            title = "Historial de viajes coordinados",
                             message = "Consulta aquí los viajes que finalizaste o cancelaste.",
                         )
                     }
@@ -183,6 +212,8 @@ fun TripsScreen(
                         items(tripHistory, key = { it.requestId }) { detail ->
                             CoordinatedTripCard(detail, onOpen = { onOpenCoordinatedRide(detail.requestId) })
                         }
+                    }
+                }
                     }
                 }
             }
@@ -201,6 +232,34 @@ fun TripsScreen(
     }
 }
 
+/** Muestra una espera clara mientras llegan los trayectos de la cuenta. */
+@Composable
+private fun LoadingTripsCard() {
+    RutaUInfoCard(
+        title = "Cargando trayectos",
+        message = "Estamos consultando tus rutas y viajes coordinados.",
+    )
+}
+
+/** Explica que la lista falló y ofrece volver a consultar sin cerrar la app. */
+@Composable
+private fun TripsErrorCard(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        RutaUInfoCard(
+            title = "No pudimos cargar los trayectos",
+            message = message.ifBlank { "Revisa tu conexión e inténtalo de nuevo." },
+        )
+        RutaUPrimaryButton(
+            text = "Reintentar",
+            onClick = onRetry,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
 /** Muestra los botones que cambian la sección principal de Trayectos. */
 @Composable
 private fun TripSectionSelector(
@@ -210,8 +269,9 @@ private fun TripSectionSelector(
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TripSection.entries.forEach { section ->
             val label = when (section) {
-                TripSection.ACTIVE -> "Activos"
-                TripSection.BASE -> "Base"
+                TripSection.ACTIVE -> "Viajes"
+                TripSection.BASE -> "Rutas"
+                TripSection.SAVED -> "Guardados"
                 TripSection.HISTORY -> "Historial"
             }
             FilterChip(
@@ -331,7 +391,12 @@ fun TripEditorScreen(
 @Composable
 fun MatchesRoute(onBack: () -> Unit, onOpenCandidate: (String) -> Unit, viewModel: MatchesViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    MatchesScreen(state = state, onBack = onBack, onOpenCandidate = onOpenCandidate)
+    MatchesScreen(
+        state = state,
+        onBack = onBack,
+        onOpenCandidate = onOpenCandidate,
+        onRetry = viewModel::retry,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -340,6 +405,7 @@ fun MatchesScreen(
     state: MatchesUiState,
     onBack: () -> Unit,
     onOpenCandidate: (String) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showRules by remember { mutableStateOf(false) }
@@ -355,18 +421,55 @@ fun MatchesScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            state.sourceTrip?.let { trip -> item { TripSummaryCard(trip) } }
-            item { CompatibilitySummaryCard(state.matches.size) }
-            item {
-                TextButton(onClick = { showRules = true }) {
-                    Text("Cómo calculamos la compatibilidad")
+            when {
+                state.isLoading -> item {
+                    Column(
+                        modifier = Modifier.fillParentMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text("Buscando personas compatibles…")
+                    }
                 }
-            }
-            if (state.matches.isEmpty()) {
-                item { RutaUInfoCard("Sin resultados por ahora", "Prueba otro horario o vuelve más tarde cuando haya nuevos trayectos.") }
-            } else {
-                items(state.matches, key = { it.trip.id }) { match ->
-                    MatchCard(match, onOpen = { onOpenCandidate(match.trip.id) })
+
+                state.error != null -> item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        RutaUInfoCard(
+                            title = "No pudimos buscar personas compatibles",
+                            message = state.error.ifBlank {
+                                "Revisa tu conexión e inténtalo de nuevo."
+                            },
+                        )
+                        RutaUPrimaryButton(
+                            text = "Reintentar",
+                            onClick = onRetry,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+
+                else -> {
+                    state.sourceTrip?.let { trip -> item { TripSummaryCard(trip) } }
+                    item { CompatibilitySummaryCard(state.matches.size) }
+                    item {
+                        TextButton(onClick = { showRules = true }) {
+                            Text("Cómo calculamos la compatibilidad")
+                        }
+                    }
+                    if (state.matches.isEmpty()) {
+                        item {
+                            RutaUInfoCard(
+                                "Sin resultados por ahora",
+                                "Prueba otro horario o vuelve más tarde cuando haya nuevos trayectos.",
+                            )
+                        }
+                    } else {
+                        items(state.matches, key = { it.trip.id }) { match ->
+                            MatchCard(match, onOpen = { onOpenCandidate(match.trip.id) })
+                        }
+                    }
                 }
             }
         }
@@ -386,6 +489,7 @@ fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: (String?, Int) -> Un
         onBack = onBack,
         onCoordinate = onCoordinate,
         onContributionChange = viewModel::setContribution,
+        onToggleFavorite = viewModel::toggleFavorite,
     )
 }
 
@@ -395,6 +499,7 @@ fun CandidateProfileScreen(
     onBack: () -> Unit,
     onCoordinate: (String?, Int) -> Unit,
     onContributionChange: (Int) -> Unit,
+    onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val title = if (state.candidateTrip?.role == TripRole.DRIVER) "Perfil del conductor" else "Perfil del pasajero"
@@ -428,6 +533,13 @@ fun CandidateProfileScreen(
                     )
                 }
                 item { PrivacyNoticeCard() }
+                item {
+                    RutaUSecondaryButton(
+                        text = if (state.isFavorite) "Quitar de guardados" else "Guardar perfil",
+                        onClick = onToggleFavorite,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 item {
                     RutaUPrimaryButton(
                         when (state.existingRequestStatus) {
