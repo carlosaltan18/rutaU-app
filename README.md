@@ -143,7 +143,7 @@ Cada documento válido tiene este formato:
 
 La app observa cambios en tiempo real, filtra por audiencia, versión y fechas, y muestra un solo anuncio a la vez. Un usuario autenticado solo necesita permiso de lectura para `appMessages`. `PopupMessageViewModel` recibe esta lista desde el repositorio y mantiene la lógica de mostrar, descartar y abrir un anuncio fuera de Compose.
 
-Al mostrar, cerrar o abrir un anuncio, Android crea un evento inmutable en `appMessageEvents`. El evento contiene únicamente el UID de Firebase, ID del anuncio, tipo (`SHOWN`, `DISMISSED` u `OPENED`), versión de la app y timestamp de servidor. No bloquea la interfaz si no hay red y no contiene correo, ubicación, solicitudes ni trayectos. Los clientes no pueden leer, editar ni borrar estos eventos. Las reglas versionadas están en [`firebase/firestore.rules`](firebase/firestore.rules).
+Al mostrar, cerrar o abrir un anuncio, Android crea un evento inmutable en `appMessageEvents`. El evento contiene únicamente el UID de Firebase, ID del anuncio, tipo (`SHOWN`, `DISMISSED` u `OPENED`), versión de la app y timestamp de servidor. Después de escribirlo, el repositorio lee ese mismo documento y lo convierte a `AppPopupMessageEvent` para confirmar la operación sin exponer tipos de Firebase al dominio. Cada cliente solo puede leer por ID sus propios eventos; no puede listar, editar ni borrar eventos. La operación no bloquea la interfaz si no hay red y no contiene correo, ubicación, solicitudes ni trayectos. Las reglas versionadas están en [`firebase/firestore.rules`](firebase/firestore.rules).
 
 ### Firebase Cloud Messaging (FCM)
 

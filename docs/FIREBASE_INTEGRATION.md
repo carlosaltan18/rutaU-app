@@ -84,10 +84,14 @@ al servidor.
 
 ## Firestore y DataStore
 
-Firestore se usa solo para `appMessages/{messageId}`. Android lee `title` y
-`body`; utiliza el ID del documento como identificador estable y guarda en
-DataStore los mensajes vistos o descartados. El cliente nunca escribe en
-Firestore. No se duplican trayectos, solicitudes, coordinaciones ni plazas.
+Firestore usa `appMessages/{messageId}` para los anuncios generales y
+`appMessageEvents/{eventId}` para confirmar las interacciones del usuario.
+Android transforma cada anuncio a `AppPopupMessage`; utiliza el ID como
+identificador estable y guarda en DataStore los mensajes vistos o descartados.
+Al mostrar, cerrar o abrir un anuncio, crea un evento y vuelve a leer ese mismo
+documento como `AppPopupMessageEvent`. Las reglas solo permiten crear eventos
+propios y leerlos por ID; listar, editar y eliminar están bloqueados. No se
+duplican trayectos, solicitudes, coordinaciones ni plazas en Firestore.
 
 ## Ubicación en vivo
 

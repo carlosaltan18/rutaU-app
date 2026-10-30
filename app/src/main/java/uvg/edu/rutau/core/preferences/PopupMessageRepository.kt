@@ -82,8 +82,18 @@ interface PopupMessageFeedRepository {
 
 /** Registra en Firestore las interacciones con anuncios generales. */
 interface PopupMessageEventRepository {
-    suspend fun record(messageId: String, eventType: PopupMessageEventType)
+    suspend fun record(messageId: String, eventType: PopupMessageEventType): AppPopupMessageEvent?
 }
+
+/** Evento de interacción confirmado por Firestore y seguro para el dominio. */
+data class AppPopupMessageEvent(
+    val id: String,
+    val userId: String,
+    val messageId: String,
+    val eventType: PopupMessageEventType,
+    val appVersionCode: Int,
+    val createdAtMillis: Long,
+)
 
 /** Indica si un anuncio se mostró, se cerró o abrió una sección. */
 enum class PopupMessageEventType {
@@ -98,11 +108,15 @@ class FirestorePopupMessageEventRepository(
     private val firebaseAuth: FirebaseAuth,
     private val appVersionCode: Int,
 ) : PopupMessageEventRepository {
-    override suspend fun record(messageId: String, eventType: PopupMessageEventType) {
-        val userId = firebaseAuth.currentUser?.uid?.takeIf(String::isNotBlank) ?: return
-        if (messageId.isBlank()) return
-        runCatching {
-            firestore.collection(AppMessageEventsCollection).add(
+    override suspend fun record(
+        messageId: String,
+        eventType: PopupMessageEventType,
+    ): AppPopupMessageEvent? {
+        val userId = firebaseAuth.currentUser?.uid?.takeIf(String::isNotBlank) ?: return null
+        if (messageId.isBlank()) return null
+        return runCatching {
+            val document = firestore.collection(AppMessageEventsCollection).document()
+            document.set(
                 mapOf(
                     "userId" to userId,
                     "messageId" to messageId,
@@ -111,12 +125,32 @@ class FirestorePopupMessageEventRepository(
                     "createdAt" to FieldValue.serverTimestamp(),
                 ),
             ).await()
-        }
+            document.get().await().toAppPopupMessageEvent(userId)
+        }.getOrNull()
     }
 
     private companion object {
         const val AppMessageEventsCollection = "appMessageEvents"
     }
+}
+
+/** Mapea únicamente eventos propios y completos antes de exponerlos al dominio. */
+private fun DocumentSnapshot.toAppPopupMessageEvent(expectedUserId: String): AppPopupMessageEvent? {
+    val userId = getString("userId")?.takeIf { it == expectedUserId } ?: return null
+    val messageId = getString("messageId")?.takeIf(String::isNotBlank) ?: return null
+    val eventType = getString("eventType")
+        ?.let { value -> PopupMessageEventType.entries.firstOrNull { it.name == value } }
+        ?: return null
+    val appVersionCode = getLong("appVersionCode")?.toInt()?.takeIf { it > 0 } ?: return null
+    val createdAtMillis = getTimestamp("createdAt")?.toDate()?.time ?: return null
+    return AppPopupMessageEvent(
+        id = id,
+        userId = userId,
+        messageId = messageId,
+        eventType = eventType,
+        appVersionCode = appVersionCode,
+        createdAtMillis = createdAtMillis,
+    )
 }
 
 /** Lee mensajes de Firestore y excluye los que ya fueron descartados localmente. */
