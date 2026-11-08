@@ -20,10 +20,14 @@ import uvg.edu.rutau.ui.theme.RutaUTheme
 private fun RequestsScreenPreview() {
     RutaUTheme {
         RequestsScreen(
-            state = RequestsUiState(requests = listOf(previewDetail)),
+            state = RequestsUiState(
+                requests = listOf(previewDetail),
+                contentState = ScreenContentState.CONTENT,
+            ),
             onTabSelected = {},
             onFilterSelected = {},
             onOpenRequest = {},
+            onRetry = {},
         )
     }
 }
@@ -70,7 +74,6 @@ private fun CoordinatedRideScreenPreview() {
             onEndLiveLocation = {},
             onUpdateMeetingPoint = {},
             onConfirmMeetingPoint = {},
-            liveLocation = null,
         )
     }
 }

@@ -11,12 +11,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.LiveLocationStatus
+import uvg.edu.rutau.core.location.LiveTripLocation
+import uvg.edu.rutau.core.location.LiveTripLocationRepository
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.data.repository.driverAndPassengerTripIds
@@ -33,6 +41,14 @@ enum class RequestFilter {
     HISTORY,
 }
 
+/** Indica qué debe verse mientras una lista consulta sus datos. */
+enum class ScreenContentState {
+    LOADING,
+    CONTENT,
+    EMPTY,
+    ERROR,
+}
+
 /** Guarda la información que muestra la lista de solicitudes. */
 data class RequestsUiState(
     val selectedTab: RequestTab = RequestTab.RECEIVED,
@@ -40,14 +56,26 @@ data class RequestsUiState(
     val requests: List<RideRequestDetails> = emptyList(),
     val receivedCount: Int = 0,
     val sentCount: Int = 0,
+    val contentState: ScreenContentState = ScreenContentState.LOADING,
+    val error: String? = null,
+)
+
+/** Conserva los datos base antes de aplicar el estado visible de la pantalla. */
+private data class RequestListData(
+    val details: List<RideRequestDetails>,
+    val currentUserId: String?,
+    val selectedTab: RequestTab,
+    val selectedFilter: RequestFilter,
 )
 
 /** Maneja las solicitudes que aparecen para la persona que inició sesión. */
 class RequestsViewModel(
-    rideRequestRepository: RideRequestRepository,
+    private val rideRequestRepository: RideRequestRepository,
     userRepository: UserRepository,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    private val isLoading = MutableStateFlow(true)
+    private val loadError = MutableStateFlow<String?>(null)
     private val tab = MutableStateFlow(
         savedStateHandle.get<String>(SelectedTabKey)?.let(RequestTab::valueOf) ?: RequestTab.RECEIVED,
     )
@@ -57,36 +85,62 @@ class RequestsViewModel(
             ?: RequestFilter.PENDING,
     )
 
-    val uiState: StateFlow<RequestsUiState> = combine(
+    private val requestListData = combine(
         rideRequestRepository.observeRequestDetails(),
         userRepository.observeCurrentUser(),
         tab,
         filter,
     ) { details, user, selectedTab, selectedFilter ->
-        val userId = user?.id
-        val received = details.filter { it.targetTrip.ownerId == userId }
-        val sent = details.filter { it.senderTrip.ownerId == userId }
-        val requests = (if (selectedTab == RequestTab.RECEIVED) received else sent).filter { detail ->
-            val belongsToSelectedTab = if (selectedTab == RequestTab.RECEIVED) {
-                detail.targetTrip.ownerId == userId
+        RequestListData(details, user?.id, selectedTab, selectedFilter)
+    }.catch {
+        loadError.value = "No fue posible cargar las solicitudes. Revisa tu conexión e inténtalo de nuevo."
+        emit(RequestListData(emptyList(), null, tab.value, filter.value))
+    }
+
+    val uiState: StateFlow<RequestsUiState> = combine(
+        requestListData,
+        isLoading,
+        loadError,
+    ) { data, loading, error ->
+        val received = data.details.filter { it.targetTrip.ownerId == data.currentUserId }
+        val sent = data.details.filter { it.senderTrip.ownerId == data.currentUserId }
+        val requests = (if (data.selectedTab == RequestTab.RECEIVED) received else sent).filter { detail ->
+            val belongsToSelectedTab = if (data.selectedTab == RequestTab.RECEIVED) {
+                detail.targetTrip.ownerId == data.currentUserId
             } else {
-                detail.senderTrip.ownerId == userId
+                detail.senderTrip.ownerId == data.currentUserId
             }
-            val belongsToSelectedFilter = when (selectedFilter) {
+            val belongsToSelectedFilter = when (data.selectedFilter) {
                 RequestFilter.PENDING -> detail.request.status == RequestStatus.PENDING
                 RequestFilter.HISTORY -> detail.request.status != RequestStatus.PENDING &&
                     detail.request.status != RequestStatus.ACCEPTED
             }
             belongsToSelectedTab && belongsToSelectedFilter
         }.sortedByDescending { it.request.rideDate }
+        val contentState = when {
+            loading -> ScreenContentState.LOADING
+            error != null -> ScreenContentState.ERROR
+            requests.isEmpty() -> ScreenContentState.EMPTY
+            else -> ScreenContentState.CONTENT
+        }
         RequestsUiState(
-            selectedTab = selectedTab,
-            selectedFilter = selectedFilter,
+            selectedTab = data.selectedTab,
+            selectedFilter = data.selectedFilter,
             requests = requests,
             receivedCount = received.count { it.request.status == RequestStatus.PENDING },
             sentCount = sent.count { it.request.status == RequestStatus.PENDING },
+            contentState = contentState,
+            error = error,
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RequestsUiState())
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        RequestsUiState(),
+    )
+
+    init {
+        refresh()
+    }
 
     fun selectTab(value: RequestTab) {
         tab.value = value
@@ -97,6 +151,20 @@ class RequestsViewModel(
         filter.value = value
         savedStateHandle[SelectedFilterKey] = value.name
     }
+
+    /** Vuelve a consultar las solicitudes cuando hubo un problema de red. */
+    fun refresh() {
+        viewModelScope.launch {
+            isLoading.value = true
+            loadError.value = null
+            runCatching { rideRequestRepository.refresh() }
+                .onFailure { loadError.value = "No fue posible cargar las solicitudes. Revisa tu conexión e inténtalo de nuevo." }
+            isLoading.value = false
+        }
+    }
+
+    /** Permite reintentar usando el nombre de la acción ya usada por la interfaz. */
+    fun retry() = refresh()
 
     companion object {
         /** Crea el modelo de esta pantalla con los datos compartidos. */
@@ -115,6 +183,37 @@ class RequestsViewModel(
 
         private const val SelectedTabKey = "requests_selected_tab"
         private const val SelectedFilterKey = "requests_selected_filter"
+    }
+}
+
+/** Guarda la solicitud que pertenece a una coordinación abierta desde un aviso. */
+data class CoordinationRedirectUiState(
+    val requestId: String? = null,
+)
+
+/** Busca la solicitud de una coordinación antes de abrir el viaje correspondiente. */
+class CoordinationRedirectViewModel(
+    coordinationId: String,
+    coordinationRepository: CoordinationRepository,
+) : ViewModel() {
+    val uiState: StateFlow<CoordinationRedirectUiState> = coordinationRepository
+        .observeCoordinationById(coordinationId)
+        .catch { emit(null) }
+        .map { coordination -> CoordinationRedirectUiState(coordination?.requestId) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            CoordinationRedirectUiState(),
+        )
+
+    companion object {
+        /** Crea el modelo usado para traducir una coordinación a su solicitud. */
+        fun factory(
+            coordinationId: String,
+            coordinationRepository: CoordinationRepository,
+        ): ViewModelProvider.Factory = requestViewModelFactory {
+            CoordinationRedirectViewModel(coordinationId, coordinationRepository)
+        }
     }
 }
 
@@ -191,16 +290,20 @@ data class CoordinatedRideUiState(
     val coordination: Coordination? = null,
     val confirmedRequests: List<RideRequestDetails> = emptyList(),
     val currentUserId: String? = null,
+    val liveLocation: LiveTripLocation? = null,
+    val liveLocationIssue: String? = null,
     val isSaving: Boolean = false,
     val error: String? = null,
 )
 
 /** Maneja las acciones disponibles para un viaje ya aceptado. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class CoordinatedRideViewModel(
     requestId: String,
     private val coordinationRepository: CoordinationRepository,
     userRepository: UserRepository,
     private val rideRequestRepository: RideRequestRepository,
+    private val liveTripLocationRepository: LiveTripLocationRepository,
 ) : ViewModel() {
     private val saving = MutableStateFlow(false)
     private val error = MutableStateFlow<String?>(null)
@@ -212,14 +315,32 @@ class CoordinatedRideViewModel(
     ) { detail, allDetails, coordination ->
         CoordinatedRideInfo(detail, allDetails, coordination)
     }
+    private val activeOccurrenceId = combine(rideInfo, liveCoordination) { info, updatedCoordination ->
+        (updatedCoordination ?: info.coordination)
+            ?.takeIf { it.liveLocationStatus == LiveLocationStatus.ACTIVE }
+            ?.liveOccurrenceId
+            .orEmpty()
+    }.distinctUntilChanged()
+    private val liveLocation = activeOccurrenceId.flatMapLatest(liveTripLocationRepository::observe)
+    private val liveLocationIssue = activeOccurrenceId.flatMapLatest(liveTripLocationRepository::observeReadIssue)
 
-    val uiState: StateFlow<CoordinatedRideUiState> = combine(
+    private val coordinatedRideInputs = combine(
         rideInfo,
         userRepository.observeCurrentUser(),
         saving,
         error,
         liveCoordination,
     ) { info, user, isSaving, message, updatedCoordination ->
+        CoordinatedRideInputs(info, user?.id, isSaving, message, updatedCoordination)
+    }
+
+    val uiState: StateFlow<CoordinatedRideUiState> = combine(
+        coordinatedRideInputs,
+        liveLocation,
+        liveLocationIssue,
+    ) { inputs, location, locationIssue ->
+        val info = inputs.info
+        val updatedCoordination = inputs.updatedCoordination
         val coordination = updatedCoordination ?: info.coordination
         val confirmedRequests = coordination?.let { currentCoordination ->
             info.allDetails.filter { requestDetail ->
@@ -233,9 +354,11 @@ class CoordinatedRideViewModel(
             detail = info.detail,
             coordination = coordination,
             confirmedRequests = confirmedRequests,
-            currentUserId = user?.id,
-            isSaving = isSaving,
-            error = message,
+            currentUserId = inputs.currentUserId,
+            liveLocation = location,
+            liveLocationIssue = locationIssue,
+            isSaving = inputs.isSaving,
+            error = inputs.error,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CoordinatedRideUiState())
 
@@ -350,12 +473,14 @@ class CoordinatedRideViewModel(
             coordinationRepository: CoordinationRepository,
             userRepository: UserRepository,
             rideRequestRepository: RideRequestRepository,
+            liveTripLocationRepository: LiveTripLocationRepository,
         ) = requestViewModelFactory {
             CoordinatedRideViewModel(
                 requestId,
                 coordinationRepository,
                 userRepository,
                 rideRequestRepository,
+                liveTripLocationRepository,
             )
         }
     }
@@ -366,6 +491,15 @@ private data class CoordinatedRideInfo(
     val detail: RideRequestDetails?,
     val allDetails: List<RideRequestDetails>,
     val coordination: Coordination?,
+)
+
+/** Mantiene los flujos del viaje dentro del límite tipado de combine. */
+private data class CoordinatedRideInputs(
+    val info: CoordinatedRideInfo,
+    val currentUserId: String?,
+    val isSaving: Boolean,
+    val error: String?,
+    val updatedCoordination: Coordination?,
 )
 
 /** Crea modelos de pantalla sin depender de una biblioteca adicional. */

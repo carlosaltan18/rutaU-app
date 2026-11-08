@@ -50,6 +50,7 @@ import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripMatch
 import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.FavoriteTrip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
 
@@ -167,6 +168,35 @@ fun CoordinatedTripCard(
             RutaUPrimaryButton(
                 text = if (isActive) "Abrir viaje" else "Ver resumen",
                 onClick = onOpen,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+/** Tarjeta de acceso local a un perfil compatible guardado. */
+@Composable
+fun FavoriteTripCard(
+    favorite: FavoriteTrip,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                RutaUAvatar(fullName = favorite.studentName, photoUrl = favorite.studentPhotoUrl)
+                Column(Modifier.weight(1f)) {
+                    Text(favorite.studentName, style = MaterialTheme.typography.titleMedium)
+                    Text(favorite.routeDescription, style = MaterialTheme.typography.bodyMedium)
+                    Text(favorite.scheduleDescription, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            RutaUOutlinedButton(
+                text = "Quitar de guardados",
+                onClick = onRemove,
                 modifier = Modifier.fillMaxWidth(),
             )
         }

@@ -43,6 +43,7 @@ fun LoginScreen(
     isLoading: Boolean = false,
     emailError: String? = null,
     passwordError: String? = null,
+    formError: String? = null,
 ) {
     RutaUScreenContainer(modifier = modifier) { innerPadding ->
         Column(
@@ -90,6 +91,16 @@ fun LoginScreen(
                 supportingText = passwordError,
                 isError = passwordError != null,
             )
+            formError?.let { message ->
+                Spacer(Modifier.height(RutaUSpacing.Small))
+                Text(
+                    text = message,
+                    modifier = Modifier.fillMaxWidth().testTag("LoginFormError"),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Start,
+                )
+            }
             Spacer(Modifier.height(RutaUSpacing.Small))
             androidx.compose.material3.TextButton(
                 onClick = onForgotPassword,

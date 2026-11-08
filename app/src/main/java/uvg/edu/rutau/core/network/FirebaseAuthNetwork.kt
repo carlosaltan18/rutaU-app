@@ -34,7 +34,10 @@ class FirebaseTokenAuthenticator(
             onSessionInvalid()
             return null
         }
-        val token = runCatching { tokenProvider.getToken(forceRefresh = true) }.getOrNull()
+        val tokenResult = runCatching { tokenProvider.getToken(forceRefresh = true) }
+        // No cerrar la sesión cuando Firebase no pudo renovar por falta de red.
+        if (tokenResult.isFailure) return null
+        val token = tokenResult.getOrNull()
         if (token.isNullOrBlank()) {
             onSessionInvalid()
             return null

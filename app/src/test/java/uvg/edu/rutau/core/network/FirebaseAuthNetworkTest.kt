@@ -8,6 +8,7 @@ import okhttp3.Response
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,6 +56,22 @@ class FirebaseAuthNetworkTest {
 
         assertEquals(null, retry)
         assertTrue(sessionClosed.get())
+    }
+
+    @Test
+    fun keepsTheSessionWhenTokenRefreshFailsWithoutNetwork() {
+        val sessionClosed = AtomicBoolean(false)
+        val provider = object : FirebaseTokenProvider {
+            override fun getToken(forceRefresh: Boolean): String? {
+                throw java.io.IOException("offline")
+            }
+        }
+        val authenticator = FirebaseTokenAuthenticator(provider) { sessionClosed.set(true) }
+
+        val retry = authenticator.authenticate(null, unauthorizedResponse())
+
+        assertEquals(null, retry)
+        assertFalse(sessionClosed.get())
     }
 
     private fun unauthorizedResponse(): Response = Response.Builder()

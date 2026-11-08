@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.DocumentSnapshot
 import java.util.Locale
@@ -16,10 +18,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.tasks.await
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.UserAccount
 
@@ -76,6 +80,79 @@ interface PopupMessageFeedRepository {
     fun observeAvailableMessages(): Flow<List<AppPopupMessage>>
 }
 
+/** Registra en Firestore las interacciones con anuncios generales. */
+interface PopupMessageEventRepository {
+    suspend fun record(messageId: String, eventType: PopupMessageEventType): AppPopupMessageEvent?
+}
+
+/** Evento de interacción confirmado por Firestore y seguro para el dominio. */
+data class AppPopupMessageEvent(
+    val id: String,
+    val userId: String,
+    val messageId: String,
+    val eventType: PopupMessageEventType,
+    val appVersionCode: Int,
+    val createdAtMillis: Long,
+)
+
+/** Indica si un anuncio se mostró, se cerró o abrió una sección. */
+enum class PopupMessageEventType {
+    SHOWN,
+    DISMISSED,
+    OPENED,
+}
+
+/** Envía eventos simples a Firestore sin afectar la lectura local del anuncio. */
+class FirestorePopupMessageEventRepository(
+    private val firestore: FirebaseFirestore,
+    private val firebaseAuth: FirebaseAuth,
+    private val appVersionCode: Int,
+) : PopupMessageEventRepository {
+    override suspend fun record(
+        messageId: String,
+        eventType: PopupMessageEventType,
+    ): AppPopupMessageEvent? {
+        val userId = firebaseAuth.currentUser?.uid?.takeIf(String::isNotBlank) ?: return null
+        if (messageId.isBlank()) return null
+        return runCatching {
+            val document = firestore.collection(AppMessageEventsCollection).document()
+            document.set(
+                mapOf(
+                    "userId" to userId,
+                    "messageId" to messageId,
+                    "eventType" to eventType.name,
+                    "appVersionCode" to appVersionCode,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                ),
+            ).await()
+            document.get().await().toAppPopupMessageEvent(userId)
+        }.getOrNull()
+    }
+
+    private companion object {
+        const val AppMessageEventsCollection = "appMessageEvents"
+    }
+}
+
+/** Mapea únicamente eventos propios y completos antes de exponerlos al dominio. */
+private fun DocumentSnapshot.toAppPopupMessageEvent(expectedUserId: String): AppPopupMessageEvent? {
+    val userId = getString("userId")?.takeIf { it == expectedUserId } ?: return null
+    val messageId = getString("messageId")?.takeIf(String::isNotBlank) ?: return null
+    val eventType = getString("eventType")
+        ?.let { value -> PopupMessageEventType.entries.firstOrNull { it.name == value } }
+        ?: return null
+    val appVersionCode = getLong("appVersionCode")?.toInt()?.takeIf { it > 0 } ?: return null
+    val createdAtMillis = getTimestamp("createdAt")?.toDate()?.time ?: return null
+    return AppPopupMessageEvent(
+        id = id,
+        userId = userId,
+        messageId = messageId,
+        eventType = eventType,
+        appVersionCode = appVersionCode,
+        createdAtMillis = createdAtMillis,
+    )
+}
+
 /** Lee mensajes de Firestore y excluye los que ya fueron descartados localmente. */
 class FirestorePopupMessageFeedRepository(
     private val firestore: FirebaseFirestore,
@@ -115,6 +192,9 @@ class FirestorePopupMessageFeedRepository(
             trySend(snapshot?.documents.orEmpty().mapNotNull(DocumentSnapshot::toAppPopupMessage))
         }
         awaitClose { registration.remove() }
+    }.catch {
+        // Al cerrar sesión o perder permisos, la app solo oculta los anuncios.
+        emit(emptyList())
     }
 
     /** Revisa cada minuto si un mensaje alcanzó su fecha de inicio o vencimiento. */
@@ -134,7 +214,8 @@ class FirestorePopupMessageFeedRepository(
 private fun DocumentSnapshot.toAppPopupMessage(): AppPopupMessage? {
     val title = getString("title")?.trim().orEmpty()
     val body = getString("body")?.trim().orEmpty()
-    if (title.isBlank() || body.isBlank() || getBoolean("active") != true) return null
+    val isActive = get("active") as? Boolean ?: false
+    if (title.isBlank() || body.isBlank() || !isActive) return null
     val priority = getString("priority")
         ?.trim()
         ?.uppercase(Locale.ROOT)

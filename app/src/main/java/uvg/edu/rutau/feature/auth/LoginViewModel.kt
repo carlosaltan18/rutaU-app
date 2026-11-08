@@ -20,6 +20,7 @@ data class LoginUiState(
     val isLoading: Boolean = false,
     val emailError: String? = null,
     val passwordError: String? = null,
+    val formError: String? = null,
 )
 
 /** Indica los resultados posibles al iniciar sesión. */
@@ -38,11 +39,11 @@ class LoginViewModel(
     val events: SharedFlow<LoginEvent> = mutableEvents.asSharedFlow()
 
     fun onEmailChange(value: String) {
-        mutableUiState.update { it.copy(email = value, emailError = null) }
+        mutableUiState.update { it.copy(email = value, emailError = null, formError = null) }
     }
 
     fun onPasswordChange(value: String) {
-        mutableUiState.update { it.copy(password = value, passwordError = null) }
+        mutableUiState.update { it.copy(password = value, passwordError = null, formError = null) }
     }
 
     fun login() {
@@ -58,7 +59,9 @@ class LoginViewModel(
             return
         }
         viewModelScope.launch {
-            mutableUiState.update { it.copy(isLoading = true, emailError = null, passwordError = null) }
+            mutableUiState.update {
+                it.copy(isLoading = true, emailError = null, passwordError = null, formError = null)
+            }
             val result = runCatching { sessionRepository.login(state.email, state.password) }
             mutableUiState.update { it.copy(isLoading = false) }
             result.fold(
@@ -72,7 +75,7 @@ class LoginViewModel(
                         error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo."
                         else -> "No fue posible iniciar sesión. Intenta de nuevo."
                     }
-                    mutableUiState.update { it.copy(passwordError = message) }
+                    mutableUiState.update { it.copy(formError = message) }
                 },
             )
         }
@@ -85,7 +88,9 @@ class LoginViewModel(
             return
         }
         viewModelScope.launch {
-            mutableUiState.update { it.copy(isLoading = true, emailError = null, passwordError = null) }
+            mutableUiState.update {
+                it.copy(isLoading = true, emailError = null, passwordError = null, formError = null)
+            }
             val result = runCatching { sessionRepository.loginWithGoogle(idToken) }
             mutableUiState.update { it.copy(isLoading = false) }
             result.fold(
@@ -99,7 +104,7 @@ class LoginViewModel(
                         error is java.io.IOException -> "No fue posible conectar con el servidor. Intenta de nuevo."
                         else -> "No fue posible iniciar sesión con Google."
                     }
-                    mutableUiState.update { it.copy(passwordError = message) }
+                    mutableUiState.update { it.copy(formError = message) }
                 },
             )
         }

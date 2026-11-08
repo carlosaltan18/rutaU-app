@@ -5,40 +5,42 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
 
-/** Muestra un mensaje remoto una sola vez y guarda el descarte en DataStore. */
+/** Muestra un anuncio recibido sin conocer cómo se guardan sus datos. */
 @Composable
 fun PopupMessageHost(
-    feedRepository: PopupMessageFeedRepository,
-    localRepository: PopupMessageRepository,
-    onAction: (PopupMessageAction, String?) -> Unit,
+    message: AppPopupMessage?,
+    onShown: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
 ) {
-    val messages by feedRepository.observeAvailableMessages().collectAsStateWithLifecycle(emptyList())
-    val scope = rememberCoroutineScope()
-    val message = messages.firstOrNull()
     if (message != null) {
+        LaunchedEffect(message.id) {
+            onShown(message.id)
+        }
         AlertDialog(
-            onDismissRequest = { scope.launch { localRepository.markAsSeen(message.id) } },
+            onDismissRequest = onDismiss,
             title = { Text(message.title, style = MaterialTheme.typography.titleLarge) },
             text = { Text(message.body, style = MaterialTheme.typography.bodyLarge) },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        scope.launch {
-                            localRepository.markAsSeen(message.id)
-                            onAction(message.action, message.actionValue)
-                        }
-                    },
+                    onClick = onConfirm,
                 ) {
                     Text(message.action.buttonLabel)
                 }
             },
         )
     }
+}
+
+/** Decide el evento correcto cuando la persona confirma el anuncio. */
+internal fun PopupMessageAction.confirmEventType(): PopupMessageEventType = when (this) {
+    PopupMessageAction.NONE -> PopupMessageEventType.DISMISSED
+    PopupMessageAction.OPEN_PROFILE,
+    PopupMessageAction.OPEN_TRIPS,
+    PopupMessageAction.OPEN_REQUESTS,
+    -> PopupMessageEventType.OPENED
 }
 
 /** Da un texto breve al botón según la acción elegida para el anuncio. */
