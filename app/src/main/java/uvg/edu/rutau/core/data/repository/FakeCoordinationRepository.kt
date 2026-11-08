@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.map
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
 import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequest
@@ -53,10 +54,15 @@ class FakeCoordinationRepository(
         }
     }
 
-    override suspend fun updateMeetingPoint(coordinationId: String, meetingPoint: String): Coordination {
+    override suspend fun updateMeetingPoint(
+        coordinationId: String,
+        meetingPoint: MeetingPointInput,
+    ): Coordination {
         val current = findAcceptedCoordination(coordinationId)
         val updated = current.copy(
-            meetingPoint = meetingPoint.trim(),
+            meetingPoint = meetingPoint.label.trim(),
+            meetingLatitude = meetingPoint.latitude,
+            meetingLongitude = meetingPoint.longitude,
             meetingPointConfirmedByCurrentUser = true,
             meetingPointConfirmedByOtherParticipant = false,
         )

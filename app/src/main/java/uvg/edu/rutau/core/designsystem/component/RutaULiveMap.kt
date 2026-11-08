@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -37,8 +38,10 @@ fun RutaULiveMap(
     liveLocation: LiveTripLocation?,
     currentUserIsDriver: Boolean,
     modifier: Modifier = Modifier,
+    mapHeight: Dp = 260.dp,
 ) {
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    var hasCenteredOnLocation by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val markerTitle = if (currentUserIsDriver) "Tú" else "Conductor"
 
@@ -59,9 +62,10 @@ fun RutaULiveMap(
 
     LaunchedEffect(mapView, liveLocation?.latitude, liveLocation?.longitude, liveLocation?.updatedAtMillis) {
         liveLocation?.let { location ->
-            mapView?.let { view ->
+            if (!hasCenteredOnLocation) mapView?.let { view ->
                 view.controller.setZoom(LiveLocationZoom)
                 view.controller.setCenter(GeoPoint(location.latitude, location.longitude))
+                hasCenteredOnLocation = true
             }
         }
     }
@@ -100,7 +104,7 @@ fun RutaULiveMap(
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp),
+                    .height(mapHeight),
             )
             RutaUOutlinedButton(
                 text = "Centrar ubicación",

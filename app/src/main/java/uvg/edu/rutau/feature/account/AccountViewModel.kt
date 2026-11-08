@@ -82,6 +82,7 @@ class AccountViewModel(
                         campus = savedStateHandle[CampusKey] ?: account.campus,
                         campusId = savedStateHandle[CampusIdKey] ?: account.campusId,
                         campusOptions = data.campuses,
+                        phone = savedStateHandle[PhoneKey] ?: account.phone.orEmpty(),
                         email = savedStateHandle[EmailKey] ?: account.email,
                         notificationsEnabled = savedStateHandle[NotificationsKey] ?: popupState.popupsEnabled,
                         themeMode = data.themeMode,
@@ -100,6 +101,7 @@ class AccountViewModel(
                     copy(campus = campus.name, campusId = campus.id)
                 } ?: this
             }
+            is AccountAction.PhoneChanged -> updateState { copy(phone = action.value) }
             is AccountAction.EmailChanged -> updateState { copy(email = action.value) }
             is AccountAction.CurrentEmailPasswordChanged -> updateState { copy(currentEmailPassword = action.value) }
             is AccountAction.CurrentPasswordChanged -> updateState { copy(currentPassword = action.value) }
@@ -150,8 +152,12 @@ class AccountViewModel(
 
     private fun saveProfile() {
         val state = uiState.value ?: return
-        if (state.fullName.isBlank() || state.university.isBlank() || state.campus.isBlank()) {
-            updateState { copy(message = "Completa tu nombre, universidad y campus.") }
+        if (!state.isProfileValid) {
+            updateState {
+                copy(
+                    message = state.phoneError ?: "Completa tu nombre, universidad y campus.",
+                )
+            }
             return
         }
         viewModelScope.launch {
@@ -165,6 +171,7 @@ class AccountViewModel(
                         state.user.photoUrl,
                         universityId = state.universityId,
                         campusId = state.campusId,
+                        phone = state.phone.trim().takeIf(String::isNotEmpty),
                     ),
                 )
                 updateState { copy(isSaving = false, message = "Tus datos fueron actualizados.") }
@@ -250,6 +257,7 @@ class AccountViewModel(
         savedStateHandle[UniversityIdKey] = state.universityId
         savedStateHandle[CampusKey] = state.campus
         savedStateHandle[CampusIdKey] = state.campusId
+        savedStateHandle[PhoneKey] = state.phone
         savedStateHandle[EmailKey] = state.email
         savedStateHandle[PhotoUrlKey] = state.user.photoUrl
         savedStateHandle[NotificationsKey] = state.notificationsEnabled
@@ -280,6 +288,7 @@ class AccountViewModel(
         private const val UniversityIdKey = "account_university_id"
         private const val CampusKey = "account_campus"
         private const val CampusIdKey = "account_campus_id"
+        private const val PhoneKey = "account_phone"
         private const val EmailKey = "account_email"
         private const val PhotoUrlKey = "account_photo_url"
         private const val NotificationsKey = "account_notifications_enabled"

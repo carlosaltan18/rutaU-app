@@ -1,5 +1,8 @@
 package uvg.edu.rutau.feature.requests
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,13 +17,10 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -32,7 +32,6 @@ import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
-import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequestDetails
@@ -211,15 +210,46 @@ fun AuthorizedContactCard(
     phone: String?,
     modifier: Modifier = Modifier,
 ) {
-    RutaUInfoCard(
-        title = "Contacto autorizado",
-        message = if (phone == null) {
-            "${fullName} no agregó un teléfono. Pueden acordar el punto de encuentro en persona."
-        } else {
-            "$fullName\nTeléfono y WhatsApp: $phone"
+    if (phone.isNullOrBlank()) {
+        RutaUInfoCard(
+            title = "Contacto autorizado",
+            message = "$fullName no agregó un teléfono. Pueden acordar el punto de encuentro en persona.",
+            modifier = modifier,
+            icon = Icons.Default.CheckCircle,
+        )
+        return
+    }
+    Card(modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Contacto autorizado", style = MaterialTheme.typography.titleSmall)
+            Text(fullName, style = MaterialTheme.typography.bodyMedium)
+            Text("Toca el número para llamar.", style = MaterialTheme.typography.bodySmall)
+            PhoneNumberLink(phone)
+        }
+    }
+}
+
+/** Abre el marcador del teléfono sin llamar automáticamente. */
+@Composable
+fun PhoneNumberLink(
+    phone: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    Text(
+        text = phone,
+        modifier = modifier.clickable {
+            val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null))
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            }
         },
-        modifier = modifier,
-        icon = Icons.Default.CheckCircle,
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.SemiBold,
     )
 }
 
@@ -242,14 +272,17 @@ fun ExternalContactActions(
 @Composable
 fun MeetingPointCard(
     meetingPoint: String?,
+    meetingLatitude: Double?,
+    meetingLongitude: Double?,
     isConfirmedByCurrentUser: Boolean,
     isConfirmedByOtherParticipant: Boolean,
     isSaving: Boolean,
-    onSave: (String) -> Unit,
+    onSelectOnMap: () -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var editedPoint by remember(meetingPoint) { mutableStateOf(meetingPoint.orEmpty()) }
+    val hasSelectedPoint = !meetingPoint.isNullOrBlank() &&
+        meetingLatitude != null && meetingLongitude != null
     Card(modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -257,30 +290,32 @@ fun MeetingPointCard(
         ) {
             Text("Punto de encuentro", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Escribe un lugar fácil de identificar. Si lo cambias, ambas confirmaciones se reinician.",
+                "Elige el lugar en el mapa. Si lo cambias, ambas confirmaciones se reinician.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
-            RutaUTextField(
-                value = editedPoint,
-                onValueChange = { editedPoint = it },
-                label = "Lugar para reunirse",
+            RutaUOutlinedButton(
+                text = if (hasSelectedPoint) "Cambiar punto en el mapa" else "Seleccionar punto en el mapa",
+                onClick = onSelectOnMap,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isSaving,
             )
-            RutaUOutlinedButton(
-                text = if (meetingPoint.isNullOrBlank()) "Guardar punto" else "Actualizar punto",
-                onClick = { onSave(editedPoint) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving && editedPoint.trim().length >= 3 && editedPoint.trim() != meetingPoint,
-            )
-            if (meetingPoint.isNullOrBlank()) {
+            if (!hasSelectedPoint) {
                 Text(
-                    "Aún no han definido dónde se reunirán.",
+                    "Aún no han definido el punto en el mapa.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else {
+                Text(
+                    "Punto seleccionado: %.5f, %.5f".format(
+                        Locale.US,
+                        meetingLatitude,
+                        meetingLongitude,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Text(
                     if (isConfirmedByCurrentUser) {
                         "Ya confirmaste este punto."
@@ -377,7 +412,9 @@ fun ConfirmedPassengerCard(detail: RideRequestDetails, modifier: Modifier = Modi
             Column(Modifier.weight(1f)) {
                 Text(passenger.fullName, style = MaterialTheme.typography.titleSmall)
                 Text("Contribución: ${detail.request.contributionCents.asQuetzales()}")
-                passenger.phone?.let { Text("Teléfono y WhatsApp: $it") }
+                passenger.phone?.let { phone ->
+                    PhoneNumberLink(phone, Modifier.testTag("ConfirmedPassengerPhone"))
+                }
             }
             Text("Confirmada", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
         }

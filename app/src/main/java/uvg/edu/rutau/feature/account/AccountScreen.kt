@@ -58,6 +58,7 @@ data class AccountUiState(
     val campus: String = user.campus,
     val campusId: String = user.campusId,
     val campusOptions: List<CatalogItem> = emptyList(),
+    val phone: String = user.phone.orEmpty(),
     val email: String = user.email,
     val currentEmailPassword: String = "",
     val currentPassword: String = "",
@@ -70,7 +71,23 @@ data class AccountUiState(
     val showDeleteConfirmation: Boolean = false,
     val legalDocument: LegalDocument? = null,
     val message: String? = null,
-)
+) {
+    /** Indica si el teléfono escrito puede guardarse en el perfil. */
+    val phoneError: String?
+        get() = phone.trim()
+            .takeIf(String::isNotEmpty)
+            ?.takeUnless(PhonePattern::matches)
+            ?.let { "Ingresa un teléfono válido." }
+
+    /** Evita guardar datos incompletos o un teléfono con formato inválido. */
+    val isProfileValid: Boolean
+        get() = fullName.trim().isNotEmpty() &&
+            universityId.isNotBlank() &&
+            campusId.isNotBlank() &&
+            phoneError == null
+}
+
+private val PhonePattern = Regex("^\\+?[0-9 -]{7,24}$")
 
 /** Indica el documento que se quiere consultar. */
 enum class LegalDocument(
@@ -99,6 +116,7 @@ sealed interface AccountAction {
     data class FullNameChanged(val value: String) : AccountAction
     data class UniversityChanged(val value: String) : AccountAction
     data class CampusChanged(val value: String) : AccountAction
+    data class PhoneChanged(val value: String) : AccountAction
     data class EmailChanged(val value: String) : AccountAction
     data class CurrentEmailPasswordChanged(val value: String) : AccountAction
     data class CurrentPasswordChanged(val value: String) : AccountAction
@@ -213,11 +231,21 @@ fun AccountScreen(
                     enabled = state.campusOptions.isNotEmpty(),
                     supportingText = if (state.campusOptions.isEmpty()) "Cargando campus disponibles..." else null,
                 )
+                RutaUTextField(
+                    value = state.phone,
+                    onValueChange = { onAction(AccountAction.PhoneChanged(it)) },
+                    label = "Teléfono (opcional)",
+                    placeholder = "+502 5555 5555",
+                    supportingText = state.phoneError ?: "Se compartirá solo después de aceptar una coordinación.",
+                    isError = state.phoneError != null,
+                    modifier = Modifier.fillMaxWidth().testTag("AccountPhoneInput"),
+                )
                 RutaULoadingButton(
                     text = "Guardar datos personales",
                     onClick = { onAction(AccountAction.SaveProfile) },
                     isLoading = state.isSaving,
                     modifier = Modifier.fillMaxWidth().testTag("AccountSaveProfileButton"),
+                    enabled = state.isProfileValid,
                 )
             }
 

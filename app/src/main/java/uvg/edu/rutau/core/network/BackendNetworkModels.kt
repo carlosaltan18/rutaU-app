@@ -193,6 +193,8 @@ data class LiveLocationDto(
 /** Describe el punto de encuentro acordado dentro de una coordinación. */
 data class MeetingPointDto(
     @SerializedName("value") val value: String,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null,
     @SerializedName("confirmedByCurrentUser") val confirmedByCurrentUser: Boolean,
     @SerializedName("confirmedByOtherParticipant") val confirmedByOtherParticipant: Boolean,
 )
@@ -219,6 +221,7 @@ data class BackendCoordinationDto(
     @SerializedName("currency") val currency: String,
     @SerializedName("driver") val driver: PublicProfileDto,
     @SerializedName("passenger") val passenger: PublicProfileDto,
+    @SerializedName("contact") val contact: AuthorizedContactDto? = null,
     @SerializedName("meetingPoint") val meetingPoint: MeetingPointDto? = null,
     @SerializedName("capacity") val capacity: CoordinationCapacityDto? = null,
     @SerializedName("liveLocation") val liveLocation: LiveLocationDto,
@@ -227,6 +230,13 @@ data class BackendCoordinationDto(
 /** Guarda el texto del punto de encuentro que proponen los participantes. */
 data class UpdateMeetingPointRequestDto(
     @SerializedName("meetingPoint") val meetingPoint: String,
+    @SerializedName("latitude") val latitude: Double,
+    @SerializedName("longitude") val longitude: Double,
+)
+
+/** Describe el teléfono habilitado para la otra persona de una coordinación. */
+data class AuthorizedContactDto(
+    @SerializedName("phone") val phone: String? = null,
 )
 
 /** Guarda el token de FCM que se asocia con el dispositivo actual. */

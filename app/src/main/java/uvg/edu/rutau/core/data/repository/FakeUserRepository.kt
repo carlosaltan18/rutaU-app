@@ -22,6 +22,7 @@ class FakeUserRepository(
             university = input.university.trim(),
             campus = input.campus.trim(),
             photoUrl = input.photoUrl,
+            phone = input.phone?.trim()?.takeIf(String::isNotEmpty),
         )
     }
 

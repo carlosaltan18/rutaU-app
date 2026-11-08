@@ -42,6 +42,7 @@ class FirebaseUserRepository(
                 photoUrl = input.photoUrl,
                 universityId = input.universityId,
                 campusId = input.campusId,
+                phone = input.phone,
             ),
         ).requireData()
         firebaseAuth.currentUser?.updateProfile(

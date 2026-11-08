@@ -15,6 +15,8 @@ import uvg.edu.rutau.app.RutaUAppDependencies
 import uvg.edu.rutau.core.navigation.CoordinatedRideRoute as CoordinatedRideDestination
 import uvg.edu.rutau.core.navigation.CoordinationDetailRoute as CoordinationDetailDestination
 import uvg.edu.rutau.core.navigation.MatchesRoute as MatchesDestination
+import uvg.edu.rutau.core.navigation.LiveTripMapRoute as LiveTripMapDestination
+import uvg.edu.rutau.core.navigation.MeetingPointMapRoute as MeetingPointMapDestination
 import uvg.edu.rutau.core.navigation.RequestDetailRoute as RequestDetailDestination
 import uvg.edu.rutau.core.navigation.RequestsRoute as RequestsDestination
 
@@ -54,6 +56,8 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
         val route = entry.toRoute<CoordinatedRideDestination>()
         CoordinatedRideRoute(
             onBack = { navController.popBackStack() },
+            onOpenLiveMap = { navController.navigate(LiveTripMapDestination(route.requestId)) },
+            onOpenMeetingPointMap = { navController.navigate(MeetingPointMapDestination(route.requestId)) },
             viewModel = viewModel(
                 key = "coordinated-ride-${route.requestId}",
                 factory = CoordinatedRideViewModel.factory(
@@ -62,6 +66,35 @@ fun NavGraphBuilder.requestGraph(navController: NavHostController) {
                     RutaUAppDependencies.userRepository,
                     RutaUAppDependencies.rideRequestRepository,
                     RutaUAppDependencies.liveTripLocationRepository,
+                ),
+            ),
+        )
+    }
+    composable<LiveTripMapDestination> { entry ->
+        val route = entry.toRoute<LiveTripMapDestination>()
+        LiveTripMapRoute(
+            onBack = { navController.popBackStack() },
+            viewModel = viewModel(
+                key = "live-trip-map-${route.requestId}",
+                factory = CoordinatedRideViewModel.factory(
+                    route.requestId,
+                    RutaUAppDependencies.coordinationRepository,
+                    RutaUAppDependencies.userRepository,
+                    RutaUAppDependencies.rideRequestRepository,
+                    RutaUAppDependencies.liveTripLocationRepository,
+                ),
+            ),
+        )
+    }
+    composable<MeetingPointMapDestination> { entry ->
+        val route = entry.toRoute<MeetingPointMapDestination>()
+        MeetingPointMapRoute(
+            onBack = { navController.popBackStack() },
+            viewModel = viewModel(
+                key = "meeting-point-map-${route.requestId}",
+                factory = MeetingPointMapViewModel.factory(
+                    route.requestId,
+                    RutaUAppDependencies.coordinationRepository,
                 ),
             ),
         )

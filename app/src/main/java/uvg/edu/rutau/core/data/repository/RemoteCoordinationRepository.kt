@@ -7,6 +7,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.network.BackendApi
 import uvg.edu.rutau.core.network.BackendApiException
@@ -59,10 +60,17 @@ class RemoteCoordinationRepository(
     override suspend fun cancelParticipation(coordinationId: String): Coordination =
         backendApi.cancelCoordination(coordinationId).requireData().toCoordination()
 
-    override suspend fun updateMeetingPoint(coordinationId: String, meetingPoint: String): Coordination =
+    override suspend fun updateMeetingPoint(
+        coordinationId: String,
+        meetingPoint: MeetingPointInput,
+    ): Coordination =
         backendApi.updateMeetingPoint(
             coordinationId,
-            UpdateMeetingPointRequestDto(meetingPoint.trim()),
+            UpdateMeetingPointRequestDto(
+                meetingPoint = meetingPoint.label.trim(),
+                latitude = meetingPoint.latitude,
+                longitude = meetingPoint.longitude,
+            ),
         ).requireData().toCoordination()
 
     override suspend fun confirmMeetingPoint(coordinationId: String): Coordination =

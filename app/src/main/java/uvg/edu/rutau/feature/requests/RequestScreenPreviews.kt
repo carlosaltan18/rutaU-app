@@ -72,8 +72,31 @@ private fun CoordinatedRideScreenPreview() {
             onCancelParticipation = {},
             onStartLiveLocation = {},
             onEndLiveLocation = {},
-            onUpdateMeetingPoint = {},
+            onOpenLiveMap = {},
+            onOpenMeetingPointMap = {},
             onConfirmMeetingPoint = {},
+        )
+    }
+}
+
+/** Muestra el mapa de punto de encuentro sin depender de datos del servidor. */
+@Preview(showBackground = true)
+@Composable
+private fun MeetingPointMapScreenPreview() {
+    RutaUTheme {
+        MeetingPointMapScreen(
+            state = MeetingPointMapUiState(
+                coordination = Coordination(
+                    id = "coord-preview",
+                    requestId = "request-preview",
+                    driverTripId = "trip-mateo",
+                    passengerTripId = "trip-carlos",
+                    rideDate = LocalDate.of(2026, 9, 22),
+                    contributionCents = 1000,
+                ),
+            ),
+            onBack = {},
+            onSave = { _, _ -> },
         )
     }
 }

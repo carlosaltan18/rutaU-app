@@ -23,6 +23,7 @@ import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.LiveLocationStatus
+import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationRepository
 import uvg.edu.rutau.core.model.RequestStatus
@@ -217,6 +218,71 @@ class CoordinationRedirectViewModel(
     }
 }
 
+/** Guarda el estado de la pantalla donde se elige un punto sobre el mapa. */
+data class MeetingPointMapUiState(
+    val coordination: Coordination? = null,
+    val isSaving: Boolean = false,
+    val error: String? = null,
+)
+
+/** Guarda un punto del mapa sin permitir que la pantalla use el repositorio directamente. */
+class MeetingPointMapViewModel(
+    requestId: String,
+    private val coordinationRepository: CoordinationRepository,
+) : ViewModel() {
+    private val saving = MutableStateFlow(false)
+    private val error = MutableStateFlow<String?>(null)
+
+    val uiState: StateFlow<MeetingPointMapUiState> = combine(
+        coordinationRepository.observeCoordination(requestId),
+        saving,
+        error,
+    ) { coordination, isSaving, message ->
+        MeetingPointMapUiState(coordination, isSaving, message)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        MeetingPointMapUiState(),
+    )
+
+    /** Envía las coordenadas seleccionadas y vuelve al detalle al terminar. */
+    fun save(latitude: Double, longitude: Double, onSaved: () -> Unit) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) {
+            error.value = "El punto seleccionado no es válido. Inténtalo nuevamente."
+            return
+        }
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                coordinationRepository.updateMeetingPoint(
+                    coordinationId,
+                    MeetingPointInput(
+                        label = "Punto seleccionado en el mapa",
+                        latitude = latitude,
+                        longitude = longitude,
+                    ),
+                )
+                onSaved()
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible guardar el punto de encuentro."
+            }
+            saving.value = false
+        }
+    }
+
+    companion object {
+        /** Crea el modelo de la pantalla de punto de encuentro. */
+        fun factory(
+            requestId: String,
+            coordinationRepository: CoordinationRepository,
+        ): ViewModelProvider.Factory = requestViewModelFactory {
+            MeetingPointMapViewModel(requestId, coordinationRepository)
+        }
+    }
+}
+
 /** Guarda la información que muestra el detalle de una solicitud. */
 data class RequestDetailUiState(
     val detail: RideRequestDetails? = null,
@@ -371,28 +437,6 @@ class CoordinatedRideViewModel(
         val coordinationId = uiState.value.coordination?.id ?: return
         cancel(onCancelled) {
             coordinationRepository.cancelParticipation(coordinationId)
-        }
-    }
-
-    /** Guarda una nueva propuesta para reunirse antes del viaje. */
-    fun updateMeetingPoint(meetingPoint: String) {
-        val coordinationId = uiState.value.coordination?.id ?: return
-        if (meetingPoint.trim().length < 3) {
-            error.value = "Escribe un punto de encuentro de al menos 3 caracteres."
-            return
-        }
-        viewModelScope.launch {
-            saving.value = true
-            error.value = null
-            try {
-                liveCoordination.value = coordinationRepository.updateMeetingPoint(
-                    coordinationId,
-                    meetingPoint,
-                )
-            } catch (throwable: Throwable) {
-                error.value = throwable.message ?: "No fue posible guardar el punto de encuentro."
-            }
-            saving.value = false
         }
     }
 

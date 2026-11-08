@@ -82,6 +82,7 @@ data class UpdateProfileInput(
     val photoUrl: String?,
     val universityId: String = university,
     val campusId: String = campus,
+    val phone: String? = null,
 )
 
 /** Reúne los datos necesarios para cambiar el correo. */
@@ -164,8 +165,11 @@ data class Coordination(
     val contributionCents: Long,
     val status: CoordinationStatus = CoordinationStatus.CONFIRMED,
     val meetingPoint: String? = null,
+    val meetingLatitude: Double? = null,
+    val meetingLongitude: Double? = null,
     val meetingPointConfirmedByCurrentUser: Boolean = false,
     val meetingPointConfirmedByOtherParticipant: Boolean = false,
+    val counterpartPhone: String? = null,
     val seatCapacity: Int = 0,
     val confirmedPassengerCount: Int = 0,
     val availableSeatCount: Int = 0,
@@ -173,6 +177,13 @@ data class Coordination(
     val liveLocationStatus: LiveLocationStatus = LiveLocationStatus.NOT_STARTED,
     val canStartLiveLocation: Boolean = false,
     val canEndLiveLocation: Boolean = false,
+)
+
+/** Guarda el punto elegido en el mapa antes de proponerlo a la otra persona. */
+data class MeetingPointInput(
+    val label: String,
+    val latitude: Double,
+    val longitude: Double,
 )
 
 /** Une una solicitud con los trayectos y personas que participan. */
