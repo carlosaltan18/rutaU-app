@@ -40,7 +40,6 @@ import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaULiveMap
 import uvg.edu.rutau.core.designsystem.component.RutaUMeetingPointMap
-import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
@@ -641,7 +640,6 @@ fun LiveTripMapScreen(
             val canEndJourney = coordination.status == CoordinationStatus.CONFIRMED &&
                 currentUserIsDriver &&
                 coordination.liveLocationStatus == LiveLocationStatus.ACTIVE
-            var centerRequest by remember { mutableLongStateOf(0L) }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -658,22 +656,21 @@ fun LiveTripMapScreen(
                 )
                 Text("Ubicación en vivo", style = MaterialTheme.typography.titleMedium)
                 Text(
-                    text = if (currentUserIsDriver) "Marcador: Tú" else "Marcador: Conductor",
+                    text = if (coordination.meetingLatitude != null && coordination.meetingLongitude != null) {
+                        "Marcadores: ${if (currentUserIsDriver) "tú" else "conductor"} y punto de encuentro"
+                    } else {
+                        "Marcador: ${if (currentUserIsDriver) "Tú" else "Conductor"}"
+                    },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 RutaULiveMap(
                     liveLocation = state.liveLocation,
                     currentUserIsDriver = currentUserIsDriver,
-                    centerRequest = centerRequest,
+                    meetingLatitude = coordination.meetingLatitude,
+                    meetingLongitude = coordination.meetingLongitude,
                     modifier = Modifier.fillMaxWidth(),
                     mapHeight = 340.dp,
-                )
-                RutaUOutlinedButton(
-                    text = "Centrar ubicación",
-                    onClick = { centerRequest += 1L },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = state.liveLocation != null,
                 )
                 Text(
                     text = "© OpenStreetMap contributors",
