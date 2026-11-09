@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -34,7 +33,7 @@ fun RutaULiveMap(
     meetingLongitude: Double?,
     centerRequest: Long = 0L,
     modifier: Modifier = Modifier,
-    mapHeight: Dp = 260.dp,
+    mapHeight: Dp = Dp.Unspecified,
 ) {
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var hasCenteredOnLocation by remember { mutableStateOf(false) }
@@ -81,6 +80,11 @@ fun RutaULiveMap(
         }
     }
 
+    val mapModifier = modifier
+        .fillMaxWidth()
+        .let { currentModifier ->
+            if (mapHeight == Dp.Unspecified) currentModifier else currentModifier.height(mapHeight)
+        }
     AndroidView(
         factory = { context ->
             MapView(context).apply {
@@ -104,9 +108,7 @@ fun RutaULiveMap(
                 meetingLongitude = meetingLongitude,
             )
         },
-        modifier = modifier
-            .fillMaxWidth()
-            .height(mapHeight),
+        modifier = mapModifier,
     )
 }
 

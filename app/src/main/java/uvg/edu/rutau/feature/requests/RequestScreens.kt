@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.content.ActivityNotFoundException
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -643,7 +645,8 @@ fun LiveTripMapScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .clipToBounds(),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 LiveLocationStatusCard(
@@ -668,8 +671,9 @@ fun LiveTripMapScreen(
                     meetingLatitude = coordination.meetingLatitude,
                     meetingLongitude = coordination.meetingLongitude,
                     centerRequest = centerRequest,
-                    modifier = Modifier.fillMaxWidth(),
-                    mapHeight = if (canEndJourney) 280.dp else 340.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                 )
                 RutaUSecondaryButton(
                     text = "Centrar ubicación",
