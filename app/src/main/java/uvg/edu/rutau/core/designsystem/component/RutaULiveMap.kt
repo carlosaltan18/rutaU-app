@@ -45,7 +45,7 @@ fun RutaULiveMap(
     val lifecycleOwner = LocalLifecycleOwner.current
     val markerTitle = if (currentUserIsDriver) "Tú" else "Conductor"
 
-    DisposableEffect(lifecycleOwner, mapView) {
+    DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> mapView?.onResume()
