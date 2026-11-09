@@ -3,15 +3,8 @@ package uvg.edu.rutau.core.designsystem.component
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,9 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -41,6 +32,7 @@ fun RutaULiveMap(
     currentUserIsDriver: Boolean,
     meetingLatitude: Double?,
     meetingLongitude: Double?,
+    centerRequest: Long = 0L,
     modifier: Modifier = Modifier,
     mapHeight: Dp = 260.dp,
 ) {
@@ -83,53 +75,39 @@ fun RutaULiveMap(
         }
     }
 
-    Box(
+    LaunchedEffect(centerRequest) {
+        if (centerRequest > 0L) {
+            mapView?.centerOnTravelPoints(liveLocation, meetingLatitude, meetingLongitude)
+        }
+    }
+
+    AndroidView(
+        factory = { context ->
+            MapView(context).apply {
+                val initialLocation = liveLocation
+                setTileSource(TileSourceFactory.MAPNIK)
+                overlayManager.tilesOverlay.setLoadingBackgroundColor(Color.TRANSPARENT)
+                overlayManager.tilesOverlay.setLoadingLineColor(Color.TRANSPARENT)
+                setMultiTouchControls(true)
+                controller.setZoom(if (initialLocation == null) DefaultZoom else LiveLocationZoom)
+                controller.setCenter(
+                    initialLocation?.let { GeoPoint(it.latitude, it.longitude) } ?: DefaultCenter,
+                )
+                mapView = this
+            }
+        },
+        update = { view ->
+            view.updateTravelMarkers(
+                liveLocation = liveLocation,
+                liveLocationTitle = markerTitle,
+                meetingLatitude = meetingLatitude,
+                meetingLongitude = meetingLongitude,
+            )
+        },
         modifier = modifier
             .fillMaxWidth()
             .height(mapHeight),
-    ) {
-        AndroidView(
-            factory = { context ->
-                MapView(context).apply {
-                    val initialLocation = liveLocation
-                    setTileSource(TileSourceFactory.MAPNIK)
-                    overlayManager.tilesOverlay.setLoadingBackgroundColor(Color.TRANSPARENT)
-                    overlayManager.tilesOverlay.setLoadingLineColor(Color.TRANSPARENT)
-                    setMultiTouchControls(true)
-                    controller.setZoom(if (initialLocation == null) DefaultZoom else LiveLocationZoom)
-                    controller.setCenter(
-                        initialLocation?.let { GeoPoint(it.latitude, it.longitude) } ?: DefaultCenter,
-                    )
-                    mapView = this
-                }
-            },
-            update = { view ->
-                view.updateTravelMarkers(
-                    liveLocation = liveLocation,
-                    liveLocationTitle = markerTitle,
-                    meetingLatitude = meetingLatitude,
-                    meetingLongitude = meetingLongitude,
-                )
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
-        Button(
-            onClick = {
-                mapView?.centerOnTravelPoints(liveLocation, meetingLatitude, meetingLongitude)
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(12.dp)
-                .zIndex(1f),
-            enabled = liveLocation != null || (meetingLatitude != null && meetingLongitude != null),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-        ) {
-            Text("Centrar ubicación")
-        }
-    }
+    )
 }
 
 /** Centra el mapa en el conductor y el punto de encuentro disponible. */

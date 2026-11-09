@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.content.ActivityNotFoundException
@@ -640,12 +638,12 @@ fun LiveTripMapScreen(
             val canEndJourney = coordination.status == CoordinationStatus.CONFIRMED &&
                 currentUserIsDriver &&
                 coordination.liveLocationStatus == LiveLocationStatus.ACTIVE
+            var centerRequest by remember { mutableLongStateOf(0L) }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
+                    .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 LiveLocationStatusCard(
@@ -669,8 +667,16 @@ fun LiveTripMapScreen(
                     currentUserIsDriver = currentUserIsDriver,
                     meetingLatitude = coordination.meetingLatitude,
                     meetingLongitude = coordination.meetingLongitude,
+                    centerRequest = centerRequest,
                     modifier = Modifier.fillMaxWidth(),
-                    mapHeight = 340.dp,
+                    mapHeight = if (canEndJourney) 280.dp else 340.dp,
+                )
+                RutaUSecondaryButton(
+                    text = "Centrar ubicación",
+                    onClick = { centerRequest += 1L },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = state.liveLocation != null ||
+                        (coordination.meetingLatitude != null && coordination.meetingLongitude != null),
                 )
                 Text(
                     text = "© OpenStreetMap contributors",
