@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import android.content.ActivityNotFoundException
@@ -366,6 +365,9 @@ fun CoordinatedRideRoute(
         onOpenLiveMap = onOpenLiveMap,
         onOpenMeetingPointMap = onOpenMeetingPointMap,
         onConfirmMeetingPoint = viewModel::confirmMeetingPoint,
+        onNavigateToMeetingPoint = { latitude, longitude ->
+            context.openMeetingPointNavigation(latitude, longitude)
+        },
     )
 }
 
@@ -381,6 +383,7 @@ fun CoordinatedRideScreen(
     onOpenLiveMap: () -> Unit,
     onOpenMeetingPointMap: () -> Unit,
     onConfirmMeetingPoint: () -> Unit,
+    onNavigateToMeetingPoint: (latitude: Double, longitude: Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
@@ -495,6 +498,7 @@ fun CoordinatedRideScreen(
                         isSaving = state.isSaving,
                         onSelectOnMap = onOpenMeetingPointMap,
                         onConfirm = onConfirmMeetingPoint,
+                        onNavigateToPoint = onNavigateToMeetingPoint,
                     )
                 }
                 item {
@@ -590,7 +594,33 @@ private fun Context.openWhatsApp(phone: String) {
     }
 }
 
+/** Abre una aplicación de navegación hacia el punto acordado por los participantes. */
+private fun Context.openMeetingPointNavigation(latitude: Double, longitude: Double) {
+    val destination = "$latitude,$longitude"
+    val navigationIntents = listOf(
+        Intent(Intent.ACTION_VIEW, "google.navigation:q=$destination".toUri())
+            .setPackage(GoogleMapsPackage),
+        Intent(Intent.ACTION_VIEW, "https://waze.com/ul?ll=$destination&navigate=yes".toUri())
+            .setPackage(WazePackage),
+        Intent(
+            Intent.ACTION_VIEW,
+            "https://www.google.com/maps/dir/?api=1&destination=$destination".toUri(),
+        ),
+    )
+    for (intent in navigationIntents) {
+        try {
+            startActivity(intent)
+            return
+        } catch (_: ActivityNotFoundException) {
+            // Continúa con la siguiente alternativa disponible.
+        }
+    }
+    Toast.makeText(this, "No se encontró una aplicación para abrir la ruta.", Toast.LENGTH_LONG).show()
+}
+
 private val WhatsAppPackages = listOf("com.whatsapp", "com.whatsapp.w4b")
+private const val GoogleMapsPackage = "com.google.android.apps.maps"
+private const val WazePackage = "com.waze"
 private const val GuatemalaCountryCode = "502"
 private const val GuatemalaLocalPhoneLength = 8
 

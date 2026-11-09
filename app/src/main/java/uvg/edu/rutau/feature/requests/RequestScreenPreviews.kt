@@ -75,6 +75,7 @@ private fun CoordinatedRideScreenPreview() {
             onOpenLiveMap = {},
             onOpenMeetingPointMap = {},
             onConfirmMeetingPoint = {},
+            onNavigateToMeetingPoint = { _, _ -> },
         )
     }
 }

@@ -30,6 +30,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUAvatar
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
+import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
 import uvg.edu.rutau.core.model.RequestStatus
@@ -280,6 +281,7 @@ fun MeetingPointCard(
     isSaving: Boolean,
     onSelectOnMap: () -> Unit,
     onConfirm: () -> Unit,
+    onNavigateToPoint: (latitude: Double, longitude: Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hasSelectedPoint = !meetingPoint.isNullOrBlank() &&
@@ -316,6 +318,17 @@ fun MeetingPointCard(
                     ),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
+                )
+                RutaUSecondaryButton(
+                    text = "Cómo llegar al punto",
+                    onClick = {
+                        onNavigateToPoint(
+                            meetingLatitude ?: return@RutaUSecondaryButton,
+                            meetingLongitude ?: return@RutaUSecondaryButton,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
                 )
                 Text(
                     if (isConfirmedByCurrentUser) {
