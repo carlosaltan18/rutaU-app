@@ -32,6 +32,8 @@ import uvg.edu.rutau.core.data.repository.driverAndPassengerTripIds
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.LiveLocationStatus
+import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.FavoriteTrip
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Student
@@ -74,6 +76,7 @@ data class CoordinatedTripSummary(
     val passengers: List<Student>,
     val rideDate: LocalDate,
     val status: CoordinationStatus,
+    val liveLocationStatus: LiveLocationStatus,
 )
 
 /** Maneja la lista de trayectos de la persona actual. */
@@ -81,6 +84,7 @@ data class CoordinatedTripSummary(
 class TripsViewModel(
     private val repository: TripRepository,
     rideRequestRepository: RideRequestRepository,
+    coordinationRepository: CoordinationRepository,
     private val favoriteTripRepository: FavoriteTripRepository,
 ) : ViewModel() {
     private val error = MutableStateFlow<String?>(null)
@@ -98,26 +102,33 @@ class TripsViewModel(
             }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), TripsLoadResult.Loading)
 
+    private val coordinatedTrips = combine(
+        rideRequestRepository.observeRequestDetails(),
+        coordinationRepository.observeCoordinations(),
+    ) { requests, coordinations ->
+        requests.toCoordinatedTripSummaries(coordinations)
+    }
+
     val uiState: StateFlow<TripsUiState> = combine(
         tripsLoad,
-        rideRequestRepository.observeRequestDetails(),
+        coordinatedTrips,
         favoriteTripRepository.observeFavorites(),
         error,
-    ) { loadResult, requests, favorites, actionError ->
+    ) { loadResult, summaries, favorites, actionError ->
         val trips = (loadResult as? TripsLoadResult.Content)?.trips.orEmpty()
         val loadError = (loadResult as? TripsLoadResult.Error)?.message
         val contentState = when (loadResult) {
             TripsLoadResult.Loading -> TripListContentState.LOADING
             is TripsLoadResult.Error -> TripListContentState.ERROR
-            is TripsLoadResult.Content -> if (trips.isEmpty() && requests.isEmpty()) {
+            is TripsLoadResult.Content -> if (trips.isEmpty() && summaries.isEmpty()) {
                 TripListContentState.EMPTY
             } else {
                 TripListContentState.CONTENT
             }
         }
         TripsUiState(
-            trips = trips.map { trip -> trip.withOccupiedSeats(requests) },
-            coordinatedTrips = requests.toCoordinatedTripSummaries(),
+            trips = trips.map { trip -> trip.withOccupiedSeats(summaries) },
+            coordinatedTrips = summaries,
             favorites = favorites,
             error = loadError ?: actionError,
             contentState = contentState,
@@ -151,8 +162,16 @@ class TripsViewModel(
         fun factory(
             repository: TripRepository,
             rideRequestRepository: RideRequestRepository,
+            coordinationRepository: CoordinationRepository,
             favoriteTripRepository: FavoriteTripRepository,
-        ) = viewModelFactory { TripsViewModel(repository, rideRequestRepository, favoriteTripRepository) }
+        ) = viewModelFactory {
+            TripsViewModel(
+                repository,
+                rideRequestRepository,
+                coordinationRepository,
+                favoriteTripRepository,
+            )
+        }
     }
 }
 
@@ -519,29 +538,35 @@ class ConfirmCoordinationViewModel(
 }
 
 /** Calcula las plazas ya confirmadas para la próxima salida del conductor. */
-private fun Trip.withOccupiedSeats(requests: List<uvg.edu.rutau.core.model.RideRequestDetails>): Trip {
+private fun Trip.withOccupiedSeats(requests: List<CoordinatedTripSummary>): Trip {
     if (role != TripRole.DRIVER) return copy(occupiedSeats = 0)
     val nextDate = nextTravelDate(dayOfWeek)
-    val occupied = requests.count { detail ->
-        val (driverTripId, _) = detail.request.driverAndPassengerTripIds()
-        driverTripId == id &&
-            detail.request.rideDate.toString() == nextDate &&
-            detail.request.status == RequestStatus.ACCEPTED &&
-            detail.coordinationStatus == uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED
+    val occupied = requests.sumOf { detail ->
+        if (
+            detail.driverTrip.id == id &&
+            detail.rideDate.toString() == nextDate &&
+            detail.status == CoordinationStatus.CONFIRMED
+        ) {
+            detail.passengers.size
+        } else {
+            0
+        }
     }
     return copy(occupiedSeats = occupied.coerceAtMost(offeredSeats))
 }
 
 /** Agrupa a los pasajeros de un mismo viaje para no repetirlo en la lista. */
-private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<CoordinatedTripSummary> =
-    mapNotNull { detail ->
-        if (detail.request.status != RequestStatus.ACCEPTED) return@mapNotNull null
-        val status = detail.coordinationStatus ?: return@mapNotNull null
-        detail to status
+private fun List<RideRequestDetails>.toCoordinatedTripSummaries(
+    coordinations: List<Coordination>,
+): List<CoordinatedTripSummary> {
+    val coordinationByRequestId = coordinations.associateBy(Coordination::requestId)
+    return mapNotNull { detail ->
+        val coordination = coordinationByRequestId[detail.request.id] ?: return@mapNotNull null
+        detail to coordination
     }
         .groupBy { detail ->
             val (driverTripId, _) = detail.first.request.driverAndPassengerTripIds()
-            Triple(driverTripId, detail.first.request.rideDate, detail.second)
+            Triple(driverTripId, detail.first.request.rideDate, detail.second.status)
         }
         .mapNotNull { (_, details) ->
             val first = details.firstOrNull()?.first ?: return@mapNotNull null
@@ -557,7 +582,8 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<Coordina
                 driver = driver,
                 passengers = passengers,
                 rideDate = first.request.rideDate,
-                status = details.first().second,
+                status = details.first().second.status,
+                liveLocationStatus = details.first().second.liveLocationStatus,
             )
         }
         .sortedWith(
@@ -565,6 +591,7 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(): List<Coordina
                 if (it.status == CoordinationStatus.CONFIRMED) 0 else 1
             }.thenByDescending { it.rideDate },
         )
+}
 
 /** Decide si una solicitud de la misma fecha evita enviar otra a esa persona. */
 private fun uvg.edu.rutau.core.model.RideRequestDetails.blocksNewRequestFor(

@@ -39,6 +39,14 @@ enum class CoordinationStatus {
     COMPLETED,
 }
 
+/** Explica en términos sencillos por qué una persona canceló el viaje. */
+enum class CancellationReason {
+    NO_LONGER_NEEDED,
+    SCHEDULE_CHANGE,
+    EMERGENCY,
+    OTHER,
+}
+
 /** Información pública mínima de una persona mostrada dentro de la aplicación. */
 data class Student(
     val id: String,
@@ -177,6 +185,11 @@ data class Coordination(
     val liveLocationStatus: LiveLocationStatus = LiveLocationStatus.NOT_STARTED,
     val canStartLiveLocation: Boolean = false,
     val canEndLiveLocation: Boolean = false,
+    val cancellationReason: CancellationReason? = null,
+    val arrivedByCurrentUser: Boolean = false,
+    val arrivedByOtherParticipant: Boolean = false,
+    val contributionConfirmedByCurrentUser: Boolean = false,
+    val contributionConfirmedByOtherParticipant: Boolean = false,
 )
 
 /** Guarda el punto elegido en el mapa antes de proponerlo a la otra persona. */

@@ -151,7 +151,7 @@ fun CoordinatedTripCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CoordinatedTripStatus(detail.status)
+                CoordinatedTripStatus(detail.status, detail.liveLocationStatus)
                 Text(detail.rideDate.format(coordinatedTripDateFormatter), style = MaterialTheme.typography.labelMedium)
             }
             Text(
@@ -205,9 +205,18 @@ fun FavoriteTripCard(
 
 /** Muestra un texto claro para saber si un viaje sigue activo o ya terminó. */
 @Composable
-private fun CoordinatedTripStatus(status: CoordinationStatus) {
+private fun CoordinatedTripStatus(
+    status: CoordinationStatus,
+    liveLocationStatus: uvg.edu.rutau.core.model.LiveLocationStatus,
+) {
     val (text, type) = when (status) {
-        CoordinationStatus.CONFIRMED -> "Viaje confirmado" to RutaUStatusType.SUCCESS
+        CoordinationStatus.CONFIRMED -> if (
+            liveLocationStatus == uvg.edu.rutau.core.model.LiveLocationStatus.ACTIVE
+        ) {
+            "En curso" to RutaUStatusType.SUCCESS
+        } else {
+            "Próximo" to RutaUStatusType.SUCCESS
+        }
         CoordinationStatus.CANCELLED -> "Viaje cancelado" to RutaUStatusType.NEUTRAL
         CoordinationStatus.COMPLETED -> "Viaje finalizado" to RutaUStatusType.SUCCESS
     }

@@ -68,14 +68,17 @@ private fun CoordinatedRideScreenPreview() {
                 currentUserId = "user-mateo",
             ),
             onBack = {},
-            onCancelRide = {},
-            onCancelParticipation = {},
+            onCancelRide = { _ -> },
+            onCancelParticipation = { _ -> },
             onStartLiveLocation = {},
             onEndLiveLocation = {},
             onOpenLiveMap = {},
             onOpenMeetingPointMap = {},
             onConfirmMeetingPoint = {},
             onNavigateToMeetingPoint = { _, _ -> },
+            onShareTrip = { _, _, _ -> },
+            onMarkArrival = {},
+            onConfirmContribution = {},
         )
     }
 }

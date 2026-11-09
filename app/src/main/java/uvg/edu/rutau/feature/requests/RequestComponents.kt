@@ -13,10 +13,13 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +38,8 @@ import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
+import uvg.edu.rutau.core.model.CancellationReason
+import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripRole
@@ -172,6 +177,131 @@ fun CoordinationStatusChip(status: CoordinationStatus, modifier: Modifier = Modi
         CoordinationStatus.COMPLETED -> "Viaje finalizado" to RutaUStatusType.SUCCESS
     }
     RutaUStatusChip(label, type, modifier)
+}
+
+/** Muestra una confirmación simple para indicar el motivo al cancelar un viaje. */
+@Composable
+fun CancellationReasonDialog(
+    title: String,
+    selectedReason: CancellationReason,
+    onReasonSelected: (CancellationReason) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Indica un motivo para avisar a la otra persona.")
+                CancellationReason.entries.forEach { reason ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onReasonSelected(reason) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selectedReason == reason,
+                            onClick = { onReasonSelected(reason) },
+                        )
+                        Text(reason.asUiText())
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Cancelar viaje") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Volver") }
+        },
+    )
+}
+
+/** Muestra una llegada compartida sin divulgar una ubicación exacta. */
+@Composable
+fun ArrivalStatusCard(
+    coordination: Coordination,
+    isSaving: Boolean,
+    onMarkArrival: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val message = when {
+        coordination.arrivedByCurrentUser && coordination.arrivedByOtherParticipant ->
+            "Ambas personas ya indicaron que llegaron al punto de encuentro."
+        coordination.arrivedByCurrentUser ->
+            "Ya avisaste que llegaste. Esperando a la otra persona."
+        coordination.arrivedByOtherParticipant ->
+            "Tu acompañante ya llegó al punto de encuentro."
+        else -> "Marca tu llegada para avisar a la otra persona."
+    }
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Llegada al punto", style = MaterialTheme.typography.titleSmall)
+            Text(message, style = MaterialTheme.typography.bodySmall)
+            if (!coordination.arrivedByCurrentUser) {
+                RutaUPrimaryButton(
+                    text = "Ya llegué al punto",
+                    onClick = onMarkArrival,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
+            }
+        }
+    }
+}
+
+/** Muestra la confirmación del aporte acordado después de terminar el viaje. */
+@Composable
+fun ContributionConfirmationCard(
+    coordination: Coordination,
+    isSaving: Boolean,
+    onConfirmContribution: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Aporte simulado", style = MaterialTheme.typography.titleSmall)
+            Text("Aporte acordado: ${coordination.contributionCents.asQuetzales()}")
+            Text(
+                when {
+                    coordination.contributionConfirmedByCurrentUser &&
+                        coordination.contributionConfirmedByOtherParticipant ->
+                        "Ambas personas marcaron el aporte como entregado."
+                    coordination.contributionConfirmedByCurrentUser ->
+                        "Marcaste el aporte como entregado. Esperando la confirmación de la otra persona."
+                    coordination.contributionConfirmedByOtherParticipant ->
+                        "La otra persona marcó el aporte como entregado."
+                    else -> "Este aporte es solo una referencia; RutaU no procesa pagos."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!coordination.contributionConfirmedByCurrentUser) {
+                RutaUPrimaryButton(
+                    text = "Marcar aporte entregado",
+                    onClick = onConfirmContribution,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
+            }
+        }
+    }
+}
+
+/** Convierte un motivo guardado en un texto corto para pantalla. */
+internal fun CancellationReason.asUiText(): String = when (this) {
+    CancellationReason.NO_LONGER_NEEDED -> "Ya no necesito el viaje"
+    CancellationReason.SCHEDULE_CHANGE -> "Cambio de horario"
+    CancellationReason.EMERGENCY -> "Emergencia"
+    CancellationReason.OTHER -> "Otro"
 }
 
 /** Muestra los datos del trayecto relacionados con una solicitud. */

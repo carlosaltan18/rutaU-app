@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.model.CoordinationStatus
 import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.RequestStatus
@@ -165,7 +166,21 @@ fun BackendCoordinationDto.toCoordination(): Coordination = Coordination(
     liveLocationStatus = liveLocation.status.toLiveLocationStatus(),
     canStartLiveLocation = liveLocation.canStart,
     canEndLiveLocation = liveLocation.canEnd,
+    cancellationReason = cancellationReason?.toCancellationReason(),
+    arrivedByCurrentUser = arrival?.arrivedByCurrentUser ?: false,
+    arrivedByOtherParticipant = arrival?.arrivedByOtherParticipant ?: false,
+    contributionConfirmedByCurrentUser = contribution?.confirmedByCurrentUser ?: false,
+    contributionConfirmedByOtherParticipant = contribution?.confirmedByOtherParticipant ?: false,
 )
+
+/** Convierte el motivo que entrega el servidor al modelo que usa la app. */
+private fun String.toCancellationReason(): CancellationReason? = when (this) {
+    "NO_LONGER_NEEDED" -> CancellationReason.NO_LONGER_NEEDED
+    "SCHEDULE_CHANGE" -> CancellationReason.SCHEDULE_CHANGE
+    "EMERGENCY" -> CancellationReason.EMERGENCY
+    "OTHER" -> CancellationReason.OTHER
+    else -> null
+}
 
 /** Convierte el estado publicado por el servidor al estado que muestra la app. */
 private fun String.toLiveLocationStatus(): LiveLocationStatus = when (this) {

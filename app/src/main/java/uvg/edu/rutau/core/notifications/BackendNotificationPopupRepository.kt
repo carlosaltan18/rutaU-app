@@ -25,7 +25,7 @@ class BackendNotificationPopupRepository(
                         notification.resourceId?.takeIf(String::isNotBlank)?.let { resourceId ->
                             PushNavigationTarget(
                                 type = pushType,
-                                destination = if (pushType == RutaUPushType.COORDINATION_CANCELLED) {
+                                destination = if (pushType.isCoordinationUpdate()) {
                                     "COORDINATION_DETAIL"
                                 } else {
                                     "RIDE_REQUEST_DETAIL"
@@ -53,4 +53,15 @@ class BackendNotificationPopupRepository(
     private companion object {
         const val PageSize = 30
     }
+}
+
+/** Indica qué avisos deben abrir el detalle del viaje coordinado. */
+private fun RutaUPushType.isCoordinationUpdate(): Boolean = when (this) {
+    RutaUPushType.COORDINATION_CANCELLED,
+    RutaUPushType.COORDINATION_ARRIVAL,
+    RutaUPushType.TRIP_REMINDER_30_MINUTES,
+    RutaUPushType.TRIP_REMINDER_10_MINUTES,
+    RutaUPushType.CONTRIBUTION_CONFIRMED,
+    -> true
+    else -> false
 }

@@ -22,6 +22,7 @@ import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.location.LiveTripLocation
@@ -430,16 +431,26 @@ class CoordinatedRideViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CoordinatedRideUiState())
 
-    fun cancelRide(onCancelled: () -> Unit) {
+    fun cancelRide(reason: CancellationReason, onCancelled: () -> Unit) {
         val coordinationId = uiState.value.coordination?.id ?: return
-        cancel(onCancelled) { coordinationRepository.cancelRide(coordinationId) }
+        cancel(onCancelled) { coordinationRepository.cancelRide(coordinationId, reason) }
     }
 
-    fun cancelParticipation(onCancelled: () -> Unit) {
+    fun cancelParticipation(reason: CancellationReason, onCancelled: () -> Unit) {
         val coordinationId = uiState.value.coordination?.id ?: return
         cancel(onCancelled) {
-            coordinationRepository.cancelParticipation(coordinationId)
+            coordinationRepository.cancelParticipation(coordinationId, reason)
         }
+    }
+
+    /** Marca que la persona actual ya llegó al punto de encuentro. */
+    fun markArrival() = updateCoordination("No fue posible marcar tu llegada al punto.") {
+        coordinationRepository.markArrival(it)
+    }
+
+    /** Marca el aporte simulado como entregado después de finalizar el viaje. */
+    fun confirmContribution() = updateCoordination("No fue posible confirmar el aporte simulado.") {
+        coordinationRepository.confirmContribution(it)
     }
 
     /** Confirma el punto de encuentro que propuso la otra persona. */
@@ -492,6 +503,24 @@ class CoordinatedRideViewModel(
                 onEnded()
             } catch (throwable: Throwable) {
                 error.value = throwable.message ?: "No fue posible finalizar el viaje."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Actualiza una acción corta de la coordinación y conserva un mensaje claro si falla. */
+    private fun updateCoordination(
+        errorMessage: String,
+        action: suspend (String) -> Coordination,
+    ) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = action(coordinationId)
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: errorMessage
             }
             saving.value = false
         }

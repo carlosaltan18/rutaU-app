@@ -95,11 +95,17 @@ class FakeRideRequestRepositoryTest {
 
         requests.accept(requestId)
         val coordination = coordinations.observeCoordination(requestId).first()!!
-        coordinations.cancelParticipation(coordination.id)
+        coordinations.cancelParticipation(
+            coordination.id,
+            uvg.edu.rutau.core.model.CancellationReason.NO_LONGER_NEEDED,
+        )
 
         assertEquals(RequestStatus.CANCELLED, requests.observeRequest(requestId).first()?.status)
         assertEquals(seatsBefore, store.trips.value.first { it.id == "trip-andrea-driver" }.availableSeats)
-        assertNull(coordinations.observeCoordination(requestId).first())
+        assertEquals(
+            uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED,
+            coordinations.observeCoordination(requestId).first()?.status,
+        )
     }
 
     @Test
@@ -107,13 +113,47 @@ class FakeRideRequestRepositoryTest {
         val store = MockRutaUStore()
         val coordinations = FakeCoordinationRepository(store)
 
-        coordinations.cancelRide("coord-mateo-sofia")
+        coordinations.cancelRide(
+            "coord-mateo-sofia",
+            uvg.edu.rutau.core.model.CancellationReason.SCHEDULE_CHANGE,
+        )
 
         val driver = store.trips.value.first { it.id == "trip-mateo-driver" }
         assertEquals(0, driver.occupiedSeats)
         assertEquals(RequestStatus.CANCELLED, store.requests.value.first { it.id == "request-accepted-sofia" }.status)
         assertEquals(RequestStatus.CANCELLED, store.requests.value.first { it.id == "request-accepted-carlos" }.status)
-        assertFalse(store.coordinations.value.any { it.driverTripId == "trip-mateo-driver" })
+        assertTrue(
+            store.coordinations.value
+                .filter { it.driverTripId == "trip-mateo-driver" }
+                .all { it.status == uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED },
+        )
+    }
+
+    @Test
+    fun `marking arrival updates the coordination for the current participant`() = runBlocking {
+        val store = MockRutaUStore()
+        val coordinations = FakeCoordinationRepository(store)
+
+        val updated = coordinations.markArrival("coord-mateo-sofia")
+
+        assertTrue(updated.arrivedByCurrentUser)
+    }
+
+    @Test
+    fun `contribution can be confirmed after a completed trip`() = runBlocking {
+        val store = MockRutaUStore()
+        val coordinations = FakeCoordinationRepository(store)
+        store.coordinations.value = store.coordinations.value.map { coordination ->
+            if (coordination.id == "coord-mateo-sofia") {
+                coordination.copy(status = uvg.edu.rutau.core.model.CoordinationStatus.COMPLETED)
+            } else {
+                coordination
+            }
+        }
+
+        val updated = coordinations.confirmContribution("coord-mateo-sofia")
+
+        assertTrue(updated.contributionConfirmedByCurrentUser)
     }
 
     @Test

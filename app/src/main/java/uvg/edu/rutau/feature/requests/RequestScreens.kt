@@ -49,6 +49,7 @@ import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationService
 import uvg.edu.rutau.core.location.rememberLiveTripLocationPermissionRequester
@@ -348,13 +349,13 @@ fun CoordinatedRideRoute(
     CoordinatedRideScreen(
         state = state,
         onBack = onBack,
-        onCancelRide = {
-            viewModel.cancelRide {
+        onCancelRide = { reason ->
+            viewModel.cancelRide(reason) {
                 LiveTripLocationService.stop(context)
             }
         },
-        onCancelParticipation = {
-            viewModel.cancelParticipation {
+        onCancelParticipation = { reason ->
+            viewModel.cancelParticipation(reason) {
                 LiveTripLocationService.stop(context)
             }
         },
@@ -368,6 +369,11 @@ fun CoordinatedRideRoute(
         onNavigateToMeetingPoint = { latitude, longitude ->
             context.openMeetingPointNavigation(latitude, longitude)
         },
+        onMarkArrival = viewModel::markArrival,
+        onConfirmContribution = viewModel::confirmContribution,
+        onShareTrip = { detail, coordination, otherPersonName ->
+            context.shareTripSummary(detail, coordination, otherPersonName)
+        },
     )
 }
 
@@ -376,18 +382,26 @@ fun CoordinatedRideRoute(
 fun CoordinatedRideScreen(
     state: CoordinatedRideUiState,
     onBack: () -> Unit,
-    onCancelRide: () -> Unit,
-    onCancelParticipation: () -> Unit,
+    onCancelRide: (CancellationReason) -> Unit,
+    onCancelParticipation: (CancellationReason) -> Unit,
     onStartLiveLocation: () -> Unit,
     onEndLiveLocation: () -> Unit,
     onOpenLiveMap: () -> Unit,
     onOpenMeetingPointMap: () -> Unit,
     onConfirmMeetingPoint: () -> Unit,
     onNavigateToMeetingPoint: (latitude: Double, longitude: Double) -> Unit,
+    onMarkArrival: () -> Unit,
+    onConfirmContribution: () -> Unit,
+    onShareTrip: (
+        detail: RideRequestDetails,
+        coordination: uvg.edu.rutau.core.model.Coordination,
+        otherPersonName: String,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
     var confirmStart by remember { mutableStateOf(false) }
+    var cancellationReason by remember { mutableStateOf(CancellationReason.NO_LONGER_NEEDED) }
     val context = LocalContext.current
     RutaUScreenContainer(
         modifier = modifier,
@@ -430,13 +444,27 @@ fun CoordinatedRideScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
-                    CoordinationStateCard(state.coordination.status, detail.asRequestDate())
+                    CoordinationStateCard(
+                        status = state.coordination.status,
+                        liveLocationStatus = state.coordination.liveLocationStatus,
+                        date = detail.asRequestDate(),
+                        cancellationReason = state.coordination.cancellationReason,
+                    )
                 }
                 item {
                     CoordinatedRideSummaryCard(
                         detail = detail,
                         coordination = state.coordination,
                         fallbackConfirmedPassengers = confirmedPassengerCount,
+                    )
+                }
+                item {
+                    RutaUSecondaryButton(
+                        text = "Compartir viaje",
+                        onClick = {
+                            onShareTrip(detail, state.coordination, otherPerson.fullName)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 if (!isTerminal && currentUserIsDriver) {
@@ -501,6 +529,13 @@ fun CoordinatedRideScreen(
                         onNavigateToPoint = onNavigateToMeetingPoint,
                     )
                 }
+                if (!isTerminal) item {
+                    ArrivalStatusCard(
+                        coordination = state.coordination,
+                        isSaving = state.isSaving,
+                        onMarkArrival = onMarkArrival,
+                    )
+                }
                 item {
                     LiveLocationStatusCard(
                         coordinationStatus = state.coordination.status,
@@ -528,6 +563,15 @@ fun CoordinatedRideScreen(
                         )
                     }
                 }
+                if (state.coordination.status == CoordinationStatus.COMPLETED) {
+                    item {
+                        ContributionConfirmationCard(
+                            coordination = state.coordination,
+                            isSaving = state.isSaving,
+                            onConfirmContribution = onConfirmContribution,
+                        )
+                    }
+                }
                 state.error?.let { error ->
                     item { Text(error, color = MaterialTheme.colorScheme.error) }
                 }
@@ -541,16 +585,19 @@ fun CoordinatedRideScreen(
                 }
             }
             if (confirmCancellation) {
-                RutaUConfirmationDialog(
+                CancellationReasonDialog(
                     title = if (currentUserIsDriver) "Cancelar viaje" else "Cancelar participación",
-                    message = "Esta acción liberará la plaza ocupada.",
-                    confirmLabel = "Confirmar cancelación",
                     onConfirm = {
                         confirmCancellation = false
-                        if (currentUserIsDriver) onCancelRide() else onCancelParticipation()
+                        if (currentUserIsDriver) {
+                            onCancelRide(cancellationReason)
+                        } else {
+                            onCancelParticipation(cancellationReason)
+                        }
                     },
+                    selectedReason = cancellationReason,
+                    onReasonSelected = { cancellationReason = it },
                     onDismiss = { confirmCancellation = false },
-                    isDestructive = true,
                 )
             }
             if (confirmStart) {
@@ -566,6 +613,37 @@ fun CoordinatedRideScreen(
                 )
             }
         }
+    }
+}
+
+/** Comparte un resumen del viaje sin incluir teléfonos ni ubicación en vivo. */
+private fun Context.shareTripSummary(
+    detail: RideRequestDetails,
+    coordination: uvg.edu.rutau.core.model.Coordination,
+    otherPersonName: String,
+) {
+    val driver = listOf(detail.senderTrip, detail.targetTrip)
+        .firstOrNull { it.role == TripRole.DRIVER }
+        ?: return
+    val summary = buildString {
+        appendLine("Viaje coordinado en RutaU")
+        appendLine("Ruta: ${driver.originZone} → ${driver.destinationCampus}")
+        appendLine("Fecha: ${detail.asRequestDate()}")
+        appendLine("Hora: ${driver.departureTime.format(coordinatedRideTimeFormatter).lowercase()}")
+        appendLine("Coordinado con: $otherPersonName")
+        appendLine("Aporte simulado: ${coordination.contributionCents.asQuetzales()}")
+        coordination.meetingPoint?.takeIf(String::isNotBlank)?.let { point ->
+            append("Punto de encuentro: $point")
+        }
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, summary)
+    }
+    try {
+        startActivity(Intent.createChooser(intent, "Compartir viaje"))
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(this, "No se encontró una aplicación para compartir el viaje.", Toast.LENGTH_LONG).show()
     }
 }
 
@@ -924,14 +1002,24 @@ private fun LiveLocationStatusCard(
 @Composable
 private fun CoordinationStateCard(
     status: uvg.edu.rutau.core.model.CoordinationStatus,
+    liveLocationStatus: LiveLocationStatus,
     date: String,
+    cancellationReason: CancellationReason?,
     modifier: Modifier = Modifier,
 ) {
     val (title, message) = when (status) {
-        uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED -> "Viaje confirmado" to
-            "Este acuerdo es para $date. La plaza y el contacto ya están coordinados."
+        uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED -> if (
+            liveLocationStatus == LiveLocationStatus.ACTIVE
+        ) {
+            "Viaje en curso" to "El conductor inició el viaje y está compartiendo su ubicación."
+        } else {
+            "Viaje próximo" to "Este acuerdo es para $date. La plaza y el contacto ya están coordinados."
+        }
         uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED -> "Viaje cancelado" to
-            "Este viaje fue cancelado. La plaza quedó liberada y ya no se comparte ubicación."
+            buildString {
+                append("Este viaje fue cancelado. La plaza quedó liberada y ya no se comparte ubicación.")
+                cancellationReason?.let { append(" Motivo: ${it.asUiText()}.") }
+            }
         uvg.edu.rutau.core.model.CoordinationStatus.COMPLETED -> "Viaje finalizado" to
             "Este viaje ya terminó. La ubicación dejó de compartirse."
     }

@@ -26,6 +26,7 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
                 factory = TripsViewModel.factory(
                     RutaUAppDependencies.tripRepository,
                     RutaUAppDependencies.rideRequestRepository,
+                    RutaUAppDependencies.coordinationRepository,
                     RutaUAppDependencies.favoriteTripRepository,
                 ),
             ),

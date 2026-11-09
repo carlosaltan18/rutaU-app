@@ -206,6 +206,18 @@ data class CoordinationCapacityDto(
     @SerializedName("availableSeats") val availableSeats: Int,
 )
 
+/** Indica si cada participante ya marcó que llegó al punto de encuentro. */
+data class CoordinationArrivalDto(
+    @SerializedName("arrivedByCurrentUser") val arrivedByCurrentUser: Boolean,
+    @SerializedName("arrivedByOtherParticipant") val arrivedByOtherParticipant: Boolean,
+)
+
+/** Indica si cada participante confirmó el aporte simulado. */
+data class CoordinationContributionDto(
+    @SerializedName("confirmedByCurrentUser") val confirmedByCurrentUser: Boolean,
+    @SerializedName("confirmedByOtherParticipant") val confirmedByOtherParticipant: Boolean,
+)
+
 /** Describe una coordinación visible para uno de sus participantes. */
 data class BackendCoordinationDto(
     @SerializedName("id") val id: String,
@@ -225,6 +237,14 @@ data class BackendCoordinationDto(
     @SerializedName("meetingPoint") val meetingPoint: MeetingPointDto? = null,
     @SerializedName("capacity") val capacity: CoordinationCapacityDto? = null,
     @SerializedName("liveLocation") val liveLocation: LiveLocationDto,
+    @SerializedName("cancellationReason") val cancellationReason: String? = null,
+    @SerializedName("arrival") val arrival: CoordinationArrivalDto? = null,
+    @SerializedName("contribution") val contribution: CoordinationContributionDto? = null,
+)
+
+/** Envía el motivo elegido cuando una persona cancela una coordinación. */
+data class CancelCoordinationRequestDto(
+    @SerializedName("reason") val reason: String,
 )
 
 /** Guarda el texto del punto de encuentro que proponen los participantes. */
