@@ -85,6 +85,7 @@ fun RequestFilterSelector(
                     Text(
                         when (filter) {
                             RequestFilter.PENDING -> "Pendientes"
+                            RequestFilter.ACCEPTED -> "Aceptadas"
                             RequestFilter.HISTORY -> "Historial"
                         },
                     )
@@ -423,10 +424,18 @@ fun ConfirmedPassengerCard(detail: RideRequestDetails, modifier: Modifier = Modi
 
 /** Muestra un aviso cuando no hay solicitudes para el filtro elegido. */
 @Composable
-fun EmptyRequestsCard(modifier: Modifier = Modifier) {
+fun EmptyRequestsCard(
+    filter: RequestFilter,
+    modifier: Modifier = Modifier,
+) {
+    val message = when (filter) {
+        RequestFilter.PENDING -> "Cuando recibas o envíes una, aparecerá en esta lista."
+        RequestFilter.ACCEPTED -> "Las solicitudes aceptadas aparecerán aquí y también en la sección Viajes."
+        RequestFilter.HISTORY -> "Las solicitudes rechazadas, canceladas o vencidas aparecerán aquí."
+    }
     RutaUInfoCard(
         title = "No hay solicitudes aquí",
-        message = "Cuando recibas o envíes una, aparecerá en esta lista.",
+        message = message,
         modifier = modifier,
         icon = Icons.Default.Info,
     )

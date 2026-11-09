@@ -172,5 +172,5 @@ private class LiveLocationOverlay : Overlay() {
 }
 
 private val DefaultCenter = GeoPoint(14.6349, -90.5069)
-private const val DefaultZoom = 12.0
-private const val LiveLocationZoom = 16.0
+private const val DefaultZoom = 11.0
+private const val LiveLocationZoom = 15.0

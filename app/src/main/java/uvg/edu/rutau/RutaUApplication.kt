@@ -14,6 +14,10 @@ class RutaUApplication : Application() {
         super.onCreate()
         FirebaseCrashlytics.getInstance()
             .setCrashlyticsCollectionEnabled(BuildConfig.CRASHLYTICS_COLLECTION_ENABLED)
+        Configuration.getInstance().load(
+            applicationContext,
+            getSharedPreferences("osmdroid", MODE_PRIVATE),
+        )
         Configuration.getInstance().userAgentValue = "RutaU/1.0 (com.apprutau.rutau)"
         FirebaseAppCheckSetup.configure()
         RutaUNotificationManager(this).ensureChannel()

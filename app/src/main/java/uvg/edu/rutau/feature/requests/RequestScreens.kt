@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.material.icons.Icons
@@ -102,23 +105,31 @@ fun RequestsScreen(
             if (state.selectedTab == RequestTab.RECEIVED) {
                 item {
                     RutaUInfoCard(
-                        title = if (state.selectedFilter == RequestFilter.PENDING) {
-                            "Solicitudes recibidas"
-                        } else {
-                            "Historial de solicitudes"
+                        title = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Solicitudes recibidas"
+                            RequestFilter.ACCEPTED -> "Solicitudes aceptadas"
+                            RequestFilter.HISTORY -> "Historial de solicitudes"
                         },
-                        message = if (state.selectedFilter == RequestFilter.PENDING) {
-                            "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor. Los viajes aceptados aparecen en Trayectos."
-                        } else {
-                            "Aquí puedes consultar las solicitudes rechazadas, canceladas o vencidas."
+                        message = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor."
+                            RequestFilter.ACCEPTED -> "Estas solicitudes ya tienen una plaza confirmada. También puedes abrirlas desde Viajes."
+                            RequestFilter.HISTORY -> "Aquí puedes consultar las solicitudes rechazadas, canceladas o vencidas."
                         },
                     )
                 }
-            } else if (state.selectedFilter == RequestFilter.PENDING) {
+            } else {
                 item {
                     RutaUInfoCard(
-                        title = "Solicitudes enviadas",
-                        message = "Cuando una solicitud se acepte, el viaje aparecerá en Trayectos.",
+                        title = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Solicitudes enviadas"
+                            RequestFilter.ACCEPTED -> "Solicitudes aceptadas"
+                            RequestFilter.HISTORY -> "Historial de solicitudes"
+                        },
+                        message = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Cuando una solicitud se acepte, el viaje aparecerá en Viajes."
+                            RequestFilter.ACCEPTED -> "Estas solicitudes ya tienen una plaza confirmada."
+                            RequestFilter.HISTORY -> "Aquí puedes consultar las solicitudes canceladas o vencidas."
+                        },
                     )
                 }
             }
@@ -130,7 +141,7 @@ fun RequestsScreen(
                         onRetry = onRetry,
                     )
                 }
-                ScreenContentState.EMPTY -> item { EmptyRequestsCard() }
+                ScreenContentState.EMPTY -> item { EmptyRequestsCard(state.selectedFilter) }
                 ScreenContentState.CONTENT -> {
                     items(state.requests, key = { it.request.id }) { detail ->
                         RequestCard(
@@ -467,11 +478,7 @@ fun CoordinatedRideScreen(
                         },
                         onWhatsApp = {
                             state.coordination.counterpartPhone?.let { phone ->
-                                val number = phone.filter(Char::isDigit)
-                                val intent = Intent(Intent.ACTION_VIEW, "https://wa.me/$number".toUri())
-                                if (intent.resolveActivity(context.packageManager) != null) {
-                                    context.startActivity(intent)
-                                }
+                                context.openWhatsApp(phone)
                             }
                         },
                     )
@@ -555,6 +562,35 @@ fun CoordinatedRideScreen(
         }
     }
 }
+
+/** Abre WhatsApp con un número guatemalteco local o con un número internacional. */
+private fun Context.openWhatsApp(phone: String) {
+    val localNumber = phone.filter(Char::isDigit)
+    val internationalNumber = if (localNumber.length == GuatemalaLocalPhoneLength) {
+        GuatemalaCountryCode + localNumber
+    } else {
+        localNumber
+    }
+    if (internationalNumber.isBlank()) {
+        Toast.makeText(this, "El teléfono no es válido para WhatsApp.", Toast.LENGTH_SHORT).show()
+        return
+    }
+    val uri = "https://wa.me/$internationalNumber".toUri()
+    val applicationIntent = WhatsAppPackages
+        .asSequence()
+        .map { packageName -> Intent(Intent.ACTION_VIEW, uri).setPackage(packageName) }
+        .firstOrNull { intent -> intent.resolveActivity(packageManager) != null }
+        ?: Intent(Intent.ACTION_VIEW, uri)
+    try {
+        startActivity(applicationIntent)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(this, "No se encontró WhatsApp ni un navegador para abrir el enlace.", Toast.LENGTH_LONG).show()
+    }
+}
+
+private val WhatsAppPackages = listOf("com.whatsapp", "com.whatsapp.w4b")
+private const val GuatemalaCountryCode = "502"
+private const val GuatemalaLocalPhoneLength = 8
 
 /** Conecta el mapa exclusivo del viaje con la información compartida. */
 @Composable

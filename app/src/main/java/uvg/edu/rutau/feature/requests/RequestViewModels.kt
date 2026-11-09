@@ -39,6 +39,7 @@ enum class RequestTab {
 /** Indica el grupo de solicitudes que se muestra en la lista. */
 enum class RequestFilter {
     PENDING,
+    ACCEPTED,
     HISTORY,
 }
 
@@ -113,6 +114,7 @@ class RequestsViewModel(
             }
             val belongsToSelectedFilter = when (data.selectedFilter) {
                 RequestFilter.PENDING -> detail.request.status == RequestStatus.PENDING
+                RequestFilter.ACCEPTED -> detail.request.status == RequestStatus.ACCEPTED
                 RequestFilter.HISTORY -> detail.request.status != RequestStatus.PENDING &&
                     detail.request.status != RequestStatus.ACCEPTED
             }
@@ -128,8 +130,8 @@ class RequestsViewModel(
             selectedTab = data.selectedTab,
             selectedFilter = data.selectedFilter,
             requests = requests,
-            receivedCount = received.count { it.request.status == RequestStatus.PENDING },
-            sentCount = sent.count { it.request.status == RequestStatus.PENDING },
+            receivedCount = received.size,
+            sentCount = sent.size,
             contentState = contentState,
             error = error,
         )

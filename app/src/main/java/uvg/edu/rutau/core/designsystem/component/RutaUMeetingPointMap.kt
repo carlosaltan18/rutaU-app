@@ -166,4 +166,4 @@ private class MeetingPointMarkerOverlay : Overlay() {
 private fun Double.formatCoordinate(): String = "%.5f".format(java.util.Locale.US, this)
 
 private val DefaultMeetingPointCenter = GeoPoint(14.6349, -90.5069)
-private const val InitialZoom = 13.0
+private const val InitialZoom = 12.0
