@@ -722,6 +722,12 @@ fun MeetingPointMapScreen(
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                Text("Elige el punto de encuentro", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Toca una vez el mapa para colocar el marcador. Ambas personas deberán confirmarlo.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 RutaUMeetingPointMap(
                     latitude = selectedLatitude,
                     longitude = selectedLongitude,
@@ -729,7 +735,25 @@ fun MeetingPointMapScreen(
                         selectedLatitude = latitude
                         selectedLongitude = longitude
                     },
-                    mapHeight = 430.dp,
+                    mapHeight = 390.dp,
+                )
+                Text(
+                    text = if (selectedLatitude == null || selectedLongitude == null) {
+                        "Aún no has seleccionado un punto."
+                    } else {
+                        "Punto seleccionado: %.5f, %.5f".format(
+                            Locale.US,
+                            selectedLatitude,
+                            selectedLongitude,
+                        )
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "© OpenStreetMap contributors",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
                 )
                 RutaUPrimaryButton(
                     text = "Proponer este punto",
