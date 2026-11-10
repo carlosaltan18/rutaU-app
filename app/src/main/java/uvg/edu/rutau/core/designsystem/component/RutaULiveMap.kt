@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -18,6 +19,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
@@ -37,8 +40,21 @@ fun RutaULiveMap(
 ) {
     var mapView by remember { mutableStateOf<MapView?>(null) }
     var hasCenteredOnLocation by remember { mutableStateOf(false) }
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val markerTitle = if (currentUserIsDriver) "Tú" else "Conductor"
+    val currentLocation = liveLocation?.takeIf { location ->
+        location.updatedAtMillis?.let { updatedAt ->
+            (nowMillis - updatedAt).coerceAtLeast(0L) <= MaximumVisibleLocationAgeMillis
+        } == true
+    }
+
+    LaunchedEffect(liveLocation?.updatedAtMillis) {
+        while (isActive) {
+            nowMillis = System.currentTimeMillis()
+            delay(LocationAgeRefreshMillis)
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -57,26 +73,32 @@ fun RutaULiveMap(
 
     LaunchedEffect(
         mapView,
-        liveLocation?.latitude,
-        liveLocation?.longitude,
-        liveLocation?.updatedAtMillis,
+        currentLocation?.latitude,
+        currentLocation?.longitude,
+        currentLocation?.updatedAtMillis,
         meetingLatitude,
         meetingLongitude,
     ) {
-        liveLocation?.let { location ->
+        currentLocation?.let { location ->
             if (!hasCenteredOnLocation) mapView?.let { view ->
                 view.centerOnTravelPoints(location, meetingLatitude, meetingLongitude)
                 hasCenteredOnLocation = true
             }
         }
-        if (liveLocation == null && meetingLatitude != null && meetingLongitude != null) {
+        if (
+            currentLocation == null &&
+            !hasCenteredOnLocation &&
+            meetingLatitude != null &&
+            meetingLongitude != null
+        ) {
             mapView?.centerOnTravelPoints(null, meetingLatitude, meetingLongitude)
+            hasCenteredOnLocation = true
         }
     }
 
     LaunchedEffect(centerRequest) {
         if (centerRequest > 0L) {
-            mapView?.centerOnTravelPoints(liveLocation, meetingLatitude, meetingLongitude)
+            mapView?.centerOnTravelPoints(currentLocation, meetingLatitude, meetingLongitude)
         }
     }
 
@@ -88,7 +110,7 @@ fun RutaULiveMap(
     AndroidView(
         factory = { context ->
             MapView(context).apply {
-                val initialLocation = liveLocation
+                val initialLocation = currentLocation
                 setTileSource(TileSourceFactory.MAPNIK)
                 overlayManager.tilesOverlay.setLoadingBackgroundColor(Color.TRANSPARENT)
                 overlayManager.tilesOverlay.setLoadingLineColor(Color.TRANSPARENT)
@@ -102,7 +124,7 @@ fun RutaULiveMap(
         },
         update = { view ->
             view.updateTravelMarkers(
-                liveLocation = liveLocation,
+                liveLocation = currentLocation,
                 liveLocationTitle = markerTitle,
                 meetingLatitude = meetingLatitude,
                 meetingLongitude = meetingLongitude,
@@ -239,3 +261,5 @@ private val DefaultCenter = GeoPoint(14.6349, -90.5069)
 private const val DefaultZoom = 11.0
 private const val LiveLocationZoom = 15.0
 private const val CombinedPointsZoom = 13.0
+private const val MaximumVisibleLocationAgeMillis = 30_000L
+private const val LocationAgeRefreshMillis = 1_000L

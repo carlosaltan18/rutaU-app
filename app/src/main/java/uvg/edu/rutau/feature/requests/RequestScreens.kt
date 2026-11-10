@@ -784,7 +784,7 @@ fun LiveTripMapScreen(
                         .weight(1f),
                 )
                 RutaUSecondaryButton(
-                    text = "Centrar ubicación",
+                    text = "Centrar mapa",
                     onClick = { centerRequest += 1L },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = state.liveLocation != null ||
@@ -984,7 +984,7 @@ private fun LiveLocationStatusCard(
         }
         status == LiveLocationStatus.ACTIVE && isStale -> {
             title = "Ubicación con retraso"
-            message = "La última ubicación llegó hace ${elapsedMillis.asElapsedTime()}. Revisa GPS e internet del conductor."
+            message = "La última ubicación llegó hace ${elapsedMillis.asElapsedTime()} y ya no se muestra en el mapa. Revisa GPS e internet del conductor."
         }
         status == LiveLocationStatus.ACTIVE -> {
             title = "Ubicación activa"
