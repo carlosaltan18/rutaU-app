@@ -22,6 +22,10 @@ enum class RutaUPushType {
     REQUEST_CANCELLED,
     REQUEST_EXPIRED,
     COORDINATION_CANCELLED,
+    COORDINATION_ARRIVAL,
+    TRIP_REMINDER_30_MINUTES,
+    TRIP_REMINDER_10_MINUTES,
+    CONTRIBUTION_CONFIRMED,
 }
 
 /** Recibe los avisos de Firebase y los muestra sin exponer datos privados. */
@@ -118,6 +122,10 @@ internal fun RutaUPushType.title(): String = when (this) {
     RutaUPushType.REQUEST_CANCELLED -> "Solicitud cancelada"
     RutaUPushType.REQUEST_EXPIRED -> "Solicitud expirada"
     RutaUPushType.COORDINATION_CANCELLED -> "Viaje cancelado"
+    RutaUPushType.COORDINATION_ARRIVAL -> "Tu acompañante ya llegó"
+    RutaUPushType.TRIP_REMINDER_30_MINUTES -> "Tu viaje es en 30 minutos"
+    RutaUPushType.TRIP_REMINDER_10_MINUTES -> "Tu viaje es en 10 minutos"
+    RutaUPushType.CONTRIBUTION_CONFIRMED -> "Aporte confirmado"
 }
 
 /** Convierte un tipo técnico en un mensaje breve para la notificación. */
@@ -128,4 +136,8 @@ internal fun RutaUPushType.message(): String = when (this) {
     RutaUPushType.REQUEST_CANCELLED -> "Una solicitud fue cancelada."
     RutaUPushType.REQUEST_EXPIRED -> "Una solicitud venció antes de ser aceptada."
     RutaUPushType.COORDINATION_CANCELLED -> "Un viaje coordinado fue cancelado."
+    RutaUPushType.COORDINATION_ARRIVAL -> "La otra persona indicó que ya está en el punto de encuentro."
+    RutaUPushType.TRIP_REMINDER_30_MINUTES -> "Revisa el punto de encuentro y prepárate para salir."
+    RutaUPushType.TRIP_REMINDER_10_MINUTES -> "Tu viaje coordinado está por comenzar."
+    RutaUPushType.CONTRIBUTION_CONFIRMED -> "La otra persona marcó el aporte simulado como entregado."
 }

@@ -6,10 +6,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.CancellationException
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.network.BackendApi
 import uvg.edu.rutau.core.network.BackendApiException
+import uvg.edu.rutau.core.network.CancelCoordinationRequestDto
 import uvg.edu.rutau.core.network.CreateRideRequestRequestDto
 import uvg.edu.rutau.core.network.IdempotencyKeyStore
 import uvg.edu.rutau.core.network.UpdateMeetingPointRequestDto
@@ -23,6 +26,20 @@ class RemoteCoordinationRepository(
     private val backendApi: BackendApi,
 ) : CoordinationRepository {
     private val idempotencyKeys = IdempotencyKeyStore()
+
+    override fun observeCoordinations(): Flow<List<Coordination>> = flow {
+        var latest = emptyList<Coordination>()
+        while (currentCoroutineContext().isActive) {
+            latest = try {
+                loadCoordinations()
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                latest
+            }
+            emit(latest)
+            delay(RefreshIntervalMillis)
+        }
+    }
     override fun observeCoordination(requestId: String): Flow<Coordination?> = flow {
         var latest: Coordination? = null
         while (currentCoroutineContext().isActive) {
@@ -53,16 +70,43 @@ class RemoteCoordinationRepository(
         }
     }
 
-    override suspend fun cancelRide(coordinationId: String): Coordination =
-        backendApi.cancelCoordination(coordinationId).requireData().toCoordination()
+    override suspend fun cancelRide(
+        coordinationId: String,
+        reason: CancellationReason,
+    ): Coordination =
+        backendApi.cancelCoordination(
+            coordinationId,
+            CancelCoordinationRequestDto(reason.name),
+        ).requireData().toCoordination()
 
-    override suspend fun cancelParticipation(coordinationId: String): Coordination =
-        backendApi.cancelCoordination(coordinationId).requireData().toCoordination()
+    override suspend fun cancelParticipation(
+        coordinationId: String,
+        reason: CancellationReason,
+    ): Coordination =
+        backendApi.cancelCoordination(
+            coordinationId,
+            CancelCoordinationRequestDto(reason.name),
+        ).requireData().toCoordination()
 
-    override suspend fun updateMeetingPoint(coordinationId: String, meetingPoint: String): Coordination =
+    override suspend fun markArrival(coordinationId: String): Coordination =
+        backendApi.markCoordinationArrival(coordinationId).requireData().toCoordination()
+
+    override suspend fun confirmContribution(coordinationId: String): Coordination =
+        backendApi.confirmCoordinationContribution(coordinationId)
+            .requireData()
+            .toCoordination()
+
+    override suspend fun updateMeetingPoint(
+        coordinationId: String,
+        meetingPoint: MeetingPointInput,
+    ): Coordination =
         backendApi.updateMeetingPoint(
             coordinationId,
-            UpdateMeetingPointRequestDto(meetingPoint.trim()),
+            UpdateMeetingPointRequestDto(
+                meetingPoint = meetingPoint.label.trim(),
+                latitude = meetingPoint.latitude,
+                longitude = meetingPoint.longitude,
+            ),
         ).requireData().toCoordination()
 
     override suspend fun confirmMeetingPoint(coordinationId: String): Coordination =
@@ -131,6 +175,16 @@ class RemoteCoordinationRepository(
             request.travelDate == travelDate &&
             request.status == PendingStatus
     }?.id
+
+    /** Carga todas las páginas porque el servidor usa cursores opacos. */
+    private suspend fun loadCoordinations(): List<Coordination> = buildList {
+        var cursor: String? = null
+        do {
+            val page = backendApi.getCoordinations(cursor = cursor).requireEnvelope()
+            addAll(page.data.map { it.toCoordination() })
+            cursor = page.meta.nextCursor
+        } while (cursor != null)
+    }
 
     private companion object {
         const val CoordinationNotFound = "COORDINATION_NOT_FOUND"

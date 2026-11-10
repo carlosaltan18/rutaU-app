@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.OffsetDateTime
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.model.CoordinationStatus
 import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.RequestStatus
@@ -153,8 +154,11 @@ fun BackendCoordinationDto.toCoordination(): Coordination = Coordination(
     contributionCents = agreedContributionMinor,
     status = status.toCoordinationStatus(),
     meetingPoint = meetingPoint?.value,
+    meetingLatitude = meetingPoint?.latitude,
+    meetingLongitude = meetingPoint?.longitude,
     meetingPointConfirmedByCurrentUser = meetingPoint?.confirmedByCurrentUser ?: false,
     meetingPointConfirmedByOtherParticipant = meetingPoint?.confirmedByOtherParticipant ?: false,
+    counterpartPhone = contact?.phone,
     seatCapacity = capacity?.totalSeats ?: 0,
     confirmedPassengerCount = capacity?.confirmedPassengers ?: 0,
     availableSeatCount = capacity?.availableSeats ?: 0,
@@ -162,7 +166,21 @@ fun BackendCoordinationDto.toCoordination(): Coordination = Coordination(
     liveLocationStatus = liveLocation.status.toLiveLocationStatus(),
     canStartLiveLocation = liveLocation.canStart,
     canEndLiveLocation = liveLocation.canEnd,
+    cancellationReason = cancellationReason?.toCancellationReason(),
+    arrivedByCurrentUser = arrival?.arrivedByCurrentUser ?: false,
+    arrivedByOtherParticipant = arrival?.arrivedByOtherParticipant ?: false,
+    contributionConfirmedByCurrentUser = contribution?.confirmedByCurrentUser ?: false,
+    contributionConfirmedByOtherParticipant = contribution?.confirmedByOtherParticipant ?: false,
 )
+
+/** Convierte el motivo que entrega el servidor al modelo que usa la app. */
+private fun String.toCancellationReason(): CancellationReason? = when (this) {
+    "NO_LONGER_NEEDED" -> CancellationReason.NO_LONGER_NEEDED
+    "SCHEDULE_CHANGE" -> CancellationReason.SCHEDULE_CHANGE
+    "EMERGENCY" -> CancellationReason.EMERGENCY
+    "OTHER" -> CancellationReason.OTHER
+    else -> null
+}
 
 /** Convierte el estado publicado por el servidor al estado que muestra la app. */
 private fun String.toLiveLocationStatus(): LiveLocationStatus = when (this) {

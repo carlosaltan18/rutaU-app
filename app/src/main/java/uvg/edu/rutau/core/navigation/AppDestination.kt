@@ -77,6 +77,14 @@ data class RequestDetailRoute(val requestId: String) : AppDestination
 @Serializable
 data class CoordinatedRideRoute(val requestId: String) : AppDestination
 
+/** Lleva al mapa exclusivo de un viaje que ya fue iniciado. */
+@Serializable
+data class LiveTripMapRoute(val requestId: String) : AppDestination
+
+/** Lleva a la selección del punto de encuentro sobre el mapa. */
+@Serializable
+data class MeetingPointMapRoute(val requestId: String) : AppDestination
+
 /** Lleva a una coordinación usando su identificador real del servidor. */
 @Serializable
 data class CoordinationDetailRoute(val coordinationId: String) : AppDestination

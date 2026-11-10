@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
@@ -34,6 +35,7 @@ class LiveTripLocationService : Service() {
         override fun onLocationResult(result: LocationResult) {
             val location = result.lastLocation ?: return
             val occurrenceId = tripOccurrenceId ?: return
+            if (!location.isRecentLiveLocation()) return
             scope.launch {
                 RutaUAppDependencies.liveTripLocationRepository.publish(
                     occurrenceId,
@@ -57,9 +59,12 @@ class LiveTripLocationService : Service() {
         }
         tripOccurrenceId = occurrenceId
         startForeground(NotificationId, createNotification())
+        // Elimina un punto anterior antes de compartir la ubicación de este viaje.
+        scope.launch { RutaUAppDependencies.liveTripLocationRepository.stopSharing(occurrenceId) }
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, UpdateIntervalMillis)
             .setMinUpdateIntervalMillis(UpdateIntervalMillis)
-            .setWaitForAccurateLocation(false)
+            .setMaxUpdateAgeMillis(0L)
+            .setWaitForAccurateLocation(true)
             .build()
         try {
             locationClient.requestLocationUpdates(request, locationCallback, mainLooper)
@@ -105,6 +110,7 @@ class LiveTripLocationService : Service() {
         private const val LocationChannelId = "live_trip_location"
         private const val NotificationId = 2002
         private const val UpdateIntervalMillis = 10_000L
+        private const val MaximumLocationAgeMillis = 20_000L
 
         /** Inicia el servicio solo después de confirmar el viaje y los permisos. */
         fun start(context: Context, tripOccurrenceId: String) {
@@ -118,4 +124,8 @@ class LiveTripLocationService : Service() {
             context.stopService(Intent(context, LiveTripLocationService::class.java))
         }
     }
+
+    /** Evita publicar la última ubicación almacenada por Android en vez de una nueva. */
+    private fun Location.isRecentLiveLocation(): Boolean =
+        System.currentTimeMillis() - time in 0..MaximumLocationAgeMillis
 }

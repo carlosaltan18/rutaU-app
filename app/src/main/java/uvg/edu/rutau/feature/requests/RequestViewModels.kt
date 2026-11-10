@@ -22,7 +22,9 @@ import uvg.edu.rutau.core.data.repository.CoordinationRepository
 import uvg.edu.rutau.core.data.repository.RideRequestRepository
 import uvg.edu.rutau.core.data.repository.UserRepository
 import uvg.edu.rutau.core.model.Coordination
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.model.LiveLocationStatus
+import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationRepository
 import uvg.edu.rutau.core.model.RequestStatus
@@ -38,6 +40,7 @@ enum class RequestTab {
 /** Indica el grupo de solicitudes que se muestra en la lista. */
 enum class RequestFilter {
     PENDING,
+    ACCEPTED,
     HISTORY,
 }
 
@@ -112,6 +115,7 @@ class RequestsViewModel(
             }
             val belongsToSelectedFilter = when (data.selectedFilter) {
                 RequestFilter.PENDING -> detail.request.status == RequestStatus.PENDING
+                RequestFilter.ACCEPTED -> detail.request.status == RequestStatus.ACCEPTED
                 RequestFilter.HISTORY -> detail.request.status != RequestStatus.PENDING &&
                     detail.request.status != RequestStatus.ACCEPTED
             }
@@ -127,8 +131,8 @@ class RequestsViewModel(
             selectedTab = data.selectedTab,
             selectedFilter = data.selectedFilter,
             requests = requests,
-            receivedCount = received.count { it.request.status == RequestStatus.PENDING },
-            sentCount = sent.count { it.request.status == RequestStatus.PENDING },
+            receivedCount = received.size,
+            sentCount = sent.size,
             contentState = contentState,
             error = error,
         )
@@ -213,6 +217,71 @@ class CoordinationRedirectViewModel(
             coordinationRepository: CoordinationRepository,
         ): ViewModelProvider.Factory = requestViewModelFactory {
             CoordinationRedirectViewModel(coordinationId, coordinationRepository)
+        }
+    }
+}
+
+/** Guarda el estado de la pantalla donde se elige un punto sobre el mapa. */
+data class MeetingPointMapUiState(
+    val coordination: Coordination? = null,
+    val isSaving: Boolean = false,
+    val error: String? = null,
+)
+
+/** Guarda un punto del mapa sin permitir que la pantalla use el repositorio directamente. */
+class MeetingPointMapViewModel(
+    requestId: String,
+    private val coordinationRepository: CoordinationRepository,
+) : ViewModel() {
+    private val saving = MutableStateFlow(false)
+    private val error = MutableStateFlow<String?>(null)
+
+    val uiState: StateFlow<MeetingPointMapUiState> = combine(
+        coordinationRepository.observeCoordination(requestId),
+        saving,
+        error,
+    ) { coordination, isSaving, message ->
+        MeetingPointMapUiState(coordination, isSaving, message)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        MeetingPointMapUiState(),
+    )
+
+    /** Envía las coordenadas seleccionadas y vuelve al detalle al terminar. */
+    fun save(latitude: Double, longitude: Double, onSaved: () -> Unit) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) {
+            error.value = "El punto seleccionado no es válido. Inténtalo nuevamente."
+            return
+        }
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                coordinationRepository.updateMeetingPoint(
+                    coordinationId,
+                    MeetingPointInput(
+                        label = "Punto seleccionado en el mapa",
+                        latitude = latitude,
+                        longitude = longitude,
+                    ),
+                )
+                onSaved()
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: "No fue posible guardar el punto de encuentro."
+            }
+            saving.value = false
+        }
+    }
+
+    companion object {
+        /** Crea el modelo de la pantalla de punto de encuentro. */
+        fun factory(
+            requestId: String,
+            coordinationRepository: CoordinationRepository,
+        ): ViewModelProvider.Factory = requestViewModelFactory {
+            MeetingPointMapViewModel(requestId, coordinationRepository)
         }
     }
 }
@@ -362,38 +431,26 @@ class CoordinatedRideViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CoordinatedRideUiState())
 
-    fun cancelRide(onCancelled: () -> Unit) {
+    fun cancelRide(reason: CancellationReason, onCancelled: () -> Unit) {
         val coordinationId = uiState.value.coordination?.id ?: return
-        cancel(onCancelled) { coordinationRepository.cancelRide(coordinationId) }
+        cancel(onCancelled) { coordinationRepository.cancelRide(coordinationId, reason) }
     }
 
-    fun cancelParticipation(onCancelled: () -> Unit) {
+    fun cancelParticipation(reason: CancellationReason, onCancelled: () -> Unit) {
         val coordinationId = uiState.value.coordination?.id ?: return
         cancel(onCancelled) {
-            coordinationRepository.cancelParticipation(coordinationId)
+            coordinationRepository.cancelParticipation(coordinationId, reason)
         }
     }
 
-    /** Guarda una nueva propuesta para reunirse antes del viaje. */
-    fun updateMeetingPoint(meetingPoint: String) {
-        val coordinationId = uiState.value.coordination?.id ?: return
-        if (meetingPoint.trim().length < 3) {
-            error.value = "Escribe un punto de encuentro de al menos 3 caracteres."
-            return
-        }
-        viewModelScope.launch {
-            saving.value = true
-            error.value = null
-            try {
-                liveCoordination.value = coordinationRepository.updateMeetingPoint(
-                    coordinationId,
-                    meetingPoint,
-                )
-            } catch (throwable: Throwable) {
-                error.value = throwable.message ?: "No fue posible guardar el punto de encuentro."
-            }
-            saving.value = false
-        }
+    /** Marca que la persona actual ya llegó al punto de encuentro. */
+    fun markArrival() = updateCoordination("No fue posible marcar tu llegada al punto.") {
+        coordinationRepository.markArrival(it)
+    }
+
+    /** Marca el aporte simulado como entregado después de finalizar el viaje. */
+    fun confirmContribution() = updateCoordination("No fue posible confirmar el aporte simulado.") {
+        coordinationRepository.confirmContribution(it)
     }
 
     /** Confirma el punto de encuentro que propuso la otra persona. */
@@ -446,6 +503,24 @@ class CoordinatedRideViewModel(
                 onEnded()
             } catch (throwable: Throwable) {
                 error.value = throwable.message ?: "No fue posible finalizar el viaje."
+            }
+            saving.value = false
+        }
+    }
+
+    /** Actualiza una acción corta de la coordinación y conserva un mensaje claro si falla. */
+    private fun updateCoordination(
+        errorMessage: String,
+        action: suspend (String) -> Coordination,
+    ) {
+        val coordinationId = uiState.value.coordination?.id ?: return
+        viewModelScope.launch {
+            saving.value = true
+            error.value = null
+            try {
+                liveCoordination.value = action(coordinationId)
+            } catch (throwable: Throwable) {
+                error.value = throwable.message ?: errorMessage
             }
             saving.value = false
         }

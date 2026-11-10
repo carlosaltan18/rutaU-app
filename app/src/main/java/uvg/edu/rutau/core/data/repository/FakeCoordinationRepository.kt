@@ -5,8 +5,10 @@ import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import uvg.edu.rutau.core.data.mock.MockRutaUStore
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.MeetingPointInput
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
 import uvg.edu.rutau.core.model.RideRequest
@@ -15,6 +17,8 @@ import uvg.edu.rutau.core.model.RideRequest
 class FakeCoordinationRepository(
     private val store: MockRutaUStore,
 ) : CoordinationRepository {
+    override fun observeCoordinations(): Flow<List<Coordination>> = store.coordinations
+
     override fun observeCoordination(requestId: String): Flow<Coordination?> =
         store.coordinations.map { coordinations ->
             coordinations.firstOrNull { it.requestId == requestId }
@@ -23,7 +27,10 @@ class FakeCoordinationRepository(
     override fun observeCoordinationById(coordinationId: String): Flow<Coordination?> =
         store.coordinations.map { coordinations -> coordinations.firstOrNull { it.id == coordinationId } }
 
-    override suspend fun cancelRide(coordinationId: String): Coordination {
+    override suspend fun cancelRide(
+        coordinationId: String,
+        reason: CancellationReason,
+    ): Coordination {
         return synchronized(store) {
             val coordination = findAcceptedCoordination(coordinationId)
             val related = store.coordinations.value.filter {
@@ -40,23 +47,62 @@ class FakeCoordinationRepository(
                     trip
                 }
             }
-            store.coordinations.value = store.coordinations.value.filterNot { it in related }
-            coordination.copy(status = CoordinationStatus.CANCELLED)
+            store.coordinations.value = store.coordinations.value.map { current ->
+                if (current in related) {
+                    current.copy(
+                        status = CoordinationStatus.CANCELLED,
+                        cancellationReason = reason,
+                    )
+                } else {
+                    current
+                }
+            }
+            coordination.copy(status = CoordinationStatus.CANCELLED, cancellationReason = reason)
         }
     }
 
-    override suspend fun cancelParticipation(coordinationId: String): Coordination {
+    override suspend fun cancelParticipation(
+        coordinationId: String,
+        reason: CancellationReason,
+    ): Coordination {
         return synchronized(store) {
             val coordination = findAcceptedCoordination(coordinationId)
-            cancelOneCoordination(coordination)
-            coordination.copy(status = CoordinationStatus.CANCELLED)
+            cancelOneCoordination(coordination, reason)
+            coordination.copy(status = CoordinationStatus.CANCELLED, cancellationReason = reason)
         }
     }
 
-    override suspend fun updateMeetingPoint(coordinationId: String, meetingPoint: String): Coordination {
+    override suspend fun markArrival(coordinationId: String): Coordination {
+        val current = findAcceptedCoordination(coordinationId)
+        val updated = current.copy(arrivedByCurrentUser = true)
+        store.coordinations.value = store.coordinations.value.map {
+            if (it.id == coordinationId) updated else it
+        }
+        return updated
+    }
+
+    override suspend fun confirmContribution(coordinationId: String): Coordination {
+        val current = store.coordinations.value.firstOrNull { it.id == coordinationId }
+            ?: error("El viaje coordinado no existe.")
+        check(current.status == CoordinationStatus.COMPLETED) {
+            "El aporte se confirma después de finalizar el viaje."
+        }
+        val updated = current.copy(contributionConfirmedByCurrentUser = true)
+        store.coordinations.value = store.coordinations.value.map {
+            if (it.id == coordinationId) updated else it
+        }
+        return updated
+    }
+
+    override suspend fun updateMeetingPoint(
+        coordinationId: String,
+        meetingPoint: MeetingPointInput,
+    ): Coordination {
         val current = findAcceptedCoordination(coordinationId)
         val updated = current.copy(
-            meetingPoint = meetingPoint.trim(),
+            meetingPoint = meetingPoint.label.trim(),
+            meetingLatitude = meetingPoint.latitude,
+            meetingLongitude = meetingPoint.longitude,
             meetingPointConfirmedByCurrentUser = true,
             meetingPointConfirmedByOtherParticipant = false,
         )
@@ -116,7 +162,10 @@ class FakeCoordinationRepository(
         return coordination
     }
 
-    private fun cancelOneCoordination(coordination: Coordination) {
+    private fun cancelOneCoordination(
+        coordination: Coordination,
+        reason: CancellationReason,
+    ) {
         store.requests.value = store.requests.value.map { request ->
             if (request.id == coordination.requestId) request.copy(status = RequestStatus.CANCELLED) else request
         }
@@ -127,6 +176,15 @@ class FakeCoordinationRepository(
                 trip
             }
         }
-        store.coordinations.value = store.coordinations.value.filterNot { it.id == coordination.id }
+        store.coordinations.value = store.coordinations.value.map { current ->
+            if (current.id == coordination.id) {
+                current.copy(
+                    status = CoordinationStatus.CANCELLED,
+                    cancellationReason = reason,
+                )
+            } else {
+                current
+            }
+        }
     }
 }

@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import androidx.compose.material.icons.Icons
@@ -26,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -34,6 +38,7 @@ import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaULiveMap
+import uvg.edu.rutau.core.designsystem.component.RutaUMeetingPointMap
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUScreenContainer
@@ -44,6 +49,7 @@ import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.TripRole
 import uvg.edu.rutau.core.model.LiveLocationStatus
 import uvg.edu.rutau.core.model.CoordinationStatus
+import uvg.edu.rutau.core.model.CancellationReason
 import uvg.edu.rutau.core.location.LiveTripLocation
 import uvg.edu.rutau.core.location.LiveTripLocationService
 import uvg.edu.rutau.core.location.rememberLiveTripLocationPermissionRequester
@@ -101,23 +107,31 @@ fun RequestsScreen(
             if (state.selectedTab == RequestTab.RECEIVED) {
                 item {
                     RutaUInfoCard(
-                        title = if (state.selectedFilter == RequestFilter.PENDING) {
-                            "Solicitudes recibidas"
-                        } else {
-                            "Historial de solicitudes"
+                        title = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Solicitudes recibidas"
+                            RequestFilter.ACCEPTED -> "Solicitudes aceptadas"
+                            RequestFilter.HISTORY -> "Historial de solicitudes"
                         },
-                        message = if (state.selectedFilter == RequestFilter.PENDING) {
-                            "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor. Los viajes aceptados aparecen en Trayectos."
-                        } else {
-                            "Aquí puedes consultar las solicitudes rechazadas, canceladas o vencidas."
+                        message = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Al aceptar una solicitud se confirma una plaza en el trayecto del conductor."
+                            RequestFilter.ACCEPTED -> "Estas solicitudes ya tienen una plaza confirmada. También puedes abrirlas desde Viajes."
+                            RequestFilter.HISTORY -> "Aquí puedes consultar las solicitudes rechazadas, canceladas o vencidas."
                         },
                     )
                 }
-            } else if (state.selectedFilter == RequestFilter.PENDING) {
+            } else {
                 item {
                     RutaUInfoCard(
-                        title = "Solicitudes enviadas",
-                        message = "Cuando una solicitud se acepte, el viaje aparecerá en Trayectos.",
+                        title = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Solicitudes enviadas"
+                            RequestFilter.ACCEPTED -> "Solicitudes aceptadas"
+                            RequestFilter.HISTORY -> "Historial de solicitudes"
+                        },
+                        message = when (state.selectedFilter) {
+                            RequestFilter.PENDING -> "Cuando una solicitud se acepte, el viaje aparecerá en Viajes."
+                            RequestFilter.ACCEPTED -> "Estas solicitudes ya tienen una plaza confirmada."
+                            RequestFilter.HISTORY -> "Aquí puedes consultar las solicitudes canceladas o vencidas."
+                        },
                     )
                 }
             }
@@ -129,7 +143,7 @@ fun RequestsScreen(
                         onRetry = onRetry,
                     )
                 }
-                ScreenContentState.EMPTY -> item { EmptyRequestsCard() }
+                ScreenContentState.EMPTY -> item { EmptyRequestsCard(state.selectedFilter) }
                 ScreenContentState.CONTENT -> {
                     items(state.requests, key = { it.request.id }) { detail ->
                         RequestCard(
@@ -316,6 +330,8 @@ private fun TerminalCoordinationNotice(status: CoordinationStatus, modifier: Mod
 @Composable
 fun CoordinatedRideRoute(
     onBack: () -> Unit,
+    onOpenLiveMap: () -> Unit,
+    onOpenMeetingPointMap: () -> Unit,
     viewModel: CoordinatedRideViewModel,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -324,6 +340,7 @@ fun CoordinatedRideRoute(
         if (granted) {
             viewModel.startLiveLocation { occurrenceId ->
                 LiveTripLocationService.start(context, occurrenceId)
+                onOpenLiveMap()
             }
         } else {
             viewModel.locationPermissionDenied()
@@ -332,13 +349,13 @@ fun CoordinatedRideRoute(
     CoordinatedRideScreen(
         state = state,
         onBack = onBack,
-        onCancelRide = {
-            viewModel.cancelRide {
+        onCancelRide = { reason ->
+            viewModel.cancelRide(reason) {
                 LiveTripLocationService.stop(context)
             }
         },
-        onCancelParticipation = {
-            viewModel.cancelParticipation {
+        onCancelParticipation = { reason ->
+            viewModel.cancelParticipation(reason) {
                 LiveTripLocationService.stop(context)
             }
         },
@@ -346,8 +363,17 @@ fun CoordinatedRideRoute(
         onEndLiveLocation = {
             viewModel.endLiveLocation { LiveTripLocationService.stop(context) }
         },
-        onUpdateMeetingPoint = viewModel::updateMeetingPoint,
+        onOpenLiveMap = onOpenLiveMap,
+        onOpenMeetingPointMap = onOpenMeetingPointMap,
         onConfirmMeetingPoint = viewModel::confirmMeetingPoint,
+        onNavigateToMeetingPoint = { latitude, longitude ->
+            context.openMeetingPointNavigation(latitude, longitude)
+        },
+        onMarkArrival = viewModel::markArrival,
+        onConfirmContribution = viewModel::confirmContribution,
+        onShareTrip = { detail, coordination, otherPersonName ->
+            context.shareTripSummary(detail, coordination, otherPersonName)
+        },
     )
 }
 
@@ -356,16 +382,26 @@ fun CoordinatedRideRoute(
 fun CoordinatedRideScreen(
     state: CoordinatedRideUiState,
     onBack: () -> Unit,
-    onCancelRide: () -> Unit,
-    onCancelParticipation: () -> Unit,
+    onCancelRide: (CancellationReason) -> Unit,
+    onCancelParticipation: (CancellationReason) -> Unit,
     onStartLiveLocation: () -> Unit,
     onEndLiveLocation: () -> Unit,
-    onUpdateMeetingPoint: (String) -> Unit,
+    onOpenLiveMap: () -> Unit,
+    onOpenMeetingPointMap: () -> Unit,
     onConfirmMeetingPoint: () -> Unit,
+    onNavigateToMeetingPoint: (latitude: Double, longitude: Double) -> Unit,
+    onMarkArrival: () -> Unit,
+    onConfirmContribution: () -> Unit,
+    onShareTrip: (
+        detail: RideRequestDetails,
+        coordination: uvg.edu.rutau.core.model.Coordination,
+        otherPersonName: String,
+    ) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var confirmCancellation by remember { mutableStateOf(false) }
     var confirmStart by remember { mutableStateOf(false) }
+    var cancellationReason by remember { mutableStateOf(CancellationReason.NO_LONGER_NEEDED) }
     val context = LocalContext.current
     RutaUScreenContainer(
         modifier = modifier,
@@ -408,13 +444,27 @@ fun CoordinatedRideScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 item {
-                    CoordinationStateCard(state.coordination.status, detail.asRequestDate())
+                    CoordinationStateCard(
+                        status = state.coordination.status,
+                        liveLocationStatus = state.coordination.liveLocationStatus,
+                        date = detail.asRequestDate(),
+                        cancellationReason = state.coordination.cancellationReason,
+                    )
                 }
                 item {
                     CoordinatedRideSummaryCard(
                         detail = detail,
                         coordination = state.coordination,
                         fallbackConfirmedPassengers = confirmedPassengerCount,
+                    )
+                }
+                item {
+                    RutaUSecondaryButton(
+                        text = "Compartir viaje",
+                        onClick = {
+                            onShareTrip(detail, state.coordination, otherPerson.fullName)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 if (!isTerminal && currentUserIsDriver) {
@@ -445,21 +495,23 @@ fun CoordinatedRideScreen(
                         enabled = !state.isSaving,
                     )
                 }
-                if (!isTerminal) item { AuthorizedContactCard(otherPerson.fullName, otherPerson.phone) }
+                if (!isTerminal) item {
+                    AuthorizedContactCard(otherPerson.fullName, state.coordination.counterpartPhone)
+                }
                 if (!isTerminal) item {
                     ExternalContactActions(
-                        phone = otherPerson.phone,
+                        phone = state.coordination.counterpartPhone,
                         onCall = {
-                            otherPerson.phone?.let { phone ->
-                                context.startActivity(Intent(Intent.ACTION_DIAL, "tel:$phone".toUri()))
+                            state.coordination.counterpartPhone?.let { phone ->
+                                val intent = Intent(Intent.ACTION_DIAL, "tel:$phone".toUri())
+                                if (intent.resolveActivity(context.packageManager) != null) {
+                                    context.startActivity(intent)
+                                }
                             }
                         },
                         onWhatsApp = {
-                            otherPerson.phone?.let { phone ->
-                                val number = phone.filter(Char::isDigit)
-                                context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, "https://wa.me/$number".toUri()),
-                                )
+                            state.coordination.counterpartPhone?.let { phone ->
+                                context.openWhatsApp(phone)
                             }
                         },
                     )
@@ -467,11 +519,21 @@ fun CoordinatedRideScreen(
                 if (!isTerminal) item {
                     MeetingPointCard(
                         meetingPoint = state.coordination.meetingPoint,
+                        meetingLatitude = state.coordination.meetingLatitude,
+                        meetingLongitude = state.coordination.meetingLongitude,
                         isConfirmedByCurrentUser = state.coordination.meetingPointConfirmedByCurrentUser,
                         isConfirmedByOtherParticipant = state.coordination.meetingPointConfirmedByOtherParticipant,
                         isSaving = state.isSaving,
-                        onSave = onUpdateMeetingPoint,
+                        onSelectOnMap = onOpenMeetingPointMap,
                         onConfirm = onConfirmMeetingPoint,
+                        onNavigateToPoint = onNavigateToMeetingPoint,
+                    )
+                }
+                if (!isTerminal) item {
+                    ArrivalStatusCard(
+                        coordination = state.coordination,
+                        isSaving = state.isSaving,
+                        onMarkArrival = onMarkArrival,
                     )
                 }
                 item {
@@ -482,11 +544,12 @@ fun CoordinatedRideScreen(
                         issue = state.liveLocationIssue,
                     )
                 }
-                if (isLocationActive && state.liveLocation != null) {
+                if (isLocationActive) {
                     item {
-                        RutaULiveMap(
-                            liveLocation = state.liveLocation,
-                            currentUserIsDriver = currentUserIsDriver,
+                        RutaUPrimaryButton(
+                            text = "Abrir mapa del viaje",
+                            onClick = onOpenLiveMap,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                 }
@@ -497,6 +560,15 @@ fun CoordinatedRideScreen(
                             onEndLiveLocation,
                             Modifier.fillMaxWidth(),
                             enabled = !state.isSaving,
+                        )
+                    }
+                }
+                if (state.coordination.status == CoordinationStatus.COMPLETED) {
+                    item {
+                        ContributionConfirmationCard(
+                            coordination = state.coordination,
+                            isSaving = state.isSaving,
+                            onConfirmContribution = onConfirmContribution,
                         )
                     }
                 }
@@ -513,16 +585,19 @@ fun CoordinatedRideScreen(
                 }
             }
             if (confirmCancellation) {
-                RutaUConfirmationDialog(
+                CancellationReasonDialog(
                     title = if (currentUserIsDriver) "Cancelar viaje" else "Cancelar participación",
-                    message = "Esta acción liberará la plaza ocupada.",
-                    confirmLabel = "Confirmar cancelación",
                     onConfirm = {
                         confirmCancellation = false
-                        if (currentUserIsDriver) onCancelRide() else onCancelParticipation()
+                        if (currentUserIsDriver) {
+                            onCancelRide(cancellationReason)
+                        } else {
+                            onCancelParticipation(cancellationReason)
+                        }
                     },
+                    selectedReason = cancellationReason,
+                    onReasonSelected = { cancellationReason = it },
                     onDismiss = { confirmCancellation = false },
-                    isDestructive = true,
                 )
             }
             if (confirmStart) {
@@ -536,6 +611,301 @@ fun CoordinatedRideScreen(
                     },
                     onDismiss = { confirmStart = false },
                 )
+            }
+        }
+    }
+}
+
+/** Comparte un resumen del viaje sin incluir teléfonos ni ubicación en vivo. */
+private fun Context.shareTripSummary(
+    detail: RideRequestDetails,
+    coordination: uvg.edu.rutau.core.model.Coordination,
+    otherPersonName: String,
+) {
+    val driver = listOf(detail.senderTrip, detail.targetTrip)
+        .firstOrNull { it.role == TripRole.DRIVER }
+        ?: return
+    val summary = buildString {
+        appendLine("Viaje coordinado en RutaU")
+        appendLine("Ruta: ${driver.originZone} → ${driver.destinationCampus}")
+        appendLine("Fecha: ${detail.asRequestDate()}")
+        appendLine("Hora: ${driver.departureTime.format(coordinatedRideTimeFormatter).lowercase()}")
+        appendLine("Coordinado con: $otherPersonName")
+        appendLine("Aporte simulado: ${coordination.contributionCents.asQuetzales()}")
+        coordination.meetingPoint?.takeIf(String::isNotBlank)?.let { point ->
+            append("Punto de encuentro: $point")
+        }
+    }
+    val intent = Intent(Intent.ACTION_SEND).apply {
+        type = "text/plain"
+        putExtra(Intent.EXTRA_TEXT, summary)
+    }
+    try {
+        startActivity(Intent.createChooser(intent, "Compartir viaje"))
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(this, "No se encontró una aplicación para compartir el viaje.", Toast.LENGTH_LONG).show()
+    }
+}
+
+/** Abre WhatsApp con un número guatemalteco local o con un número internacional. */
+private fun Context.openWhatsApp(phone: String) {
+    val localNumber = phone.filter(Char::isDigit)
+    val internationalNumber = if (localNumber.length == GuatemalaLocalPhoneLength) {
+        GuatemalaCountryCode + localNumber
+    } else {
+        localNumber
+    }
+    if (internationalNumber.isBlank()) {
+        Toast.makeText(this, "El teléfono no es válido para WhatsApp.", Toast.LENGTH_SHORT).show()
+        return
+    }
+    val uri = "https://wa.me/$internationalNumber".toUri()
+    val applicationIntent = WhatsAppPackages
+        .asSequence()
+        .map { packageName -> Intent(Intent.ACTION_VIEW, uri).setPackage(packageName) }
+        .firstOrNull { intent -> intent.resolveActivity(packageManager) != null }
+        ?: Intent(Intent.ACTION_VIEW, uri)
+    try {
+        startActivity(applicationIntent)
+    } catch (_: ActivityNotFoundException) {
+        Toast.makeText(this, "No se encontró WhatsApp ni un navegador para abrir el enlace.", Toast.LENGTH_LONG).show()
+    }
+}
+
+/** Abre una aplicación de navegación hacia el punto acordado por los participantes. */
+private fun Context.openMeetingPointNavigation(latitude: Double, longitude: Double) {
+    val destination = "$latitude,$longitude"
+    val navigationIntents = listOf(
+        Intent(Intent.ACTION_VIEW, "google.navigation:q=$destination".toUri())
+            .setPackage(GoogleMapsPackage),
+        Intent(Intent.ACTION_VIEW, "https://waze.com/ul?ll=$destination&navigate=yes".toUri())
+            .setPackage(WazePackage),
+        Intent(
+            Intent.ACTION_VIEW,
+            "https://www.google.com/maps/dir/?api=1&destination=$destination".toUri(),
+        ),
+    )
+    for (intent in navigationIntents) {
+        try {
+            startActivity(intent)
+            return
+        } catch (_: ActivityNotFoundException) {
+            // Continúa con la siguiente alternativa disponible.
+        }
+    }
+    Toast.makeText(this, "No se encontró una aplicación para abrir la ruta.", Toast.LENGTH_LONG).show()
+}
+
+private val WhatsAppPackages = listOf("com.whatsapp", "com.whatsapp.w4b")
+private const val GoogleMapsPackage = "com.google.android.apps.maps"
+private const val WazePackage = "com.waze"
+private const val GuatemalaCountryCode = "502"
+private const val GuatemalaLocalPhoneLength = 8
+
+/** Conecta el mapa exclusivo del viaje con la información compartida. */
+@Composable
+fun LiveTripMapRoute(
+    onBack: () -> Unit,
+    viewModel: CoordinatedRideViewModel,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    LiveTripMapScreen(
+        state = state,
+        onBack = onBack,
+        onEndLiveLocation = {
+            viewModel.endLiveLocation { LiveTripLocationService.stop(context) }
+        },
+    )
+}
+
+/** Muestra el mapa sin cargarlo dentro del detalle largo de la coordinación. */
+@Composable
+fun LiveTripMapScreen(
+    state: CoordinatedRideUiState,
+    onBack: () -> Unit,
+    onEndLiveLocation: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    RutaUScreenContainer(
+        modifier = modifier,
+        topBar = {
+            RutaUTopAppBar(
+                title = "Mapa del viaje",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                navigationIconContentDescription = "Volver",
+                onNavigationClick = onBack,
+            )
+        },
+    ) { padding ->
+        val detail = state.detail
+        val coordination = state.coordination
+        if (detail == null || coordination == null) {
+            LoadingRequestScreen(Modifier.padding(padding))
+        } else {
+            val driver = listOf(detail.senderTrip, detail.targetTrip).first { it.role == TripRole.DRIVER }
+            val currentUserIsDriver = driver.ownerId == state.currentUserId
+            val canEndJourney = coordination.status == CoordinationStatus.CONFIRMED &&
+                currentUserIsDriver &&
+                coordination.liveLocationStatus == LiveLocationStatus.ACTIVE
+            var centerRequest by remember { mutableLongStateOf(0L) }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp)
+                    .clipToBounds(),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                LiveLocationStatusCard(
+                    coordinationStatus = coordination.status,
+                    status = coordination.liveLocationStatus,
+                    liveLocation = state.liveLocation,
+                    issue = state.liveLocationIssue,
+                )
+                Text("Ubicación en vivo", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = if (coordination.meetingLatitude != null && coordination.meetingLongitude != null) {
+                        "Marcadores: ${if (currentUserIsDriver) "tú" else "conductor"} y punto de encuentro"
+                    } else {
+                        "Marcador: ${if (currentUserIsDriver) "Tú" else "Conductor"}"
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                RutaULiveMap(
+                    liveLocation = state.liveLocation,
+                    currentUserIsDriver = currentUserIsDriver,
+                    meetingLatitude = coordination.meetingLatitude,
+                    meetingLongitude = coordination.meetingLongitude,
+                    centerRequest = centerRequest,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+                RutaUSecondaryButton(
+                    text = "Centrar mapa",
+                    onClick = { centerRequest += 1L },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = state.liveLocation != null ||
+                        (coordination.meetingLatitude != null && coordination.meetingLongitude != null),
+                )
+                Text(
+                    text = "© OpenStreetMap contributors",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                if (canEndJourney) {
+                    RutaUPrimaryButton(
+                        text = "Finalizar viaje",
+                        onClick = onEndLiveLocation,
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !state.isSaving,
+                    )
+                }
+                state.error?.let { error ->
+                    Text(error, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+/** Conecta la selección de un punto de encuentro con su modelo de pantalla. */
+@Composable
+fun MeetingPointMapRoute(
+    onBack: () -> Unit,
+    viewModel: MeetingPointMapViewModel,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    MeetingPointMapScreen(
+        state = state,
+        onBack = onBack,
+        onSave = { latitude, longitude -> viewModel.save(latitude, longitude, onBack) },
+    )
+}
+
+/** Permite proponer un punto común directamente sobre el mapa. */
+@Composable
+fun MeetingPointMapScreen(
+    state: MeetingPointMapUiState,
+    onBack: () -> Unit,
+    onSave: (latitude: Double, longitude: Double) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var selectedLatitude by remember { mutableStateOf<Double?>(null) }
+    var selectedLongitude by remember { mutableStateOf<Double?>(null) }
+    LaunchedEffect(state.coordination?.id) {
+        selectedLatitude = state.coordination?.meetingLatitude
+        selectedLongitude = state.coordination?.meetingLongitude
+    }
+    RutaUScreenContainer(
+        modifier = modifier,
+        topBar = {
+            RutaUTopAppBar(
+                title = "Punto de encuentro",
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
+                navigationIconContentDescription = "Volver",
+                onNavigationClick = onBack,
+            )
+        },
+    ) { padding ->
+        if (state.coordination == null) {
+            LoadingRequestScreen(Modifier.padding(padding))
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Elige el punto de encuentro", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Toca una vez el mapa para colocar el marcador. Ambas personas deberán confirmarlo.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                RutaUMeetingPointMap(
+                    latitude = selectedLatitude,
+                    longitude = selectedLongitude,
+                    onPointSelected = { latitude, longitude ->
+                        selectedLatitude = latitude
+                        selectedLongitude = longitude
+                    },
+                    mapHeight = 390.dp,
+                )
+                Text(
+                    text = if (selectedLatitude == null || selectedLongitude == null) {
+                        "Aún no has seleccionado un punto."
+                    } else {
+                        "Punto seleccionado: %.5f, %.5f".format(
+                            Locale.US,
+                            selectedLatitude,
+                            selectedLongitude,
+                        )
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Text(
+                    text = "© OpenStreetMap contributors",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                RutaUPrimaryButton(
+                    text = "Proponer este punto",
+                    onClick = {
+                        val latitude = selectedLatitude ?: return@RutaUPrimaryButton
+                        val longitude = selectedLongitude ?: return@RutaUPrimaryButton
+                        onSave(latitude, longitude)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !state.isSaving && selectedLatitude != null && selectedLongitude != null,
+                )
+                state.error?.let { error ->
+                    Text(error, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
     }
@@ -614,7 +984,7 @@ private fun LiveLocationStatusCard(
         }
         status == LiveLocationStatus.ACTIVE && isStale -> {
             title = "Ubicación con retraso"
-            message = "La última ubicación llegó hace ${elapsedMillis.asElapsedTime()}. Revisa GPS e internet del conductor."
+            message = "La última ubicación llegó hace ${elapsedMillis.asElapsedTime()} y ya no se muestra en el mapa. Revisa GPS e internet del conductor."
         }
         status == LiveLocationStatus.ACTIVE -> {
             title = "Ubicación activa"
@@ -632,14 +1002,24 @@ private fun LiveLocationStatusCard(
 @Composable
 private fun CoordinationStateCard(
     status: uvg.edu.rutau.core.model.CoordinationStatus,
+    liveLocationStatus: LiveLocationStatus,
     date: String,
+    cancellationReason: CancellationReason?,
     modifier: Modifier = Modifier,
 ) {
     val (title, message) = when (status) {
-        uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED -> "Viaje confirmado" to
-            "Este acuerdo es para $date. La plaza y el contacto ya están coordinados."
+        uvg.edu.rutau.core.model.CoordinationStatus.CONFIRMED -> if (
+            liveLocationStatus == LiveLocationStatus.ACTIVE
+        ) {
+            "Viaje en curso" to "El conductor inició el viaje y está compartiendo su ubicación."
+        } else {
+            "Viaje próximo" to "Este acuerdo es para $date. La plaza y el contacto ya están coordinados."
+        }
         uvg.edu.rutau.core.model.CoordinationStatus.CANCELLED -> "Viaje cancelado" to
-            "Este viaje fue cancelado. La plaza quedó liberada y ya no se comparte ubicación."
+            buildString {
+                append("Este viaje fue cancelado. La plaza quedó liberada y ya no se comparte ubicación.")
+                cancellationReason?.let { append(" Motivo: ${it.asUiText()}.") }
+            }
         uvg.edu.rutau.core.model.CoordinationStatus.COMPLETED -> "Viaje finalizado" to
             "Este viaje ya terminó. La ubicación dejó de compartirse."
     }

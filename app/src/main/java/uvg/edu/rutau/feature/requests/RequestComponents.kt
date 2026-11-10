@@ -1,5 +1,8 @@
 package uvg.edu.rutau.feature.requests
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,17 +13,17 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -30,11 +33,13 @@ import uvg.edu.rutau.core.designsystem.component.RutaUAvatar
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaUOutlinedButton
 import uvg.edu.rutau.core.designsystem.component.RutaUPrimaryButton
+import uvg.edu.rutau.core.designsystem.component.RutaUSecondaryButton
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusChip
 import uvg.edu.rutau.core.designsystem.component.RutaUStatusType
-import uvg.edu.rutau.core.designsystem.component.RutaUTextField
 import uvg.edu.rutau.core.model.RequestStatus
 import uvg.edu.rutau.core.model.RequestType
+import uvg.edu.rutau.core.model.CancellationReason
+import uvg.edu.rutau.core.model.Coordination
 import uvg.edu.rutau.core.model.RideRequestDetails
 import uvg.edu.rutau.core.model.Trip
 import uvg.edu.rutau.core.model.TripRole
@@ -86,6 +91,7 @@ fun RequestFilterSelector(
                     Text(
                         when (filter) {
                             RequestFilter.PENDING -> "Pendientes"
+                            RequestFilter.ACCEPTED -> "Aceptadas"
                             RequestFilter.HISTORY -> "Historial"
                         },
                     )
@@ -173,6 +179,131 @@ fun CoordinationStatusChip(status: CoordinationStatus, modifier: Modifier = Modi
     RutaUStatusChip(label, type, modifier)
 }
 
+/** Muestra una confirmación simple para indicar el motivo al cancelar un viaje. */
+@Composable
+fun CancellationReasonDialog(
+    title: String,
+    selectedReason: CancellationReason,
+    onReasonSelected: (CancellationReason) -> Unit,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("Indica un motivo para avisar a la otra persona.")
+                CancellationReason.entries.forEach { reason ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onReasonSelected(reason) },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selectedReason == reason,
+                            onClick = { onReasonSelected(reason) },
+                        )
+                        Text(reason.asUiText())
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Cancelar viaje") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Volver") }
+        },
+    )
+}
+
+/** Muestra una llegada compartida sin divulgar una ubicación exacta. */
+@Composable
+fun ArrivalStatusCard(
+    coordination: Coordination,
+    isSaving: Boolean,
+    onMarkArrival: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val message = when {
+        coordination.arrivedByCurrentUser && coordination.arrivedByOtherParticipant ->
+            "Ambas personas ya indicaron que llegaron al punto de encuentro."
+        coordination.arrivedByCurrentUser ->
+            "Ya avisaste que llegaste. Esperando a la otra persona."
+        coordination.arrivedByOtherParticipant ->
+            "Tu acompañante ya llegó al punto de encuentro."
+        else -> "Marca tu llegada para avisar a la otra persona."
+    }
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Llegada al punto", style = MaterialTheme.typography.titleSmall)
+            Text(message, style = MaterialTheme.typography.bodySmall)
+            if (!coordination.arrivedByCurrentUser) {
+                RutaUPrimaryButton(
+                    text = "Ya llegué al punto",
+                    onClick = onMarkArrival,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
+            }
+        }
+    }
+}
+
+/** Muestra la confirmación del aporte acordado después de terminar el viaje. */
+@Composable
+fun ContributionConfirmationCard(
+    coordination: Coordination,
+    isSaving: Boolean,
+    onConfirmContribution: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("Aporte simulado", style = MaterialTheme.typography.titleSmall)
+            Text("Aporte acordado: ${coordination.contributionCents.asQuetzales()}")
+            Text(
+                when {
+                    coordination.contributionConfirmedByCurrentUser &&
+                        coordination.contributionConfirmedByOtherParticipant ->
+                        "Ambas personas marcaron el aporte como entregado."
+                    coordination.contributionConfirmedByCurrentUser ->
+                        "Marcaste el aporte como entregado. Esperando la confirmación de la otra persona."
+                    coordination.contributionConfirmedByOtherParticipant ->
+                        "La otra persona marcó el aporte como entregado."
+                    else -> "Este aporte es solo una referencia; RutaU no procesa pagos."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (!coordination.contributionConfirmedByCurrentUser) {
+                RutaUPrimaryButton(
+                    text = "Marcar aporte entregado",
+                    onClick = onConfirmContribution,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
+            }
+        }
+    }
+}
+
+/** Convierte un motivo guardado en un texto corto para pantalla. */
+internal fun CancellationReason.asUiText(): String = when (this) {
+    CancellationReason.NO_LONGER_NEEDED -> "Ya no necesito el viaje"
+    CancellationReason.SCHEDULE_CHANGE -> "Cambio de horario"
+    CancellationReason.EMERGENCY -> "Emergencia"
+    CancellationReason.OTHER -> "Otro"
+}
+
 /** Muestra los datos del trayecto relacionados con una solicitud. */
 @Composable
 fun RequestTripSummary(detail: RideRequestDetails, modifier: Modifier = Modifier) {
@@ -211,15 +342,46 @@ fun AuthorizedContactCard(
     phone: String?,
     modifier: Modifier = Modifier,
 ) {
-    RutaUInfoCard(
-        title = "Contacto autorizado",
-        message = if (phone == null) {
-            "${fullName} no agregó un teléfono. Pueden acordar el punto de encuentro en persona."
-        } else {
-            "$fullName\nTeléfono y WhatsApp: $phone"
+    if (phone.isNullOrBlank()) {
+        RutaUInfoCard(
+            title = "Contacto autorizado",
+            message = "$fullName no agregó un teléfono. Pueden acordar el punto de encuentro en persona.",
+            modifier = modifier,
+            icon = Icons.Default.CheckCircle,
+        )
+        return
+    }
+    Card(modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Contacto autorizado", style = MaterialTheme.typography.titleSmall)
+            Text(fullName, style = MaterialTheme.typography.bodyMedium)
+            Text("Toca el número para llamar.", style = MaterialTheme.typography.bodySmall)
+            PhoneNumberLink(phone)
+        }
+    }
+}
+
+/** Abre el marcador del teléfono sin llamar automáticamente. */
+@Composable
+fun PhoneNumberLink(
+    phone: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    Text(
+        text = phone,
+        modifier = modifier.clickable {
+            val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null))
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            }
         },
-        modifier = modifier,
-        icon = Icons.Default.CheckCircle,
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.bodyLarge,
+        fontWeight = FontWeight.SemiBold,
     )
 }
 
@@ -242,14 +404,18 @@ fun ExternalContactActions(
 @Composable
 fun MeetingPointCard(
     meetingPoint: String?,
+    meetingLatitude: Double?,
+    meetingLongitude: Double?,
     isConfirmedByCurrentUser: Boolean,
     isConfirmedByOtherParticipant: Boolean,
     isSaving: Boolean,
-    onSave: (String) -> Unit,
+    onSelectOnMap: () -> Unit,
     onConfirm: () -> Unit,
+    onNavigateToPoint: (latitude: Double, longitude: Double) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var editedPoint by remember(meetingPoint) { mutableStateOf(meetingPoint.orEmpty()) }
+    val hasSelectedPoint = !meetingPoint.isNullOrBlank() &&
+        meetingLatitude != null && meetingLongitude != null
     Card(modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -257,30 +423,43 @@ fun MeetingPointCard(
         ) {
             Text("Punto de encuentro", style = MaterialTheme.typography.titleSmall)
             Text(
-                "Escribe un lugar fácil de identificar. Si lo cambias, ambas confirmaciones se reinician.",
+                "Elige el lugar en el mapa. Si lo cambias, ambas confirmaciones se reinician.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
             )
-            RutaUTextField(
-                value = editedPoint,
-                onValueChange = { editedPoint = it },
-                label = "Lugar para reunirse",
+            RutaUOutlinedButton(
+                text = if (hasSelectedPoint) "Cambiar punto en el mapa" else "Seleccionar punto en el mapa",
+                onClick = onSelectOnMap,
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isSaving,
             )
-            RutaUOutlinedButton(
-                text = if (meetingPoint.isNullOrBlank()) "Guardar punto" else "Actualizar punto",
-                onClick = { onSave(editedPoint) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSaving && editedPoint.trim().length >= 3 && editedPoint.trim() != meetingPoint,
-            )
-            if (meetingPoint.isNullOrBlank()) {
+            if (!hasSelectedPoint) {
                 Text(
-                    "Aún no han definido dónde se reunirán.",
+                    "Aún no han definido el punto en el mapa.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
             } else {
+                Text(
+                    "Punto seleccionado: %.5f, %.5f".format(
+                        Locale.US,
+                        meetingLatitude,
+                        meetingLongitude,
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                RutaUSecondaryButton(
+                    text = "Cómo llegar al punto",
+                    onClick = {
+                        onNavigateToPoint(
+                            meetingLatitude ?: return@RutaUSecondaryButton,
+                            meetingLongitude ?: return@RutaUSecondaryButton,
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSaving,
+                )
                 Text(
                     if (isConfirmedByCurrentUser) {
                         "Ya confirmaste este punto."
@@ -377,7 +556,9 @@ fun ConfirmedPassengerCard(detail: RideRequestDetails, modifier: Modifier = Modi
             Column(Modifier.weight(1f)) {
                 Text(passenger.fullName, style = MaterialTheme.typography.titleSmall)
                 Text("Contribución: ${detail.request.contributionCents.asQuetzales()}")
-                passenger.phone?.let { Text("Teléfono y WhatsApp: $it") }
+                passenger.phone?.let { phone ->
+                    PhoneNumberLink(phone, Modifier.testTag("ConfirmedPassengerPhone"))
+                }
             }
             Text("Confirmada", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
         }
@@ -386,10 +567,18 @@ fun ConfirmedPassengerCard(detail: RideRequestDetails, modifier: Modifier = Modi
 
 /** Muestra un aviso cuando no hay solicitudes para el filtro elegido. */
 @Composable
-fun EmptyRequestsCard(modifier: Modifier = Modifier) {
+fun EmptyRequestsCard(
+    filter: RequestFilter,
+    modifier: Modifier = Modifier,
+) {
+    val message = when (filter) {
+        RequestFilter.PENDING -> "Cuando recibas o envíes una, aparecerá en esta lista."
+        RequestFilter.ACCEPTED -> "Las solicitudes aceptadas aparecerán aquí y también en la sección Viajes."
+        RequestFilter.HISTORY -> "Las solicitudes rechazadas, canceladas o vencidas aparecerán aquí."
+    }
     RutaUInfoCard(
         title = "No hay solicitudes aquí",
-        message = "Cuando recibas o envíes una, aparecerá en esta lista.",
+        message = message,
         modifier = modifier,
         icon = Icons.Default.Info,
     )

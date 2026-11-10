@@ -269,8 +269,8 @@ private fun TripSectionSelector(
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TripSection.entries.forEach { section ->
             val label = when (section) {
-                TripSection.ACTIVE -> "Viajes"
-                TripSection.BASE -> "Rutas"
+                TripSection.ACTIVE -> "Activos"
+                TripSection.BASE -> "Base"
                 TripSection.SAVED -> "Guardados"
                 TripSection.HISTORY -> "Historial"
             }
