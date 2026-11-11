@@ -118,6 +118,20 @@ class RutaUAppNavigationTest {
     }
 
     @Test
+    fun bottomNavigationDoesNotChangeScreenWhenSelectingCurrentDestination() {
+        loginWithDefaultAccount()
+
+        composeRule.onNodeWithTag("BottomNavigation-TRIPS").performClick()
+        composeRule.onNodeWithTag("BottomNavigation-TRIPS").performClick()
+        assertScreenVisible("Mis trayectos")
+
+        openAccount()
+        composeRule.onNodeWithTag("BottomNavigation-ACCOUNT").performClick()
+        composeRule.onNodeWithTag("BottomNavigation-ACCOUNT").performClick()
+        assertScreenVisible("Datos personales")
+    }
+
+    @Test
     fun accountChangesAreStoredInTheSharedMock() {
         loginWithDefaultAccount()
         openAccount()

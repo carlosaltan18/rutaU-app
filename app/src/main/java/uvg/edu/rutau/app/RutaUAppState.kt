@@ -5,6 +5,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.navigation.NavDestination
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -38,16 +39,15 @@ class RutaUAppState internal constructor(
     fun shouldShowBottomBar(): Boolean = currentTopLevelDestination() != null
 
     fun navigateToTopLevel(destination: RutaUTopLevelDestination) {
-        val restoredExistingDestination = navController.popBackStack(
-            route = destination.route,
-            inclusive = false,
-            saveState = true,
-        )
-        if (!restoredExistingDestination) {
-            navController.navigate(destination.route) {
-                launchSingleTop = true
-                restoreState = true
+        if (navController.currentDestination?.toTopLevelDestination() == destination) {
+            return
+        }
+        navController.navigate(destination.route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
             }
+            launchSingleTop = true
+            restoreState = true
         }
     }
 
