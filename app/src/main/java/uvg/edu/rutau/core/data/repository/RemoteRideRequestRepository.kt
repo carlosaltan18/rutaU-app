@@ -1,15 +1,12 @@
 package uvg.edu.rutau.core.data.repository
 
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import uvg.edu.rutau.core.data.catalog.CatalogLabelResolver
 import uvg.edu.rutau.core.model.RideRequest
 import uvg.edu.rutau.core.model.RideRequestDetails
@@ -25,8 +22,8 @@ class RemoteRideRequestRepository(
     private val labels: CatalogLabelResolver = CatalogLabelResolver(backendApi),
 ) : RideRequestRepository {
     private val details = MutableStateFlow<List<RideRequestDetails>>(emptyList())
-    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var refreshJob: Job? = null
+    private val refreshMutex = Mutex()
+    private var lastRefreshAtMillis = 0L
 
     override fun observeRequests(): Flow<List<RideRequest>> = observeRequestDetails()
         .map { current -> current.map { it.request } }
@@ -34,16 +31,16 @@ class RemoteRideRequestRepository(
     override fun observeRequest(requestId: String): Flow<RideRequest?> = observeRequestDetails()
         .map { current -> current.firstOrNull { it.request.id == requestId }?.request }
 
-    override fun observeRequestDetails(): Flow<List<RideRequestDetails>> {
-        ensureRefreshLoop()
-        return details
+    override fun observeRequestDetails(): Flow<List<RideRequestDetails>> = flow {
+        runCatching { refreshRequestsIfNeeded() }
+        emitAll(details)
     }
 
     override fun observeRequestDetail(requestId: String): Flow<RideRequestDetails?> = observeRequestDetails()
         .map { current -> current.firstOrNull { it.request.id == requestId } }
 
     override suspend fun refresh() {
-        refreshRequests()
+        refreshRequestsIfNeeded()
     }
 
     override suspend fun accept(requestId: String) {
@@ -60,6 +57,14 @@ class RemoteRideRequestRepository(
 
     override suspend fun expire(requestId: String) {
         throw UnsupportedOperationException("El servidor vence las solicitudes automáticamente cuando pasa la hora del viaje.")
+    }
+
+    /** Evita consultas repetidas si varias pantallas observan las mismas solicitudes. */
+    private suspend fun refreshRequestsIfNeeded() = refreshMutex.withLock {
+        val now = System.currentTimeMillis()
+        if (now - lastRefreshAtMillis < MinimumRefreshIntervalMillis) return@withLock
+        lastRefreshAtMillis = now
+        refreshRequests()
     }
 
     private suspend fun refreshRequests() {
@@ -86,18 +91,6 @@ class RemoteRideRequestRepository(
         details.value = details.value.filterNot { it.request.id == updated.request.id } + updated
     }
 
-    /** Actualiza las solicitudes una sola vez para todas las pantallas abiertas. */
-    @Synchronized
-    private fun ensureRefreshLoop() {
-        if (refreshJob?.isActive == true) return
-        refreshJob = refreshScope.launch {
-            while (isActive) {
-                runCatching { refreshRequests() }
-                delay(RefreshIntervalMillis)
-            }
-        }
-    }
-
     private suspend fun BackendRideRequestDto.toDisplayDetails(): RideRequestDetails {
         labels.loadFor(setOf(sender.universityId, target.universityId))
         return toRideRequestDetails(
@@ -115,6 +108,6 @@ class RemoteRideRequestRepository(
     private companion object {
         const val SentBox = "sent"
         const val ReceivedBox = "received"
-        const val RefreshIntervalMillis = 30_000L
+        const val MinimumRefreshIntervalMillis = 5_000L
     }
 }

@@ -34,8 +34,8 @@ fun RutaULiveMap(
     currentUserIsDriver: Boolean,
     meetingLatitude: Double?,
     meetingLongitude: Double?,
-    centerRequest: Long = 0L,
     modifier: Modifier = Modifier,
+    centerRequest: Long = 0L,
     mapHeight: Dp = Dp.Unspecified,
 ) {
     var mapView by remember { mutableStateOf<MapView?>(null) }

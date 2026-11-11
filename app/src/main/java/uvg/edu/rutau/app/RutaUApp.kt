@@ -2,7 +2,6 @@ package uvg.edu.rutau.app
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -76,7 +75,6 @@ fun RutaUApp(
     LaunchedEffect(sessionState) {
         if (
             sessionState is SessionState.SignedIn &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
         ) {
@@ -88,7 +86,9 @@ fun RutaUApp(
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 while (isActive) {
                     runCatching { RutaUAppDependencies.notificationPopupRepository.refresh() }
-                        .onFailure { RutaUAppDependencies.recordTechnicalError("notification_popup_refresh") }
+                        .onFailure { error ->
+                            RutaUAppDependencies.recordTechnicalError("notification_popup_refresh", error)
+                        }
                     delay(NotificationRefreshIntervalMillis)
                 }
             }

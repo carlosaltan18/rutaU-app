@@ -490,6 +490,7 @@ fun CandidateProfileRoute(onBack: () -> Unit, onCoordinate: (String?, Int) -> Un
         onCoordinate = onCoordinate,
         onContributionChange = viewModel::setContribution,
         onToggleFavorite = viewModel::toggleFavorite,
+        onRetry = viewModel::retry,
     )
 }
 
@@ -500,6 +501,7 @@ fun CandidateProfileScreen(
     onCoordinate: (String?, Int) -> Unit,
     onContributionChange: (Int) -> Unit,
     onToggleFavorite: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val title = if (state.candidateTrip?.role == TripRole.DRIVER) "Perfil del conductor" else "Perfil del pasajero"
@@ -511,7 +513,16 @@ fun CandidateProfileScreen(
     ) { padding ->
         val student = state.student
         val trip = state.candidateTrip
-        if (student == null || trip == null) {
+        if (state.error != null) {
+            Column(
+                Modifier.fillMaxSize().padding(padding).padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+            ) {
+                RutaUInfoCard("No se pudo abrir el perfil", state.error)
+                RutaUPrimaryButton("Reintentar", onRetry, Modifier.fillMaxWidth())
+            }
+        } else if (student == null || trip == null) {
             Column(Modifier.fillMaxSize().padding(padding), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 CircularProgressIndicator()
             }
@@ -571,6 +582,7 @@ fun ConfirmCoordinationRoute(onBack: () -> Unit, onConfirmed: (String) -> Unit, 
         onMessageChange = viewModel::setMessage,
         onContributionChange = viewModel::setContribution,
         onConfirm = { viewModel.confirm(onConfirmed) },
+        onRetry = viewModel::retry,
         onBack = onBack,
     )
 }
@@ -581,6 +593,7 @@ fun ConfirmCoordinationScreen(
     onMessageChange: (String) -> Unit,
     onContributionChange: (Int) -> Unit,
     onConfirm: () -> Unit,
+    onRetry: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -603,6 +616,7 @@ fun ConfirmCoordinationScreen(
                 onMessageChange,
                 onContributionChange,
                 onConfirm,
+                onRetry,
             )
             RutaUSecondaryButton(
                 text = "Cancelar",

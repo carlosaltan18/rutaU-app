@@ -79,6 +79,7 @@ private fun CandidateProfileScreenPreview() {
             onCoordinate = { _, _ -> },
             onContributionChange = {},
             onToggleFavorite = {},
+            onRetry = {},
         )
     }
 }
@@ -97,6 +98,7 @@ private fun ConfirmCoordinationScreenPreview() {
             onMessageChange = {},
             onContributionChange = {},
             onConfirm = {},
+            onRetry = {},
             onBack = {},
         )
     }

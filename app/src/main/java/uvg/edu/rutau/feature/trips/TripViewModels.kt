@@ -204,18 +204,25 @@ class TripEditorViewModel(
         loadCatalogs()
         if (tripId != null) {
             viewModelScope.launch {
-                val trip = repository.observeTrip(tripId).filterNotNull().first()
-                update {
-                    copy(
-                        originZone = trip.originZoneId,
-                        destinationCampus = trip.destinationCampusId,
-                        dayOfWeek = trip.dayOfWeek,
-                        departureTime = trip.departureTime,
-                        role = trip.role,
-                        offeredSeats = trip.offeredSeats.coerceAtLeast(1),
-                        isEditing = true,
-                    )
-                }
+                runCatching { repository.observeTrip(tripId).filterNotNull().first() }
+                    .onSuccess { trip ->
+                        update {
+                            copy(
+                                originZone = trip.originZoneId,
+                                destinationCampus = trip.destinationCampusId,
+                                dayOfWeek = trip.dayOfWeek,
+                                departureTime = trip.departureTime,
+                                role = trip.role,
+                                offeredSeats = trip.offeredSeats.coerceAtLeast(1),
+                                isEditing = true,
+                            )
+                        }
+                    }
+                    .onFailure {
+                        update {
+                            copy(error = "No fue posible cargar el trayecto. Revisa tu conexión e inténtalo de nuevo.")
+                        }
+                    }
             }
         }
     }
@@ -278,7 +285,12 @@ class TripEditorViewModel(
             runCatching { catalogs.zones() }
                 .onSuccess { zones -> update { copy(zones = zones) } }
                 .onFailure { update { copy(error = "No fue posible cargar las zonas.") } }
-            val universityId = userRepository?.observeCurrentUser()?.first()?.universityId.orEmpty()
+            val universityId = runCatching {
+                userRepository?.observeCurrentUser()?.first()?.universityId.orEmpty()
+            }.getOrElse {
+                update { copy(error = "No fue posible cargar los datos de tu cuenta.") }
+                ""
+            }
             if (universityId.isNotBlank()) {
                 runCatching { catalogs.campuses(universityId) }
                     .onSuccess { campuses -> update { copy(campuses = campuses) } }
@@ -377,9 +389,11 @@ data class CandidateProfileUiState(
     val existingRequestId: String? = null,
     val existingRequestStatus: RequestStatus? = null,
     val isFavorite: Boolean = false,
+    val error: String? = null,
 )
 
 /** Maneja la información de una persona compatible. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class CandidateProfileViewModel(
     tripId: String,
     candidateTripId: String,
@@ -388,34 +402,53 @@ class CandidateProfileViewModel(
     private val favoriteTripRepository: FavoriteTripRepository,
 ) : ViewModel() {
     private val contribution = MutableStateFlow(10)
-    val uiState = combine(
-        repository.observeTrip(tripId),
-        repository.observeMatches(tripId),
-        contribution,
-        requestRepository.observeRequestDetails(),
-        favoriteTripRepository.observeFavoriteTripIds(),
-    ) { source, matches, amount, requests, favoriteTripIds ->
-        val match = matches.firstOrNull { it.trip.id == candidateTripId }
-        val existing = match?.let { candidate ->
-            requests.firstOrNull { detail ->
-                source != null &&
-                    detail.blocksNewRequestFor(source.id, source.dayOfWeek) &&
-                    (detail.request.senderTripId == candidate.trip.id ||
-                        detail.request.targetTripId == candidate.trip.id)
+    private val refreshSignal = MutableStateFlow(0)
+    val uiState = refreshSignal.flatMapLatest {
+        combine(
+            repository.observeTrip(tripId),
+            repository.observeMatches(tripId),
+            contribution,
+            requestRepository.observeRequestDetails(),
+            favoriteTripRepository.observeFavoriteTripIds(),
+        ) { source, matches, amount, requests, favoriteTripIds ->
+            val match = matches.firstOrNull { it.trip.id == candidateTripId }
+            val existing = match?.let { candidate ->
+                requests.firstOrNull { detail ->
+                    source != null &&
+                        detail.blocksNewRequestFor(source.id, source.dayOfWeek) &&
+                        (detail.request.senderTripId == candidate.trip.id ||
+                            detail.request.targetTripId == candidate.trip.id)
+                }
             }
+            CandidateProfileUiState(
+                sourceTrip = source,
+                candidateTrip = match?.trip,
+                student = match?.student,
+                contributionQuetzales = amount,
+                existingRequestId = existing?.request?.id,
+                existingRequestStatus = existing?.request?.status,
+                isFavorite = match?.trip?.id?.let(favoriteTripIds::contains) == true,
+            )
         }
-        CandidateProfileUiState(
-            sourceTrip = source,
-            candidateTrip = match?.trip,
-            student = match?.student,
-            contributionQuetzales = amount,
-            existingRequestId = existing?.request?.id,
-            existingRequestStatus = existing?.request?.status,
-            isFavorite = match?.trip?.id?.let(favoriteTripIds::contains) == true,
-        )
+            .catch { throwable ->
+                emit(
+                    CandidateProfileUiState(
+                        error = if (throwable is java.io.IOException) {
+                            "Sin conexión. Revisa tu red e inténtalo de nuevo."
+                        } else {
+                            "No fue posible cargar este perfil. Inténtalo de nuevo."
+                        },
+                    ),
+                )
+            }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CandidateProfileUiState())
 
     fun setContribution(value: Int) { contribution.value = value.coerceIn(0, 100) }
+
+    /** Vuelve a consultar el perfil después de recuperar la conexión. */
+    fun retry() {
+        refreshSignal.update { current -> current + 1 }
+    }
 
     fun toggleFavorite() = viewModelScope.launch {
         val state = uiState.value
@@ -468,6 +501,7 @@ data class ConfirmCoordinationUiState(
 )
 
 /** Maneja el envío de una solicitud o invitación. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ConfirmCoordinationViewModel(
     private val tripId: String,
     private val candidateTripId: String,
@@ -478,18 +512,32 @@ class ConfirmCoordinationViewModel(
     private val form = MutableStateFlow(
         ConfirmCoordinationUiState(contributionQuetzales = initialContribution.coerceIn(0, 100)),
     )
-    val uiState = combine(
-        tripRepository.observeTrip(tripId),
-        tripRepository.observeMatches(tripId),
-        form,
-    ) { source, matches, current ->
-        val match = matches.firstOrNull { it.trip.id == candidateTripId }
-        current.copy(sourceTrip = source, candidateTrip = match?.trip, student = match?.student)
+    private val refreshSignal = MutableStateFlow(0)
+    val uiState = refreshSignal.flatMapLatest {
+        combine(
+            tripRepository.observeTrip(tripId),
+            tripRepository.observeMatches(tripId),
+            form,
+        ) { source, matches, current ->
+            val match = matches.firstOrNull { it.trip.id == candidateTripId }
+            current.copy(sourceTrip = source, candidateTrip = match?.trip, student = match?.student)
+        }.catch {
+            emit(
+                form.value.copy(
+                    error = "No fue posible cargar la coordinación. Revisa tu conexión e inténtalo de nuevo.",
+                ),
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConfirmCoordinationUiState())
 
     fun setMessage(value: String) { form.value = form.value.copy(message = value, error = null) }
     fun setContribution(value: Int) {
         form.value = form.value.copy(contributionQuetzales = value.coerceIn(0, 100), error = null)
+    }
+
+    /** Repite la consulta sin salir de la pantalla. */
+    fun retry() {
+        refreshSignal.update { current -> current + 1 }
     }
 
     fun confirm(onConfirmed: (String) -> Unit) {

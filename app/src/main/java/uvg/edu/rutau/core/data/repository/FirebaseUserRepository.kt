@@ -4,6 +4,7 @@ import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
@@ -23,17 +24,22 @@ class FirebaseUserRepository(
     private val backendApi: BackendApi,
     private val catalogRepository: CatalogRepository,
 ) : UserRepository {
-    override fun observeCurrentUser(): Flow<UserAccount?> = sessionRepository.sessionState.map { state ->
-        if (state !is SessionState.SignedIn) return@map null
-        val profile = backendApi.getMe().requireData()
-        val universityName = runCatching {
-            catalogRepository.universities().firstOrNull { it.id == profile.universityId }?.name
-        }.getOrNull() ?: profile.universityId
-        val campusName = runCatching {
-            catalogRepository.campuses(profile.universityId).firstOrNull { it.id == profile.campusId }?.name
-        }.getOrNull() ?: profile.campusId
-        profile.toUserAccount(universityName, campusName)
-    }
+    override fun observeCurrentUser(): Flow<UserAccount?> = sessionRepository.sessionState
+        .map { state ->
+            if (state !is SessionState.SignedIn) return@map null
+            val profile = backendApi.getMe().requireData()
+            val universityName = runCatching {
+                catalogRepository.universities().firstOrNull { it.id == profile.universityId }?.name
+            }.getOrNull() ?: profile.universityId
+            val campusName = runCatching {
+                catalogRepository.campuses(profile.universityId).firstOrNull { it.id == profile.campusId }?.name
+            }.getOrNull() ?: profile.campusId
+            profile.toUserAccount(universityName, campusName)
+        }
+        .catch {
+            // Sin internet se evita cerrar la pantalla; el siguiente intento recargará el perfil.
+            emit(null)
+        }
 
     override suspend fun updateProfile(input: UpdateProfileInput) {
         backendApi.updateMe(

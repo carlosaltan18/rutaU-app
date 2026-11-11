@@ -451,6 +451,7 @@ fun ConfirmCoordinationSheet(
     onMessageChange: (String) -> Unit,
     onContributionChange: (Int) -> Unit,
     onConfirm: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
@@ -490,7 +491,16 @@ fun ConfirmCoordinationSheet(
                 },
                 minLines = 3,
             )
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.error?.let { message ->
+                Text(message, color = MaterialTheme.colorScheme.error)
+                if (state.candidateTrip == null) {
+                    RutaUSecondaryButton(
+                        text = "Reintentar",
+                        onClick = onRetry,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             RutaUPrimaryButton(
                 if (state.sourceTrip?.role == TripRole.PASSENGER) "Enviar solicitud" else "Enviar invitación",
                 onConfirm,
