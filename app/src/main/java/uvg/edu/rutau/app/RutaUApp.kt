@@ -60,8 +60,16 @@ fun RutaUApp(
     LaunchedEffect(appState, RutaUAppDependencies.sessionRepository) {
         RutaUAppDependencies.sessionRepository.sessionState.collect { state ->
             when (state) {
-                is SessionState.SignedIn -> appState.navigateToAuthenticatedRoot()
-                SessionState.SignedOut -> appState.clearToLogin()
+                is SessionState.SignedIn -> {
+                    if (appState.needsAuthenticatedRoot()) {
+                        appState.navigateToAuthenticatedRoot()
+                    }
+                }
+                SessionState.SignedOut -> {
+                    if (appState.needsLoginDestination()) {
+                        appState.clearToLogin()
+                    }
+                }
             }
         }
     }
