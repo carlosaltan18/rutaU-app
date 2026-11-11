@@ -1,6 +1,10 @@
 # RutaU Android
 
-Aplicación Android nativa de RutaU. Permite a estudiantes publicar sus trayectos habituales, encontrar compatibilidades, enviar solicitudes o invitaciones y coordinar viajes. Se conecta a la API NestJS de RutaU, usa Firebase para identidad, avisos y datos en tiempo real, y conserva únicamente preferencias locales con DataStore.
+## Problema y solución
+
+Los estudiantes suelen coincidir en recorridos hacia su campus, pero no cuentan con una forma ordenada y segura de encontrarse. RutaU permite registrar trayectos habituales, descubrir compatibilidades y coordinar un viaje entre conductor y pasajero. La aplicación mantiene información clara sobre plazas, punto de encuentro, aporte simulado y estado del viaje, sin implementar pagos reales.
+
+RutaU se conecta al backend para las reglas del negocio, usa Firebase Authentication para identificar a cada persona y Firebase para avisos y ubicación en vivo. DataStore conserva preferencias y Room guarda perfiles compatibles marcados como favoritos para verlos aun sin conexión.
 
 > La fuente de verdad de perfiles, trayectos, plazas, solicitudes, coordinaciones y notificaciones es PostgreSQL a través de la API. Firestore no duplica esos datos.
 
@@ -8,18 +12,17 @@ Aplicación Android nativa de RutaU. Permite a estudiantes publicar sus trayecto
 
 RutaU se mantiene en un único módulo Android (`app`) organizado por funcionalidad. Cada pantalla usa un `ViewModel`; este llama a una interfaz de repositorio; y el repositorio usa Firebase, la API o DataStore según corresponda. Las pantallas no conocen Retrofit ni las clases de red directamente.
 
-```text
-Pantalla Compose
-      |
-ViewModel y estado de pantalla
-      |
-Repositorio (contrato de dominio)
-      |
-+------------------+--------------------+-------------------+
-| API NestJS       | Firebase            | DataStore         |
-| Retrofit/OkHttp  | Auth, FCM,          | tema y estado     |
-| PostgreSQL       | Firestore, RTDB     | local de avisos   |
-+------------------+--------------------+-------------------+
+```mermaid
+flowchart TD
+    UI[Compose: pantallas y componentes] --> VM[ViewModel: StateFlow y eventos]
+    VM --> REPO[Repository: modelos de dominio]
+    REPO --> API[API NestJS / Retrofit]
+    API --> PG[(PostgreSQL)]
+    REPO --> FS[Firestore: anuncios y eventos]
+    REPO --> RTDB[Realtime Database: ubicación activa]
+    REPO --> ROOM[Room: perfiles favoritos]
+    REPO --> DS[DataStore: tema y avisos vistos]
+    REPO --> AUTH[Firebase Auth / FCM]
 ```
 
 Las pantallas y componentes visuales muestran texto en español. Los identificadores de Kotlin, rutas y modelos se mantienen en inglés para que el código sea consistente. Cada pantalla con lógica recibe un estado inmutable desde un `ViewModel` y emite acciones mediante callbacks; un composable no consulta Firebase, Retrofit, DataStore ni Room directamente.
@@ -38,6 +41,17 @@ Las listas principales usan estados visibles para evitar pantallas bloqueadas cu
 3. Las pantallas autenticadas leen y escriben información mediante repositorios remotos, que consumen la API NestJS.
 4. Cuando hay una coordinación aceptada, conductor y pasajero ven el detalle del viaje. Solo el conductor puede iniciar el viaje y compartir ubicación.
 5. Al cerrar sesión se elimina el registro FCM del dispositivo, se detiene el servicio de ubicación y se limpia el historial de navegación.
+
+```mermaid
+flowchart LR
+    A[Iniciar sesión] --> B[Crear trayecto base]
+    B --> C[Buscar compatibilidades]
+    C --> D[Enviar solicitud o invitación]
+    D --> E[Aceptar coordinación]
+    E --> F[Definir punto de encuentro]
+    F --> G[Iniciar y seguir viaje]
+    G --> H[Finalizar o cancelar]
+```
 
 ## Estructura del proyecto
 
@@ -79,6 +93,7 @@ Cada funcionalidad usa normalmente cuatro archivos: `*Screens.kt` para la UI, `*
 | --- | --- |
 | `core/model/` | Modelos de dominio compartidos: estudiante, trayecto, solicitud, coordinación, roles y estados. No contiene DTO de Retrofit. |
 | `core/data/repository/` | Contratos de repositorio e implementaciones reales. `RemoteTripRepository`, `RemoteRideRequestRepository` y `RemoteCoordinationRepository` hablan con la API; `FirebaseSessionRepository` y `FirebaseUserRepository` coordinan Auth y perfil. Las clases `Fake*` y `MockRutaUStore` se conservan solo para pruebas y previews. |
+| `core/data/local/` | Base Room, entidad y DAO de perfiles compatibles guardados. Solo se accede a Room desde `RoomFavoriteTripRepository`. |
 | `core/data/catalog/` | Lee universidades, campus y zonas de la API y transforma identificadores en nombres visibles. |
 | `core/network/` | `BackendApi` define Retrofit; DTOs, mapeadores, envolturas de respuesta, token Firebase e idempotencia viven aquí. |
 | `core/auth/` | `GoogleSignInCoordinator` abre Credential Manager y devuelve el ID token de Google que consume Firebase Auth. |
@@ -124,7 +139,9 @@ El registro valida nombre, universidad, campus, correo, contraseña, confirmaci�
 
 ### Cloud Firestore: anuncios generales dentro de la app
 
-Firestore se utiliza solamente para avisos generales en la colección `appMessages`; no contiene trayectos, solicitudes, plazas ni coordinaciones. La implementación está en `FirestorePopupMessageFeedRepository`.
+RutaU utiliza NestJS y PostgreSQL como fuente de verdad para perfiles, trayectos, solicitudes, plazas y coordinaciones. Por acuerdo del curso, Firestore se usa para anuncios generales (`appMessages`) y para registrar interacciones reales del usuario (`appMessageEvents`). Ambas operaciones pasan por Repository y se convierten a modelos de dominio antes de llegar a la interfaz.
+
+Firestore no contiene trayectos, solicitudes, plazas ni coordinaciones. La implementación de lectura está en `FirestorePopupMessageFeedRepository` y la de escritura en `FirestorePopupMessageEventRepository`.
 
 Cada documento válido tiene este formato:
 
@@ -185,6 +202,8 @@ Para confirmar la integración antes de una entrega, agregue temporalmente un bo
 
 ## Comunicación con el backend
 
+El código del backend NestJS está disponible en [rutaU-back](https://github.com/carlosaltan18/rutaU-back). PostgreSQL permanece como fuente de verdad de los datos de negocio.
+
 ### Dirección y configuración de red
 
 `app/build.gradle.kts` genera estas variables `BuildConfig`:
@@ -226,6 +245,12 @@ DataStore no reemplaza la base de datos remota. Solo almacena:
 | `PopupMessageRepository.kt` | `rutau_popup_messages` | IDs de anuncios vistos, fecha de visualización y preferencia de popups. |
 
 No se almacenan ID tokens, contraseñas, perfiles, coordenadas ni objetos de negocio sensibles en DataStore.
+
+### Room
+
+Room se usa para la lista local de perfiles compatibles guardados. La persona puede seleccionar **Guardar perfil** desde un perfil compatible y después verlo en la sección **Guardados** de Trayectos. `FavoriteTripEntity`, `FavoriteTripDao` y `RutaULocalDatabase` persisten este dato en `rutau_local.db`; `RoomFavoriteTripRepository` lo transforma a `FavoriteTrip` antes de exponerlo a la interfaz.
+
+Este dato permite demostrar la persistencia local: guarda un perfil, activa modo avión, cierra la aplicación por completo y vuelve a abrirla. El perfil guardado debe continuar en la sección **Guardados**.
 
 ### Permisos Android
 
@@ -300,3 +325,58 @@ Para verificar el comportamiento sin conexión, active el modo avión con la apl
 - NestJS/PostgreSQL valida roles, plazas, solicitudes y coordinaciones.
 - Firebase Auth prueba la identidad; Firebase Realtime Database comparte solo ubicación activa; Firestore sirve anuncios generales; FCM entrega eventos personales.
 - No añadir servicios Firebase nuevos ni campos de API sin actualizar primero el contrato OpenAPI y las reglas de seguridad correspondientes.
+
+## Matriz de requisitos de entrega final
+
+| Criterio | Evidencia en el proyecto |
+| --- | --- |
+| M1 — UI y tema | [Tema RutaU](app/src/main/java/uvg/edu/rutau/ui/theme) y pantallas organizadas por funcionalidad. |
+| M2 — Navegación | [RutaUNavHost](app/src/main/java/uvg/edu/rutau/app/RutaUNavHost.kt) usa rutas tipadas y lleva IDs a los detalles. |
+| M3 — Listas eficientes | [TripScreens](app/src/main/java/uvg/edu/rutau/feature/trips/TripScreens.kt) y [RequestScreens](app/src/main/java/uvg/edu/rutau/feature/requests/RequestScreens.kt) usan `LazyColumn` con `key`. |
+| M4 — Formulario validado | [SignUpViewModel](app/src/main/java/uvg/edu/rutau/feature/auth/SignUpViewModel.kt) recalcula errores e `isFormValid` en cada cambio; [SignUpScreen](app/src/main/java/uvg/edu/rutau/feature/auth/SignUpScreen.kt) deshabilita el envío inválido. |
+| M5 — MVVM | Los estados inmutables y acciones viven en los ViewModels de [feature](app/src/main/java/uvg/edu/rutau/feature). |
+| M6 — Repository | La UI usa repositorios por contrato; Firebase, Room y Retrofit están encapsulados en [core](app/src/main/java/uvg/edu/rutau/core). |
+| M7 — Inyección manual | [RutaUAppDependencies](app/src/main/java/uvg/edu/rutau/app/RutaUAppDependencies.kt) compone las implementaciones y las fábricas las reciben por constructor. |
+| M8 — Coroutines | Los ViewModels usan `viewModelScope`; el refresco periódico de solicitudes pertenece a [RequestsViewModel](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt), no al repositorio. |
+| M9 — Firestore | [PopupMessageRepository](app/src/main/java/uvg/edu/rutau/core/preferences/PopupMessageRepository.kt) lee `appMessages` y crea `appMessageEvents`, mapeando a modelos de dominio; las reglas están en [firestore.rules](firebase/firestore.rules). |
+| M10 — Estados visibles | [TripViewModels](app/src/main/java/uvg/edu/rutau/feature/trips/TripViewModels.kt) y [RequestViewModels](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt) representan carga, contenido, vacío y error. |
+| M11 — Room | [RutaULocalDatabase](app/src/main/java/uvg/edu/rutau/core/data/local/RutaULocalDatabase.kt), [FavoriteTripDao](app/src/main/java/uvg/edu/rutau/core/data/local/FavoriteTripDao.kt) y [RoomFavoriteTripRepository](app/src/main/java/uvg/edu/rutau/core/data/repository/FavoriteTripRepository.kt). |
+| M12 — Convenciones | Código de negocio en inglés, UI en español, sin `!!`, sin imports Firebase o Room en pantallas y lint ejecutado antes de publicar. |
+| M13 — Crashlytics | [SafeCrashReporter](app/src/main/java/uvg/edu/rutau/core/diagnostics/SafeCrashReporter.kt) registra errores técnicos sin datos privados. |
+| M14 — App Distribution | [Configuración Gradle](app/build.gradle.kts) publica APK para pruebas externas mediante Firebase App Distribution. |
+| M15 — Estabilidad | Las pruebas unitarias y lint se ejecutan con Gradle; el checklist de la entrega incluye prueba manual del flujo principal, modo avión y dos cuentas. |
+
+## Alcance congelado
+
+| Historia | Decisión | Estado |
+| --- | --- | --- |
+| F1 — Crear cuenta e iniciar sesión con correo o Google | Dentro | Cumplida con Firebase Authentication y sesión en el backend. |
+| F2 — Crear, editar y consultar trayectos base | Dentro | Cumplida mediante el backend de RutaU. |
+| F3 — Buscar compatibilidades y enviar solicitud o invitación | Dentro | Cumplida con coincidencias, aporte simulado y notificaciones. |
+| F4 — Aceptar, coordinar e iniciar un viaje | Dentro | Cumplida con pasajeros, punto de encuentro, contacto, estado de llegada y ubicación en vivo. |
+| Pagos reales | Fuera | El aporte es una referencia simulada; no se procesan cobros ni se guardan medios de pago. |
+| Navegación GPS dentro de RutaU | Fuera | RutaU muestra el punto y abre Google Maps, Waze o navegador para navegación paso a paso. |
+| Historial permanente de ubicación | Fuera | Se protege la privacidad: solo se conserva la última ubicación mientras el viaje está activo. |
+| Calificaciones, reportes y moderación | Fuera | Requieren políticas y flujos de seguridad que no pertenecen a este alcance congelado. |
+
+## Evidencia que debe acompañar la PR final
+
+- Captura de una versión distribuida por Firebase App Distribution, con notas de versión y al menos dos descargas de personas ajenas al equipo.
+- Captura de un error no fatal en Crashlytics y la decisión tomada para atenderlo o justificarlo.
+- Video continuo del flujo principal: acción que lee y escribe en Firestore, documento creado en Console, prueba sin conexión y favorito persistente de Room.
+- Enlaces a tres revisiones de código realizadas y tres comentarios recibidos, indicando cómo se atendió cada hallazgo.
+- Resultado de una prueba de tarea con una persona externa que complete el flujo sin ayuda.
+
+## Referencias
+
+- [Jetpack Compose](https://developer.android.com/develop/ui/compose)
+- [Arquitectura con ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel)
+- [Room](https://developer.android.com/training/data-storage/room)
+- [Firebase para Android](https://firebase.google.com/docs/android/setup)
+- [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics/get-started?platform=android)
+- [Firebase App Distribution](https://firebase.google.com/docs/app-distribution/android/distribute-gradle)
+- [Backend RutaU](https://github.com/carlosaltan18/rutaU-back)
+
+## Declaración de uso de IA
+
+El equipo utilizó OpenAI Codex como apoyo para analizar errores, proponer estructura, generar borradores de código y documentación. Cada cambio fue revisado, adaptado al proyecto y comprobado mediante compilación, pruebas, lint o pruebas manuales por integrantes del equipo. El equipo conserva la responsabilidad de comprender y defender las decisiones técnicas presentadas.
