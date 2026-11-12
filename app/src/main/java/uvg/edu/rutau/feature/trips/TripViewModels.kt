@@ -77,6 +77,7 @@ data class CoordinatedTripSummary(
     val rideDate: LocalDate,
     val status: CoordinationStatus,
     val liveLocationStatus: LiveLocationStatus,
+    val pendingContributionCount: Int = 0,
 )
 
 /** Maneja la lista de trayectos de la persona actual. */
@@ -632,6 +633,10 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(
                 rideDate = first.request.rideDate,
                 status = details.first().second.status,
                 liveLocationStatus = details.first().second.liveLocationStatus,
+                pendingContributionCount = details.count { (_, coordination) ->
+                    coordination.status == CoordinationStatus.COMPLETED &&
+                        !coordination.contributionConfirmedByCurrentUser
+                },
             )
         }
         .sortedWith(

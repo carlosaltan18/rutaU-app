@@ -165,6 +165,20 @@ fun CoordinatedTripCard(
                 "Pasajeros: ${detail.passengers.joinToString { it.fullName }}",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (detail.status == CoordinationStatus.COMPLETED) {
+                RutaUStatusChip(
+                    label = if (detail.pendingContributionCount > 0) {
+                        "Aporte pendiente"
+                    } else {
+                        "Aporte confirmado"
+                    },
+                    type = if (detail.pendingContributionCount > 0) {
+                        RutaUStatusType.WARNING
+                    } else {
+                        RutaUStatusType.SUCCESS
+                    },
+                )
+            }
             RutaUPrimaryButton(
                 text = if (isActive) "Abrir viaje" else "Ver resumen",
                 onClick = onOpen,
