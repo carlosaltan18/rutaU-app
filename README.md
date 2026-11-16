@@ -278,8 +278,8 @@ El `AndroidManifest.xml` declara internet, notificaciones, ubicación aproximada
 | `minSdk` | 33 |
 | `targetSdk` | 37 |
 | `compileSdk` | 37.1 |
-| `versionCode` | 3 |
-| `versionName` | `1.2.0` |
+| `versionCode` | 4 |
+| `versionName` | `1.3.0` |
 | Distribución configurada | APK con Firebase App Distribution |
 
 1. Abra este proyecto en Android Studio y espere la sincronización de Gradle.
@@ -297,14 +297,14 @@ $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 
 La APK queda en `app/build/outputs/apk/debug/`.
 
-Para publicar la versión 3 de prueba en Firebase App Distribution, inicia sesión previamente con `firebase login` y ejecuta desde la raíz del repositorio:
+Para publicar la versión 4 de prueba en Firebase App Distribution, inicia sesión previamente con `firebase login` y ejecuta desde la raíz del repositorio:
 
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 .\gradlew.bat :app:assembleDebug :app:appDistributionUploadDebug
 ```
 
-La tarea sube la APK `debug` con `versionCode=3` y `versionName=1.2.0`. Las notas de esta versión y el correo de prueba están en [`app/build.gradle.kts`](app/build.gradle.kts); agrega los demás correos a `testers` o configura un grupo antes de publicar para más personas. El plugin usa la sesión del Firebase CLI y `app/google-services.json` para identificar la aplicación. No se guardan credenciales de distribución en este repositorio. Publica primero el backend con su migración para que esta versión pueda guardar el vehículo.
+La tarea sube la APK `debug` con `versionCode=4` y `versionName=1.3.0`. Las notas de esta versión y el correo de prueba están en [`app/build.gradle.kts`](app/build.gradle.kts); agrega los demás correos a `testers` o configura un grupo antes de publicar para más personas. El plugin usa la sesión del Firebase CLI y `app/google-services.json` para identificar la aplicación. No se guardan credenciales de distribución en este repositorio. El backend debe estar disponible para probar la edición de trayectos y perfiles.
 
 ## Pruebas y diagnóstico
 
@@ -330,6 +330,18 @@ Lint:
 Las pruebas, mocks y previews permiten comprobar UI y mapeos sin depender de Render. Las pruebas manuales contra servicios reales deberían cubrir como mínimo inicio de sesión, renovación del ID token, trayectos, solicitudes, registro FCM, anuncio de Firestore, ubicación con dos cuentas, falta de red y primer inicio lento del servicio gratuito de Render.
 
 Para verificar el comportamiento sin conexión, active el modo avión con la aplicación abierta. Trayectos y Solicitudes deben mostrar un estado de error con **Reintentar**, o datos que ya estén disponibles en memoria, sin cerrar la aplicación ni dejar un indicador de carga permanente.
+
+### Revisión de los escenarios de la hoja de trabajo 4
+
+La hoja compartida identifica a **UVGspot** y al grupo **Bolígrafos**, por lo que sus observaciones no se atribuyen automáticamente a RutaU. Se revisaron en RutaU los escenarios equivalentes:
+
+| Escenario | Resultado en RutaU 1.3.0 |
+| --- | --- |
+| Girar el teléfono mientras se muestra Cuenta | La sincronización de sesión espera a que Navigation Compose restaure la ruta; no envía la cuenta a Trayectos por una ruta todavía inexistente. |
+| Girar el teléfono con el formulario de trayecto abierto | El `NavController` conserva la pantalla y `TripEditorViewModel` guarda el borrador en `SavedStateHandle`, incluso si Android recrea el proceso. |
+| Dejar vacío el nuevo correo o escribir mal la contraseña actual | El botón de actualización se deshabilita para datos incompletos. Si Firebase rechaza el cambio, el mensaje aparece junto al formulario; si acepta la solicitud, se explica que falta confirmar el enlace enviado al correo nuevo. |
+
+Antes de distribuir, compruebe estos tres recorridos en un dispositivo real: abra Cuenta y gire el teléfono; escriba un trayecto sin guardarlo y gire; intente cambiar el correo con una contraseña incorrecta. No se modificó el backend ni la base de datos para estos ajustes.
 
 ## Límites de responsabilidad
 

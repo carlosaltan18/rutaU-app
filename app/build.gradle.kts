@@ -23,8 +23,8 @@ android {
         applicationId = "com.apprutau.rutau"
         minSdk = 33
         targetSdk = 37
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 4
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,7 +61,7 @@ android {
 firebaseAppDistributionDefault {
     artifactType = "APK"
     testers = "carlosaltan850@gmail.com"
-    releaseNotes = "Versión 3: placa y modelo del conductor; validación antes de publicar trayectos, coordinar solicitudes e iniciar viajes."
+    releaseNotes = "Versión 4: mantiene cuenta y formulario de trayecto al girar el teléfono; valida el cambio de correo y muestra el resultado junto al formulario."
 }
 
 dependencies {
