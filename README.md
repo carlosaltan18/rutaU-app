@@ -200,7 +200,7 @@ Los campos enviados son `latitude`, `longitude`, `accuracy`, `bearing`, `speed` 
 
 ### Crashlytics
 
-Crashlytics se inicializa en `RutaUApplication`. `SafeCrashReporter` registra solo una categoría técnica de error; no manda tokens, contraseñas, correos, teléfonos ni coordenadas. La recopilación está activada por build type mediante `CRASHLYTICS_COLLECTION_ENABLED`.
+Crashlytics se inicializa en `RutaUApplication`. `SafeCrashReporter` registra solo una categoría técnica de error; no manda tokens, contraseñas, correos, teléfonos ni coordenadas. La recopilación está activada por build type mediante `CRASHLYTICS_COLLECTION_ENABLED`. Para validar el flujo, `CrashlyticsDebugVerifier` genera una única excepción no fatal anónima por instalación de una compilación `debug`; no se ejecuta en `release`.
 
 Para confirmar la integración antes de una entrega, agregue temporalmente un botón o una llamada de prueba que lance una excepción, instale la app, provoque el error y vuelva a abrirla. Después elimine esa prueba. Nunca debe dejarse un crash intencional en una versión distribuida.
 
@@ -366,7 +366,7 @@ Antes de distribuir, compruebe estos tres recorridos en un dispositivo real: abr
 | M10 — Estados visibles | [TripViewModels](app/src/main/java/uvg/edu/rutau/feature/trips/TripViewModels.kt) y [RequestViewModels](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt) representan carga, contenido, vacío y error. |
 | M11 — Room | [RutaULocalDatabase](app/src/main/java/uvg/edu/rutau/core/data/local/RutaULocalDatabase.kt), [FavoriteTripDao](app/src/main/java/uvg/edu/rutau/core/data/local/FavoriteTripDao.kt) y [RoomFavoriteTripRepository](app/src/main/java/uvg/edu/rutau/core/data/repository/FavoriteTripRepository.kt). |
 | M12 — Convenciones | [Paquetes de UI](app/src/main/java/uvg/edu/rutau/feature) mantienen texto en español y separan el código de negocio; el proyecto ofrece la tarea `lintDebug` en [Gradle](app/build.gradle.kts). |
-| M13 — Crashlytics | [SafeCrashReporter](app/src/main/java/uvg/edu/rutau/core/diagnostics/SafeCrashReporter.kt) registra errores no fatales sin datos privados y [RutaUAppDependencies](app/src/main/java/uvg/edu/rutau/app/RutaUAppDependencies.kt) lo invoca ante fallas técnicas de notificaciones que no son de red. Falta adjuntar el evento no fatal efectivo del build distribuido y documentar la decisión tomada. |
+| M13 — Crashlytics | [SafeCrashReporter](app/src/main/java/uvg/edu/rutau/core/diagnostics/SafeCrashReporter.kt) registra errores no fatales sin datos privados y [RutaUAppDependencies](app/src/main/java/uvg/edu/rutau/app/RutaUAppDependencies.kt) lo invoca ante fallas técnicas de notificaciones que no son de red. [CrashlyticsDebugVerifier](app/src/main/java/uvg/edu/rutau/core/diagnostics/CrashlyticsDebugVerifier.kt) permite verificar el envío una vez por instalación `debug`, sin ejecutarse en `release`. Falta adjuntar la captura del evento efectivo y documentar la decisión tomada. |
 | M14 — App Distribution | [Configuración Gradle](app/build.gradle.kts) publica APK para pruebas externas mediante Firebase App Distribution. La versión 1.3.0 (4) fue subida con notas y registra una descarga; falta una segunda descarga externa para completar la evidencia requerida. |
 | M15 — Estabilidad | [Prueba de navegación](app/src/androidTest/java/uvg/edu/rutau/app/RutaUAppNavigationTest.kt), pruebas unitarias y checklist manual de flujo principal, modo avión y dos cuentas. |
 
