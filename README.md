@@ -2,7 +2,7 @@
 
 ## Problema y solución
 
-Los estudiantes suelen coincidir en recorridos hacia su campus, pero no cuentan con una forma ordenada y segura de encontrarse. RutaU permite registrar trayectos habituales, descubrir compatibilidades y coordinar un viaje entre conductor y pasajero. La aplicación mantiene información clara sobre plazas, punto de encuentro, aporte simulado y estado del viaje, sin implementar pagos reales.
+Carmina, estudiante que depende de contactos cercanos o transporte pagado para llegar al campus, no tiene una alternativa confiable cuando sus horarios no coinciden o le cancelan a última hora. La validación identificó gastos de hasta Q200 en una semana y la barrera de coordinar con estudiantes desconocidos de la misma ruta. RutaU permite registrar trayectos habituales, descubrir compatibilidades y acordar un viaje entre conductor y pasajero. La propuesta de valor es facilitar esa coordinación dentro de la comunidad universitaria, con información de perfil y condiciones visibles antes de aceptar, sin procesar pagos reales.
 
 RutaU se conecta al backend para las reglas del negocio, usa Firebase Authentication para identificar a cada persona y Firebase para avisos y ubicación en vivo. DataStore conserva preferencias y Room guarda perfiles compatibles marcados como favoritos para verlos aun sin conexión.
 
@@ -34,7 +34,7 @@ Las listas principales usan estados visibles para evitar pantallas bloqueadas cu
 - `Empty`: la consulta terminó sin datos para la sección seleccionada.
 - `Error`: se informa el problema y se ofrece un botón **Reintentar**.
 
-### Flujo principal
+## Flujo de usuario
 
 1. La persona inicia sesión con correo/contraseña o Google usando Firebase Authentication.
 2. `FirebaseSessionRepository` obtiene el ID token de Firebase y llama a `POST /auth/session` para crear o recuperar el perfil de RutaU.
@@ -260,7 +260,7 @@ Este dato permite demostrar la persistencia local: guarda un perfil, activa modo
 
 El `AndroidManifest.xml` declara internet, notificaciones, ubicación aproximada y precisa, y servicio foreground de ubicación. La aplicación solicita cada permiso cuando hace falta: notificaciones al iniciar sesión y ubicación al iniciar un viaje como conductor.
 
-## Configuración y ejecución
+## Cómo ejecutar
 
 ### Requisitos
 
@@ -331,9 +331,9 @@ Las pruebas, mocks y previews permiten comprobar UI y mapeos sin depender de Ren
 
 Para verificar el comportamiento sin conexión, active el modo avión con la aplicación abierta. Trayectos y Solicitudes deben mostrar un estado de error con **Reintentar**, o datos que ya estén disponibles en memoria, sin cerrar la aplicación ni dejar un indicador de carga permanente.
 
-### Revisión de los escenarios de la hoja de trabajo 4
+### Cross-review recibido
 
-El equipo **UVGspot** revisó RutaU y registró los siguientes hallazgos en la hoja de trabajo 4. Esta versión atiende los escenarios señalados:
+El equipo **Los Camotes** (app **UVGspot**) revisó RutaU y registró los siguientes hallazgos en la hoja de trabajo 4. Esta versión atiende los escenarios señalados:
 
 | Escenario | Resultado en RutaU 1.3.0 |
 | --- | --- |
@@ -350,48 +350,47 @@ Antes de distribuir, compruebe estos tres recorridos en un dispositivo real: abr
 - Firebase Auth prueba la identidad; Firebase Realtime Database comparte solo ubicación activa; Firestore sirve anuncios generales; FCM entrega eventos personales.
 - No añadir servicios Firebase nuevos ni campos de API sin actualizar primero el contrato OpenAPI y las reglas de seguridad correspondientes.
 
-## Matriz de requisitos de entrega final
+## Mínimos técnicos
 
 | Criterio | Evidencia en el proyecto |
 | --- | --- |
-| M1 — UI y tema | [Tema RutaU](app/src/main/java/uvg/edu/rutau/ui/theme) y pantallas organizadas por funcionalidad. |
+| M1 — UI y tema | [RutaUTheme](app/src/main/java/uvg/edu/rutau/ui/theme/Theme.kt) y pantallas organizadas por funcionalidad. |
 | M2 — Navegación | [RutaUNavHost](app/src/main/java/uvg/edu/rutau/app/RutaUNavHost.kt) usa rutas tipadas y lleva IDs a los detalles. |
 | M3 — Listas eficientes | [TripScreens](app/src/main/java/uvg/edu/rutau/feature/trips/TripScreens.kt) y [RequestScreens](app/src/main/java/uvg/edu/rutau/feature/requests/RequestScreens.kt) usan `LazyColumn` con `key`. |
 | M4 — Formulario validado | [SignUpViewModel](app/src/main/java/uvg/edu/rutau/feature/auth/SignUpViewModel.kt) recalcula errores e `isFormValid` en cada cambio; [SignUpScreen](app/src/main/java/uvg/edu/rutau/feature/auth/SignUpScreen.kt) deshabilita el envío inválido. |
-| M5 — MVVM | Los estados inmutables y acciones viven en los ViewModels de [feature](app/src/main/java/uvg/edu/rutau/feature). |
-| M6 — Repository | La UI usa repositorios por contrato; Firebase, Room y Retrofit están encapsulados en [core](app/src/main/java/uvg/edu/rutau/core). |
+| M5 — MVVM | [SignUpViewModel](app/src/main/java/uvg/edu/rutau/feature/auth/SignUpViewModel.kt) expone un `StateFlow` inmutable; las pantallas reciben estado y emiten callbacks. |
+| M6 — Repository | [TripRepository](app/src/main/java/uvg/edu/rutau/core/data/repository/TripRepository.kt) define el contrato y [RemoteTripRepository](app/src/main/java/uvg/edu/rutau/core/data/repository/RemoteTripRepository.kt) encapsula el acceso remoto. |
 | M7 — Inyección manual | [RutaUAppDependencies](app/src/main/java/uvg/edu/rutau/app/RutaUAppDependencies.kt) compone las implementaciones y las fábricas las reciben por constructor. |
 | M8 — Coroutines | Los ViewModels usan `viewModelScope`; el refresco periódico de solicitudes pertenece a [RequestsViewModel](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt), no al repositorio. |
 | M9 — Firestore | [PopupMessageRepository](app/src/main/java/uvg/edu/rutau/core/preferences/PopupMessageRepository.kt) lee `appMessages` y crea `appMessageEvents`, mapeando a modelos de dominio; las reglas están en [firestore.rules](firebase/firestore.rules). |
 | M10 — Estados visibles | [TripViewModels](app/src/main/java/uvg/edu/rutau/feature/trips/TripViewModels.kt) y [RequestViewModels](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt) representan carga, contenido, vacío y error. |
 | M11 — Room | [RutaULocalDatabase](app/src/main/java/uvg/edu/rutau/core/data/local/RutaULocalDatabase.kt), [FavoriteTripDao](app/src/main/java/uvg/edu/rutau/core/data/local/FavoriteTripDao.kt) y [RoomFavoriteTripRepository](app/src/main/java/uvg/edu/rutau/core/data/repository/FavoriteTripRepository.kt). |
-| M12 — Convenciones | Código de negocio en inglés, UI en español, sin `!!`, sin imports Firebase o Room en pantallas y lint ejecutado antes de publicar. |
+| M12 — Convenciones | [Paquetes de UI](app/src/main/java/uvg/edu/rutau/feature) mantienen texto en español y separan el código de negocio; el proyecto ofrece la tarea `lintDebug` en [Gradle](app/build.gradle.kts). |
 | M13 — Crashlytics | [SafeCrashReporter](app/src/main/java/uvg/edu/rutau/core/diagnostics/SafeCrashReporter.kt) registra errores técnicos sin datos privados. |
 | M14 — App Distribution | [Configuración Gradle](app/build.gradle.kts) publica APK para pruebas externas mediante Firebase App Distribution. |
-| M15 — Estabilidad | Las pruebas unitarias y lint se ejecutan con Gradle; el checklist de la entrega incluye prueba manual del flujo principal, modo avión y dos cuentas. |
+| M15 — Estabilidad | [Prueba de navegación](app/src/androidTest/java/uvg/edu/rutau/app/RutaUAppNavigationTest.kt), pruebas unitarias y checklist manual de flujo principal, modo avión y dos cuentas. |
 
-## Alcance congelado
+## Alcance
 
-| Historia | Decisión | Estado |
+| ID | User story y criterio de aceptación | Decisión | Estado |
 | --- | --- | --- |
-| F1 — Crear cuenta e iniciar sesión con correo o Google | Dentro | Cumplida con Firebase Authentication y sesión en el backend. |
-| F2 — Crear, editar y consultar trayectos base | Dentro | Cumplida mediante el backend de RutaU. |
-| F3 — Buscar compatibilidades y enviar solicitud o invitación | Dentro | Cumplida con coincidencias, aporte simulado y notificaciones. |
-| F4 — Aceptar, coordinar e iniciar un viaje | Dentro | Cumplida con pasajeros, punto de encuentro, contacto, estado de llegada y ubicación en vivo. |
-| Pagos reales | Fuera | El aporte es una referencia simulada; no se procesan cobros ni se guardan medios de pago. |
-| Navegación GPS dentro de RutaU | Fuera | RutaU muestra el punto y abre Google Maps, Waze o navegador para navegación paso a paso. |
-| Historial permanente de ubicación | Fuera | Se protege la privacidad: solo se conserva la última ubicación mientras el viaje está activo. |
-| Calificaciones, reportes y moderación | Fuera | Requieren políticas y flujos de seguridad que no pertenecen a este alcance congelado. |
+| F1 | Como estudiante universitario, quiero registrar mi origen, destino y horario habitual para indicar cuándo y por dónde realizo mi trayecto. Criterio: al guardar datos válidos, se muestran nuevamente al consultar el trayecto. | Dentro (Must) | Cumplida en [TripEditorViewModel](app/src/main/java/uvg/edu/rutau/feature/trips/TripViewModels.kt). |
+| F2 | Como estudiante universitario, quiero consultar estudiantes con rutas y horarios compatibles para encontrar compañeros fuera de mi círculo cercano. Criterio: con un trayecto registrado, se muestran solo perfiles que cumplen las reglas de compatibilidad definidas. | Dentro (Must) | Cumplida en [MatchesViewModel](app/src/main/java/uvg/edu/rutau/feature/trips/TripViewModels.kt). |
+| F3 | Como estudiante universitario, quiero consultar el perfil básico de un estudiante compatible para decidir si coordino un viaje. Criterio: el perfil muestra al menos nombre, rol de transporte y los datos aprobados como visibles. | Dentro (Must) | Cumplida en [TripScreens](app/src/main/java/uvg/edu/rutau/feature/trips/TripScreens.kt). |
+| F4 | Como estudiante universitario, quiero enviar, aceptar o rechazar una solicitud para compartir un viaje para confirmar la coordinación. Criterio: al enviarla queda Pendiente y el receptor puede Aceptarla o Rechazarla; ambos ven el estado actualizado. | Dentro (Must) | Cumplida en [RequestViewModels](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt). |
+| F5 | Notificar cambios o cancelaciones de una coordinación. | Fuera (Should) | La priorización inicial no la incluyó entre las cuatro historias Must. |
+| F6 | Sugerir una cuota de viaje y permitir una oferta manual. | Fuera (Should) | La priorización inicial no la incluyó entre las cuatro historias Must. |
+| F7 | Calcular desvíos o rutas alternativas para recoger y dejar pasajeros. | Fuera (Won't) | Requiere rutas dinámicas y APIs de mapas avanzadas, fuera del alcance del curso. |
 
-## Evidencia que debe acompañar la PR final
+## Checklist de evidencias para la PR final
 
 - Captura de una versión distribuida por Firebase App Distribution, con notas de versión y al menos dos descargas de personas ajenas al equipo.
 - Captura de un error no fatal en Crashlytics y la decisión tomada para atenderlo o justificarlo.
-- Video continuo del flujo principal: acción que lee y escribe en Firestore, documento creado en Console, prueba sin conexión y favorito persistente de Room.
-- Enlaces a tres revisiones de código realizadas y tres comentarios recibidos, indicando cómo se atendió cada hallazgo.
-- Resultado de una prueba de tarea con una persona externa que complete el flujo sin ayuda.
+- Los tres hallazgos emitidos al equipo revisado y los tres recibidos, con pasos, esperado, obtenido, severidad y decisión.
+- Tabla de observaciones del docente atendidas, cada una enlazada al commit correspondiente.
+- Enlaces a las diapositivas en PDF y al video continuo de respaldo del flujo principal.
 
-## Referencias
+## Referencias y uso de IA
 
 - [Jetpack Compose](https://developer.android.com/develop/ui/compose)
 - [Arquitectura con ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel)
@@ -401,6 +400,6 @@ Antes de distribuir, compruebe estos tres recorridos en un dispositivo real: abr
 - [Firebase App Distribution](https://firebase.google.com/docs/app-distribution/android/distribute-gradle)
 - [Backend RutaU](https://github.com/carlosaltan18/rutaU-back)
 
-## Declaración de uso de IA
+### Declaración de uso de IA
 
 El equipo utilizó OpenAI Codex como apoyo para analizar errores, proponer estructura, generar borradores de código y documentación. Cada cambio fue revisado, adaptado al proyecto y comprobado mediante compilación, pruebas, lint o pruebas manuales por integrantes del equipo. El equipo conserva la responsabilidad de comprender y defender las decisiones técnicas presentadas.
