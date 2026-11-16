@@ -366,8 +366,8 @@ Antes de distribuir, compruebe estos tres recorridos en un dispositivo real: abr
 | M10 — Estados visibles | [TripViewModels](app/src/main/java/uvg/edu/rutau/feature/trips/TripViewModels.kt) y [RequestViewModels](app/src/main/java/uvg/edu/rutau/feature/requests/RequestViewModels.kt) representan carga, contenido, vacío y error. |
 | M11 — Room | [RutaULocalDatabase](app/src/main/java/uvg/edu/rutau/core/data/local/RutaULocalDatabase.kt), [FavoriteTripDao](app/src/main/java/uvg/edu/rutau/core/data/local/FavoriteTripDao.kt) y [RoomFavoriteTripRepository](app/src/main/java/uvg/edu/rutau/core/data/repository/FavoriteTripRepository.kt). |
 | M12 — Convenciones | [Paquetes de UI](app/src/main/java/uvg/edu/rutau/feature) mantienen texto en español y separan el código de negocio; el proyecto ofrece la tarea `lintDebug` en [Gradle](app/build.gradle.kts). |
-| M13 — Crashlytics | [SafeCrashReporter](app/src/main/java/uvg/edu/rutau/core/diagnostics/SafeCrashReporter.kt) registra errores técnicos sin datos privados. |
-| M14 — App Distribution | [Configuración Gradle](app/build.gradle.kts) publica APK para pruebas externas mediante Firebase App Distribution. |
+| M13 — Crashlytics | [SafeCrashReporter](app/src/main/java/uvg/edu/rutau/core/diagnostics/SafeCrashReporter.kt) define el registro no fatal sin datos privados. Al preparar esta entrega todavía falta invocarlo desde los repositorios y adjuntar un evento no fatal del build distribuido. |
+| M14 — App Distribution | [Configuración Gradle](app/build.gradle.kts) publica APK para pruebas externas mediante Firebase App Distribution. La versión 1.3.0 (4) fue subida con notas; faltan dos descargas externas para completar la evidencia requerida. |
 | M15 — Estabilidad | [Prueba de navegación](app/src/androidTest/java/uvg/edu/rutau/app/RutaUAppNavigationTest.kt), pruebas unitarias y checklist manual de flujo principal, modo avión y dos cuentas. |
 
 ## Alcance
