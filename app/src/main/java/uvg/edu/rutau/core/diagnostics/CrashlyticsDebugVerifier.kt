@@ -1,6 +1,8 @@
 package uvg.edu.rutau.core.diagnostics
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import uvg.edu.rutau.BuildConfig
 
@@ -17,10 +19,15 @@ object CrashlyticsDebugVerifier {
     fun reportOnce(context: Context) {
         if (!BuildConfig.DEBUG) return
 
-        val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
-        if (preferences.getBoolean(VerificationReportedKey, false)) return
+        val appContext = context.applicationContext
+        Handler(Looper.getMainLooper()).postDelayed({
+            val preferences = appContext.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+            if (preferences.getBoolean(VerificationReportedKey, false)) return@postDelayed
 
-        SafeCrashReporter(FirebaseCrashlytics.getInstance()).record(VerificationCategory)
-        preferences.edit().putBoolean(VerificationReportedKey, true).apply()
+            SafeCrashReporter(FirebaseCrashlytics.getInstance()).record(VerificationCategory)
+            preferences.edit().putBoolean(VerificationReportedKey, true).commit()
+        }, InitializationDelayMillis)
     }
+
+    private const val InitializationDelayMillis = 3_000L
 }
