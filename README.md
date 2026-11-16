@@ -333,7 +333,7 @@ Para verificar el comportamiento sin conexión, active el modo avión con la apl
 
 ### Revisión de los escenarios de la hoja de trabajo 4
 
-La hoja compartida identifica a **UVGspot** y al grupo **Bolígrafos**, por lo que sus observaciones no se atribuyen automáticamente a RutaU. Se revisaron en RutaU los escenarios equivalentes:
+El equipo **UVGspot** revisó RutaU y registró los siguientes hallazgos en la hoja de trabajo 4. Esta versión atiende los escenarios señalados:
 
 | Escenario | Resultado en RutaU 1.3.0 |
 | --- | --- |
