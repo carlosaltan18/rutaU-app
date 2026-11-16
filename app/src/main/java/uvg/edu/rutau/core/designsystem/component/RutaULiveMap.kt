@@ -14,6 +14,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -34,8 +35,8 @@ fun RutaULiveMap(
     currentUserIsDriver: Boolean,
     meetingLatitude: Double?,
     meetingLongitude: Double?,
-    centerRequest: Long = 0L,
     modifier: Modifier = Modifier,
+    centerRequest: Long = 0L,
     mapHeight: Dp = Dp.Unspecified,
 ) {
     var mapView by remember { mutableStateOf<MapView?>(null) }
@@ -130,7 +131,7 @@ fun RutaULiveMap(
                 meetingLongitude = meetingLongitude,
             )
         },
-        modifier = mapModifier,
+        modifier = mapModifier.clipToBounds(),
     )
 }
 

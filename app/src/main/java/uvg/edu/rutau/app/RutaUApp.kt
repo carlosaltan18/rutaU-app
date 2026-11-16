@@ -2,7 +2,6 @@ package uvg.edu.rutau.app
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -31,6 +30,7 @@ import uvg.edu.rutau.core.preferences.ThemeMode
 import uvg.edu.rutau.ui.theme.RutaUTheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 
 /** Inicia la interfaz de RutaU. */
@@ -58,17 +58,27 @@ fun RutaUApp(
         PushPopupStore.messages.collect { message -> pushPopup = message }
     }
     LaunchedEffect(appState, RutaUAppDependencies.sessionRepository) {
-        RutaUAppDependencies.sessionRepository.sessionState.collect { state ->
+        combine(
+            RutaUAppDependencies.sessionRepository.sessionState,
+            appState.navController.currentBackStackEntryFlow,
+        ) { state, _ -> state }.collect { state ->
             when (state) {
-                is SessionState.SignedIn -> appState.navigateToAuthenticatedRoot()
-                SessionState.SignedOut -> appState.clearToLogin()
+                is SessionState.SignedIn -> {
+                    if (appState.needsAuthenticatedRoot()) {
+                        appState.navigateToAuthenticatedRoot()
+                    }
+                }
+                SessionState.SignedOut -> {
+                    if (appState.needsLoginDestination()) {
+                        appState.clearToLogin()
+                    }
+                }
             }
         }
     }
     LaunchedEffect(sessionState) {
         if (
             sessionState is SessionState.SignedIn &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
                 PackageManager.PERMISSION_GRANTED
         ) {
@@ -80,7 +90,9 @@ fun RutaUApp(
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 while (isActive) {
                     runCatching { RutaUAppDependencies.notificationPopupRepository.refresh() }
-                        .onFailure { RutaUAppDependencies.recordTechnicalError("notification_popup_refresh") }
+                        .onFailure { error ->
+                            RutaUAppDependencies.recordTechnicalError("notification_popup_refresh", error)
+                        }
                     delay(NotificationRefreshIntervalMillis)
                 }
             }

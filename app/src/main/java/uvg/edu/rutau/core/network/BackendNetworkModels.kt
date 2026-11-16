@@ -38,6 +38,8 @@ data class PrivateProfileDto(
     @SerializedName("photoUrl") val photoUrl: String? = null,
     @SerializedName("institutionalEmail") val institutionalEmail: String,
     @SerializedName("phone") val phone: String? = null,
+    @SerializedName("vehiclePlate") val vehiclePlate: String? = null,
+    @SerializedName("vehicleModel") val vehicleModel: String? = null,
     @SerializedName("emailVerified") val emailVerified: Boolean,
     @SerializedName("universityId") val universityId: String,
     @SerializedName("campusId") val campusId: String,
@@ -81,6 +83,8 @@ data class UpdateMeRequestDto(
     @SerializedName("universityId") val universityId: String? = null,
     @SerializedName("campusId") val campusId: String? = null,
     @SerializedName("phone") val phone: String? = null,
+    @SerializedName("vehiclePlate") val vehiclePlate: String? = null,
+    @SerializedName("vehicleModel") val vehicleModel: String? = null,
 )
 
 /** Guarda los datos necesarios para crear un trayecto. */
@@ -232,6 +236,7 @@ data class BackendCoordinationDto(
     @SerializedName("agreedContributionMinor") val agreedContributionMinor: Long,
     @SerializedName("currency") val currency: String,
     @SerializedName("driver") val driver: PublicProfileDto,
+    @SerializedName("driverVehicle") val driverVehicle: DriverVehicleDto? = null,
     @SerializedName("passenger") val passenger: PublicProfileDto,
     @SerializedName("contact") val contact: AuthorizedContactDto? = null,
     @SerializedName("meetingPoint") val meetingPoint: MeetingPointDto? = null,
@@ -240,6 +245,12 @@ data class BackendCoordinationDto(
     @SerializedName("cancellationReason") val cancellationReason: String? = null,
     @SerializedName("arrival") val arrival: CoordinationArrivalDto? = null,
     @SerializedName("contribution") val contribution: CoordinationContributionDto? = null,
+)
+
+/** Datos del vehículo visibles solo en una coordinación confirmada. */
+data class DriverVehicleDto(
+    @SerializedName("plate") val plate: String,
+    @SerializedName("model") val model: String,
 )
 
 /** Envía el motivo elegido cuando una persona cancela una coordinación. */

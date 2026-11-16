@@ -165,6 +165,20 @@ fun CoordinatedTripCard(
                 "Pasajeros: ${detail.passengers.joinToString { it.fullName }}",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (detail.status == CoordinationStatus.COMPLETED) {
+                RutaUStatusChip(
+                    label = if (detail.pendingContributionCount > 0) {
+                        "Aporte pendiente"
+                    } else {
+                        "Aporte confirmado"
+                    },
+                    type = if (detail.pendingContributionCount > 0) {
+                        RutaUStatusType.WARNING
+                    } else {
+                        RutaUStatusType.SUCCESS
+                    },
+                )
+            }
             RutaUPrimaryButton(
                 text = if (isActive) "Abrir viaje" else "Ver resumen",
                 onClick = onOpen,
@@ -451,6 +465,7 @@ fun ConfirmCoordinationSheet(
     onMessageChange: (String) -> Unit,
     onContributionChange: (Int) -> Unit,
     onConfirm: () -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(modifier.fillMaxWidth(), shape = MaterialTheme.shapes.extraLarge) {
@@ -490,7 +505,16 @@ fun ConfirmCoordinationSheet(
                 },
                 minLines = 3,
             )
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            state.error?.let { message ->
+                Text(message, color = MaterialTheme.colorScheme.error)
+                if (state.candidateTrip == null) {
+                    RutaUSecondaryButton(
+                        text = "Reintentar",
+                        onClick = onRetry,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             RutaUPrimaryButton(
                 if (state.sourceTrip?.role == TripRole.PASSENGER) "Enviar solicitud" else "Enviar invitación",
                 onConfirm,

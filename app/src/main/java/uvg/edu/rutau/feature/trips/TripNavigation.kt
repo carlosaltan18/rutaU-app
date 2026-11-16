@@ -13,6 +13,7 @@ import uvg.edu.rutau.core.navigation.RequestDetailRoute
 import uvg.edu.rutau.core.navigation.CoordinatedRideRoute as CoordinatedRideDestination
 import uvg.edu.rutau.core.navigation.TripEditorRoute as TripEditorDestination
 import uvg.edu.rutau.core.navigation.TripsRoute as TripsDestination
+import uvg.edu.rutau.core.navigation.AccountRoute as AccountDestination
 
 /** Agrega las pantallas de trayectos y compatibilidad a la navegación. */
 fun NavGraphBuilder.tripGraph(navController: NavHostController) {
@@ -36,6 +37,7 @@ fun NavGraphBuilder.tripGraph(navController: NavHostController) {
         val route = entry.toRoute<TripEditorDestination>()
         TripEditorRoute(
             onBack = { navController.popBackStack() },
+            onOpenAccount = { navController.navigate(AccountDestination) },
             viewModel = viewModel(
                 key = "trip-editor-${route.tripId ?: "new"}",
                 factory = TripEditorViewModel.factory(

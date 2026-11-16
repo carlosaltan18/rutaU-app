@@ -26,6 +26,7 @@ import uvg.edu.rutau.core.preferences.ThemeMode
 import uvg.edu.rutau.core.preferences.ThemePreferenceRepository
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.catalog.CatalogItem
+import uvg.edu.rutau.core.network.BackendApiException
 
 /** Indica los resultados posibles de las acciones de cuenta. */
 sealed interface AccountEvent {
@@ -83,7 +84,13 @@ class AccountViewModel(
                         campusId = savedStateHandle[CampusIdKey] ?: account.campusId,
                         campusOptions = data.campuses,
                         phone = savedStateHandle[PhoneKey] ?: account.phone.orEmpty(),
+                        vehiclePlate = savedStateHandle[VehiclePlateKey] ?: account.vehiclePlate.orEmpty(),
+                        vehicleModel = savedStateHandle[VehicleModelKey] ?: account.vehicleModel.orEmpty(),
                         email = savedStateHandle[EmailKey] ?: account.email,
+                        currentEmailPassword = mutableUiState.value?.currentEmailPassword.orEmpty(),
+                        isUpdatingEmail = mutableUiState.value?.isUpdatingEmail ?: false,
+                        emailMessage = mutableUiState.value?.emailMessage,
+                        emailUpdateFailed = mutableUiState.value?.emailUpdateFailed ?: false,
                         notificationsEnabled = savedStateHandle[NotificationsKey] ?: popupState.popupsEnabled,
                         themeMode = data.themeMode,
                     )
@@ -102,8 +109,14 @@ class AccountViewModel(
                 } ?: this
             }
             is AccountAction.PhoneChanged -> updateState { copy(phone = action.value) }
-            is AccountAction.EmailChanged -> updateState { copy(email = action.value) }
-            is AccountAction.CurrentEmailPasswordChanged -> updateState { copy(currentEmailPassword = action.value) }
+            is AccountAction.VehiclePlateChanged -> updateState { copy(vehiclePlate = action.value) }
+            is AccountAction.VehicleModelChanged -> updateState { copy(vehicleModel = action.value) }
+            is AccountAction.EmailChanged -> updateState {
+                copy(email = action.value, emailMessage = null, emailUpdateFailed = false)
+            }
+            is AccountAction.CurrentEmailPasswordChanged -> updateState {
+                copy(currentEmailPassword = action.value, emailMessage = null, emailUpdateFailed = false)
+            }
             is AccountAction.CurrentPasswordChanged -> updateState { copy(currentPassword = action.value) }
             is AccountAction.NewPasswordChanged -> updateState { copy(newPassword = action.value) }
             is AccountAction.ConfirmPasswordChanged -> updateState { copy(confirmPassword = action.value) }
@@ -155,7 +168,7 @@ class AccountViewModel(
         if (!state.isProfileValid) {
             updateState {
                 copy(
-                    message = state.phoneError ?: "Completa tu nombre, universidad y campus.",
+                    message = state.phoneError ?: state.vehicleError ?: "Completa tu nombre, universidad y campus.",
                 )
             }
             return
@@ -172,14 +185,20 @@ class AccountViewModel(
                         universityId = state.universityId,
                         campusId = state.campusId,
                         phone = state.phone.trim().takeIf(String::isNotEmpty),
+                        vehiclePlate = state.vehiclePlate.trim().uppercase().takeIf(String::isNotEmpty),
+                        vehicleModel = state.vehicleModel.trim().takeIf(String::isNotEmpty),
                     ),
                 )
                 updateState { copy(isSaving = false, message = "Tus datos fueron actualizados.") }
-            } catch (_: Throwable) {
+            } catch (error: Throwable) {
                 updateState {
                     copy(
                         isSaving = false,
-                        message = "No fue posible guardar tus datos. Revisa tu conexión e inténtalo de nuevo.",
+                        message = if (error is BackendApiException) {
+                            error.message ?: "No fue posible guardar tus datos."
+                        } else {
+                            "No fue posible guardar tus datos. Revisa tu conexión e inténtalo de nuevo."
+                        },
                     )
                 }
             }
@@ -188,14 +207,22 @@ class AccountViewModel(
 
     private fun updateEmail() {
         val state = uiState.value ?: return
+        if (!state.isEmailUpdateValid) return
         viewModelScope.launch {
-            val didUpdate = userRepository.updateEmail(
-                UpdateEmailInput(state.email, state.currentEmailPassword),
-            )
+            updateState { copy(isUpdatingEmail = true, emailMessage = null) }
+            val didUpdate = runCatching {
+                userRepository.updateEmail(UpdateEmailInput(state.email.trim(), state.currentEmailPassword))
+            }.getOrDefault(false)
             updateState {
                 copy(
                     currentEmailPassword = "",
-                    message = if (didUpdate) "Tu correo fue actualizado." else "La contraseña actual no es correcta.",
+                    isUpdatingEmail = false,
+                    emailUpdateFailed = !didUpdate,
+                    emailMessage = if (didUpdate) {
+                        "Enviamos un enlace de verificación al nuevo correo. Confirma el cambio desde ese mensaje."
+                    } else {
+                        "No fue posible cambiar el correo. Verifica tu contraseña y conexión e inténtalo de nuevo."
+                    },
                 )
             }
         }
@@ -258,6 +285,8 @@ class AccountViewModel(
         savedStateHandle[CampusKey] = state.campus
         savedStateHandle[CampusIdKey] = state.campusId
         savedStateHandle[PhoneKey] = state.phone
+        savedStateHandle[VehiclePlateKey] = state.vehiclePlate
+        savedStateHandle[VehicleModelKey] = state.vehicleModel
         savedStateHandle[EmailKey] = state.email
         savedStateHandle[PhotoUrlKey] = state.user.photoUrl
         savedStateHandle[NotificationsKey] = state.notificationsEnabled
@@ -289,6 +318,8 @@ class AccountViewModel(
         private const val CampusKey = "account_campus"
         private const val CampusIdKey = "account_campus_id"
         private const val PhoneKey = "account_phone"
+        private const val VehiclePlateKey = "account_vehicle_plate"
+        private const val VehicleModelKey = "account_vehicle_model"
         private const val EmailKey = "account_email"
         private const val PhotoUrlKey = "account_photo_url"
         private const val NotificationsKey = "account_notifications_enabled"

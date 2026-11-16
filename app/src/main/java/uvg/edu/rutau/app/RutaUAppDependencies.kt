@@ -111,14 +111,14 @@ object RutaUAppDependencies {
             onBackendSessionReady = {
                 appScope.launch {
                     runCatching { deviceRegistrationRepository.registerCurrentDevice() }
-                        .onFailure { recordTechnicalError("fcm_device_registration") }
+                        .onFailure { error -> recordTechnicalError("fcm_device_registration", error) }
                 }
             },
             onBeforeLogout = {
                 uvg.edu.rutau.core.location.LiveTripLocationService.stop(appContext)
                 if (::deviceRegistrationRepository.isInitialized) {
                     runCatching { deviceRegistrationRepository.unregisterCurrentDevice() }
-                        .onFailure { recordTechnicalError("fcm_device_removal") }
+                        .onFailure { error -> recordTechnicalError("fcm_device_removal", error) }
                 }
             },
         )
@@ -173,7 +173,7 @@ object RutaUAppDependencies {
         if (!initialized) return
         appScope.launch {
             runCatching { deviceRegistrationRepository.registerToken(token) }
-                .onFailure { recordTechnicalError("fcm_token_refresh") }
+                .onFailure { error -> recordTechnicalError("fcm_token_refresh", error) }
         }
     }
 
@@ -182,13 +182,14 @@ object RutaUAppDependencies {
         if (!initialized || !::notificationPopupRepository.isInitialized || notificationId.isBlank()) return
         appScope.launch {
             runCatching { notificationPopupRepository.markHandled(notificationId) }
-                .onFailure { recordTechnicalError("notification_mark_read") }
+                .onFailure { error -> recordTechnicalError("notification_mark_read", error) }
         }
     }
 
     /** Registra un error técnico sin adjuntar información de una persona. */
-    fun recordTechnicalError(category: String) {
-        if (initialized) SafeCrashReporter(FirebaseCrashlytics.getInstance()).record(category)
+    fun recordTechnicalError(category: String, error: Throwable? = null) {
+        if (!initialized || error is java.io.IOException) return
+        SafeCrashReporter(FirebaseCrashlytics.getInstance()).record(category)
     }
 
     /** Reinicia los datos de ejemplo para las pruebas de interfaz. */

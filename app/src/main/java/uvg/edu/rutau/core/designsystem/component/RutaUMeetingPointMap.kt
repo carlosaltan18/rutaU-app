@@ -1,5 +1,6 @@
 package uvg.edu.rutau.core.designsystem.component
 
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -56,7 +57,7 @@ fun RutaUMeetingPointMap(
 
     AndroidView(
         factory = { context ->
-            MapView(context).also { view ->
+            MeetingPointMapView(context).also { view ->
                 val tapDetector = GestureDetector(
                     context,
                     object : GestureDetector.SimpleOnGestureListener() {
@@ -69,6 +70,7 @@ fun RutaUMeetingPointMap(
                 )
                 view.setOnTouchListener { _, event ->
                     tapDetector.onTouchEvent(event)
+                    if (event.actionMasked == MotionEvent.ACTION_UP) view.performClick()
                     false
                 }
                 view.setTileSource(TileSourceFactory.MAPNIK)
@@ -90,6 +92,14 @@ fun RutaUMeetingPointMap(
             .fillMaxWidth()
             .height(mapHeight),
     )
+}
+
+/** Hace que el mapa anuncie los toques a los servicios de accesibilidad. */
+private class MeetingPointMapView(context: Context) : MapView(context) {
+    override fun performClick(): Boolean {
+        super.performClick()
+        return true
+    }
 }
 
 /** Actualiza el marcador que representa el punto que se propondrá. */

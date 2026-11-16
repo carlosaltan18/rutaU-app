@@ -2,7 +2,11 @@ package uvg.edu.rutau.feature.trips
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory as savedStateViewModelFactory
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -77,6 +81,7 @@ data class CoordinatedTripSummary(
     val rideDate: LocalDate,
     val status: CoordinationStatus,
     val liveLocationStatus: LiveLocationStatus,
+    val pendingContributionCount: Int = 0,
 )
 
 /** Maneja la lista de trayectos de la persona actual. */
@@ -185,6 +190,8 @@ data class TripEditorUiState(
     val departureTime: LocalTime = LocalTime.of(6, 30),
     val role: TripRole = TripRole.PASSENGER,
     val offeredSeats: Int = 1,
+    val vehicleReady: Boolean? = null,
+    val vehicleCheckFailed: Boolean = false,
     val isEditing: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
@@ -196,39 +203,82 @@ class TripEditorViewModel(
     private val repository: TripRepository,
     private val catalogRepository: CatalogRepository? = null,
     private val userRepository: UserRepository? = null,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val mutableUiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
+    private val mutableUiState = MutableStateFlow(
+        TripEditorUiState(
+            originZone = savedStateHandle[OriginZoneKey] ?: "",
+            destinationCampus = savedStateHandle[DestinationCampusKey] ?: "",
+            dayOfWeek = savedStateHandle[DayOfWeekKey] ?: "Lunes",
+            departureTime = savedStateHandle.get<String>(DepartureTimeKey)
+                ?.let { runCatching { LocalTime.parse(it) }.getOrNull() } ?: LocalTime.of(6, 30),
+            role = savedStateHandle.get<String>(RoleKey)
+                ?.let { runCatching { TripRole.valueOf(it) }.getOrNull() } ?: TripRole.PASSENGER,
+            offeredSeats = savedStateHandle[OfferedSeatsKey] ?: 1,
+            isEditing = tripId != null,
+        ),
+    )
     val uiState: StateFlow<TripEditorUiState> = mutableUiState.asStateFlow()
 
     init {
         loadCatalogs()
+        refreshVehicle()
         if (tripId != null) {
             viewModelScope.launch {
-                val trip = repository.observeTrip(tripId).filterNotNull().first()
-                update {
-                    copy(
-                        originZone = trip.originZoneId,
-                        destinationCampus = trip.destinationCampusId,
-                        dayOfWeek = trip.dayOfWeek,
-                        departureTime = trip.departureTime,
-                        role = trip.role,
-                        offeredSeats = trip.offeredSeats.coerceAtLeast(1),
-                        isEditing = true,
-                    )
-                }
+                runCatching { repository.observeTrip(tripId).filterNotNull().first() }
+                    .onSuccess { trip ->
+                        if (!savedStateHandle.contains(OriginZoneKey)) {
+                            updateDraft {
+                                copy(
+                                    originZone = trip.originZoneId,
+                                    destinationCampus = trip.destinationCampusId,
+                                    dayOfWeek = trip.dayOfWeek,
+                                    departureTime = trip.departureTime,
+                                    role = trip.role,
+                                    offeredSeats = trip.offeredSeats.coerceAtLeast(1),
+                                    isEditing = true,
+                                )
+                            }
+                        }
+                    }
+                    .onFailure {
+                        update {
+                            copy(error = "No fue posible cargar el trayecto. Revisa tu conexión e inténtalo de nuevo.")
+                        }
+                    }
             }
         }
     }
 
-    fun setOrigin(value: String) = update { copy(originZone = value, error = null) }
-    fun setCampus(value: String) = update { copy(destinationCampus = value, error = null) }
-    fun setDay(value: String) = update { copy(dayOfWeek = value, error = null) }
-    fun setTime(value: LocalTime) = update { copy(departureTime = value, error = null) }
-    fun setRole(value: TripRole) = update { copy(role = value, error = null) }
-    fun setSeats(value: Int) = update { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
+    fun setOrigin(value: String) = updateDraft { copy(originZone = value, error = null) }
+    fun setCampus(value: String) = updateDraft { copy(destinationCampus = value, error = null) }
+    fun setDay(value: String) = updateDraft { copy(dayOfWeek = value, error = null) }
+    fun setTime(value: LocalTime) = updateDraft { copy(departureTime = value, error = null) }
+    fun setRole(value: TripRole) = updateDraft { copy(role = value, error = null) }
+    fun setSeats(value: Int) = updateDraft { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
+
+    fun refreshVehicle() {
+        val users = userRepository ?: return
+        viewModelScope.launch {
+            update { copy(vehicleReady = null, vehicleCheckFailed = false) }
+            runCatching { users.observeCurrentUser().first() }
+                .onSuccess { user ->
+                    update {
+                        copy(vehicleReady = user?.let {
+                            !it.vehiclePlate.isNullOrBlank() && !it.vehicleModel.isNullOrBlank()
+                        }, vehicleCheckFailed = user == null)
+                    }
+                }
+                .onFailure { update { copy(vehicleReady = null, vehicleCheckFailed = true) } }
+        }
+    }
 
     fun save(onSaved: (String) -> Unit) {
         val state = uiState.value
+        if (state.role == TripRole.DRIVER && state.vehicleReady != true) {
+            update { copy(error = "Antes de ofrecer un viaje, registra la placa y el modelo del vehículo en Cuenta.") }
+            return
+        }
         if (state.originZone.isBlank()) {
             mutableUiState.value = state.copy(error = "Selecciona una zona de origen.")
             return
@@ -272,13 +322,29 @@ class TripEditorViewModel(
         mutableUiState.value = mutableUiState.value.transform()
     }
 
+    private fun updateDraft(transform: TripEditorUiState.() -> TripEditorUiState) {
+        update(transform)
+        val state = mutableUiState.value
+        savedStateHandle[OriginZoneKey] = state.originZone
+        savedStateHandle[DestinationCampusKey] = state.destinationCampus
+        savedStateHandle[DayOfWeekKey] = state.dayOfWeek
+        savedStateHandle[DepartureTimeKey] = state.departureTime.toString()
+        savedStateHandle[RoleKey] = state.role.name
+        savedStateHandle[OfferedSeatsKey] = state.offeredSeats
+    }
+
     private fun loadCatalogs() {
         val catalogs = catalogRepository ?: return
         viewModelScope.launch {
             runCatching { catalogs.zones() }
                 .onSuccess { zones -> update { copy(zones = zones) } }
                 .onFailure { update { copy(error = "No fue posible cargar las zonas.") } }
-            val universityId = userRepository?.observeCurrentUser()?.first()?.universityId.orEmpty()
+            val universityId = runCatching {
+                userRepository?.observeCurrentUser()?.first()?.universityId.orEmpty()
+            }.getOrElse {
+                update { copy(error = "No fue posible cargar los datos de tu cuenta.") }
+                ""
+            }
             if (universityId.isNotBlank()) {
                 runCatching { catalogs.campuses(universityId) }
                     .onSuccess { campuses -> update { copy(campuses = campuses) } }
@@ -293,7 +359,18 @@ class TripEditorViewModel(
             repository: TripRepository,
             catalogRepository: CatalogRepository? = null,
             userRepository: UserRepository? = null,
-        ) = viewModelFactory { TripEditorViewModel(tripId, repository, catalogRepository, userRepository) }
+        ) = savedStateViewModelFactory {
+            initializer {
+                TripEditorViewModel(tripId, repository, catalogRepository, userRepository, createSavedStateHandle())
+            }
+        }
+
+        private const val OriginZoneKey = "trip_editor_origin_zone"
+        private const val DestinationCampusKey = "trip_editor_destination_campus"
+        private const val DayOfWeekKey = "trip_editor_day_of_week"
+        private const val DepartureTimeKey = "trip_editor_departure_time"
+        private const val RoleKey = "trip_editor_role"
+        private const val OfferedSeatsKey = "trip_editor_offered_seats"
     }
 }
 
@@ -377,9 +454,11 @@ data class CandidateProfileUiState(
     val existingRequestId: String? = null,
     val existingRequestStatus: RequestStatus? = null,
     val isFavorite: Boolean = false,
+    val error: String? = null,
 )
 
 /** Maneja la información de una persona compatible. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class CandidateProfileViewModel(
     tripId: String,
     candidateTripId: String,
@@ -388,34 +467,53 @@ class CandidateProfileViewModel(
     private val favoriteTripRepository: FavoriteTripRepository,
 ) : ViewModel() {
     private val contribution = MutableStateFlow(10)
-    val uiState = combine(
-        repository.observeTrip(tripId),
-        repository.observeMatches(tripId),
-        contribution,
-        requestRepository.observeRequestDetails(),
-        favoriteTripRepository.observeFavoriteTripIds(),
-    ) { source, matches, amount, requests, favoriteTripIds ->
-        val match = matches.firstOrNull { it.trip.id == candidateTripId }
-        val existing = match?.let { candidate ->
-            requests.firstOrNull { detail ->
-                source != null &&
-                    detail.blocksNewRequestFor(source.id, source.dayOfWeek) &&
-                    (detail.request.senderTripId == candidate.trip.id ||
-                        detail.request.targetTripId == candidate.trip.id)
+    private val refreshSignal = MutableStateFlow(0)
+    val uiState = refreshSignal.flatMapLatest {
+        combine(
+            repository.observeTrip(tripId),
+            repository.observeMatches(tripId),
+            contribution,
+            requestRepository.observeRequestDetails(),
+            favoriteTripRepository.observeFavoriteTripIds(),
+        ) { source, matches, amount, requests, favoriteTripIds ->
+            val match = matches.firstOrNull { it.trip.id == candidateTripId }
+            val existing = match?.let { candidate ->
+                requests.firstOrNull { detail ->
+                    source != null &&
+                        detail.blocksNewRequestFor(source.id, source.dayOfWeek) &&
+                        (detail.request.senderTripId == candidate.trip.id ||
+                            detail.request.targetTripId == candidate.trip.id)
+                }
             }
+            CandidateProfileUiState(
+                sourceTrip = source,
+                candidateTrip = match?.trip,
+                student = match?.student,
+                contributionQuetzales = amount,
+                existingRequestId = existing?.request?.id,
+                existingRequestStatus = existing?.request?.status,
+                isFavorite = match?.trip?.id?.let(favoriteTripIds::contains) == true,
+            )
         }
-        CandidateProfileUiState(
-            sourceTrip = source,
-            candidateTrip = match?.trip,
-            student = match?.student,
-            contributionQuetzales = amount,
-            existingRequestId = existing?.request?.id,
-            existingRequestStatus = existing?.request?.status,
-            isFavorite = match?.trip?.id?.let(favoriteTripIds::contains) == true,
-        )
+            .catch { throwable ->
+                emit(
+                    CandidateProfileUiState(
+                        error = if (throwable is java.io.IOException) {
+                            "Sin conexión. Revisa tu red e inténtalo de nuevo."
+                        } else {
+                            "No fue posible cargar este perfil. Inténtalo de nuevo."
+                        },
+                    ),
+                )
+            }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), CandidateProfileUiState())
 
     fun setContribution(value: Int) { contribution.value = value.coerceIn(0, 100) }
+
+    /** Vuelve a consultar el perfil después de recuperar la conexión. */
+    fun retry() {
+        refreshSignal.update { current -> current + 1 }
+    }
 
     fun toggleFavorite() = viewModelScope.launch {
         val state = uiState.value
@@ -468,6 +566,7 @@ data class ConfirmCoordinationUiState(
 )
 
 /** Maneja el envío de una solicitud o invitación. */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ConfirmCoordinationViewModel(
     private val tripId: String,
     private val candidateTripId: String,
@@ -478,18 +577,32 @@ class ConfirmCoordinationViewModel(
     private val form = MutableStateFlow(
         ConfirmCoordinationUiState(contributionQuetzales = initialContribution.coerceIn(0, 100)),
     )
-    val uiState = combine(
-        tripRepository.observeTrip(tripId),
-        tripRepository.observeMatches(tripId),
-        form,
-    ) { source, matches, current ->
-        val match = matches.firstOrNull { it.trip.id == candidateTripId }
-        current.copy(sourceTrip = source, candidateTrip = match?.trip, student = match?.student)
+    private val refreshSignal = MutableStateFlow(0)
+    val uiState = refreshSignal.flatMapLatest {
+        combine(
+            tripRepository.observeTrip(tripId),
+            tripRepository.observeMatches(tripId),
+            form,
+        ) { source, matches, current ->
+            val match = matches.firstOrNull { it.trip.id == candidateTripId }
+            current.copy(sourceTrip = source, candidateTrip = match?.trip, student = match?.student)
+        }.catch {
+            emit(
+                form.value.copy(
+                    error = "No fue posible cargar la coordinación. Revisa tu conexión e inténtalo de nuevo.",
+                ),
+            )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConfirmCoordinationUiState())
 
     fun setMessage(value: String) { form.value = form.value.copy(message = value, error = null) }
     fun setContribution(value: Int) {
         form.value = form.value.copy(contributionQuetzales = value.coerceIn(0, 100), error = null)
+    }
+
+    /** Repite la consulta sin salir de la pantalla. */
+    fun retry() {
+        refreshSignal.update { current -> current + 1 }
     }
 
     fun confirm(onConfirmed: (String) -> Unit) {
@@ -584,6 +697,10 @@ private fun List<RideRequestDetails>.toCoordinatedTripSummaries(
                 rideDate = first.request.rideDate,
                 status = details.first().second.status,
                 liveLocationStatus = details.first().second.liveLocationStatus,
+                pendingContributionCount = details.count { (_, coordination) ->
+                    coordination.status == CoordinationStatus.COMPLETED &&
+                        !coordination.contributionConfirmedByCurrentUser
+                },
             )
         }
         .sortedWith(

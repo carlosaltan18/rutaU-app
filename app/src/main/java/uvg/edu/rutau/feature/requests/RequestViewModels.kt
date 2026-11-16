@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import uvg.edu.rutau.core.data.repository.CoordinationRepository
@@ -143,7 +145,13 @@ class RequestsViewModel(
     )
 
     init {
-        refresh()
+        viewModelScope.launch {
+            refreshRequests()
+            while (isActive) {
+                delay(RefreshIntervalMillis)
+                refreshRequests()
+            }
+        }
     }
 
     fun selectTab(value: RequestTab) {
@@ -158,17 +166,20 @@ class RequestsViewModel(
 
     /** Vuelve a consultar las solicitudes cuando hubo un problema de red. */
     fun refresh() {
-        viewModelScope.launch {
-            isLoading.value = true
-            loadError.value = null
-            runCatching { rideRequestRepository.refresh() }
-                .onFailure { loadError.value = "No fue posible cargar las solicitudes. Revisa tu conexión e inténtalo de nuevo." }
-            isLoading.value = false
-        }
+        viewModelScope.launch { refreshRequests() }
     }
 
     /** Permite reintentar usando el nombre de la acción ya usada por la interfaz. */
     fun retry() = refresh()
+
+    /** Consulta el servidor desde el ciclo de vida de esta pantalla. */
+    private suspend fun refreshRequests() {
+        isLoading.value = true
+        loadError.value = null
+        runCatching { rideRequestRepository.refresh() }
+            .onFailure { loadError.value = "No fue posible cargar las solicitudes. Revisa tu conexión e inténtalo de nuevo." }
+        isLoading.value = false
+    }
 
     companion object {
         /** Crea el modelo de esta pantalla con los datos compartidos. */
@@ -187,6 +198,7 @@ class RequestsViewModel(
 
         private const val SelectedTabKey = "requests_selected_tab"
         private const val SelectedFilterKey = "requests_selected_filter"
+        private const val RefreshIntervalMillis = 30_000L
     }
 }
 

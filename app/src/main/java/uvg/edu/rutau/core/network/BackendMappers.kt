@@ -30,6 +30,8 @@ fun PrivateProfileDto.toUserAccount(
     email = institutionalEmail,
     photoUrl = photoUrl,
     phone = phone,
+    vehiclePlate = vehiclePlate,
+    vehicleModel = vehicleModel,
     universityId = universityId,
     campusId = campusId,
 )
@@ -159,6 +161,8 @@ fun BackendCoordinationDto.toCoordination(): Coordination = Coordination(
     meetingPointConfirmedByCurrentUser = meetingPoint?.confirmedByCurrentUser ?: false,
     meetingPointConfirmedByOtherParticipant = meetingPoint?.confirmedByOtherParticipant ?: false,
     counterpartPhone = contact?.phone,
+    driverVehiclePlate = driverVehicle?.plate,
+    driverVehicleModel = driverVehicle?.model,
     seatCapacity = capacity?.totalSeats ?: 0,
     confirmedPassengerCount = capacity?.confirmedPassengers ?: 0,
     availableSeatCount = capacity?.availableSeats ?: 0,

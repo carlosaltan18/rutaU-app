@@ -59,6 +59,8 @@ data class AccountUiState(
     val campusId: String = user.campusId,
     val campusOptions: List<CatalogItem> = emptyList(),
     val phone: String = user.phone.orEmpty(),
+    val vehiclePlate: String = user.vehiclePlate.orEmpty(),
+    val vehicleModel: String = user.vehicleModel.orEmpty(),
     val email: String = user.email,
     val currentEmailPassword: String = "",
     val currentPassword: String = "",
@@ -67,6 +69,9 @@ data class AccountUiState(
     val notificationsEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val isSaving: Boolean = false,
+    val isUpdatingEmail: Boolean = false,
+    val emailMessage: String? = null,
+    val emailUpdateFailed: Boolean = false,
     val showLogoutConfirmation: Boolean = false,
     val showDeleteConfirmation: Boolean = false,
     val legalDocument: LegalDocument? = null,
@@ -79,15 +84,39 @@ data class AccountUiState(
             ?.takeUnless(PhonePattern::matches)
             ?.let { "Ingresa un teléfono válido." }
 
+    val vehicleError: String?
+        get() = when {
+            vehiclePlate.isBlank() && vehicleModel.isBlank() -> null
+            vehiclePlate.isBlank() || vehicleModel.isBlank() -> "Completa la placa y el modelo del vehículo."
+            !VehiclePlatePattern.matches(vehiclePlate.trim().uppercase()) -> "Ingresa una placa válida (3 a 16 letras, números o guiones)."
+            vehicleModel.trim().length !in 2..80 -> "El modelo debe tener entre 2 y 80 caracteres."
+            else -> null
+        }
+
     /** Evita guardar datos incompletos o un teléfono con formato inválido. */
     val isProfileValid: Boolean
         get() = fullName.trim().isNotEmpty() &&
             universityId.isNotBlank() &&
             campusId.isNotBlank() &&
-            phoneError == null
+            phoneError == null && vehicleError == null
+
+    val emailError: String?
+        get() = when {
+            email.isBlank() -> "Ingresa el nuevo correo."
+            !EmailPattern.matches(email.trim()) -> "Ingresa un correo válido."
+            else -> null
+        }
+
+    val isEmailUpdateValid: Boolean
+        get() = emailError == null &&
+            !email.trim().equals(user.email.trim(), ignoreCase = true) &&
+            currentEmailPassword.isNotBlank() &&
+            !isUpdatingEmail
 }
 
 private val PhonePattern = Regex("^\\+?[0-9 -]{7,24}$")
+private val VehiclePlatePattern = Regex("^[A-Z0-9-]{3,16}$")
+private val EmailPattern = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
 /** Indica el documento que se quiere consultar. */
 enum class LegalDocument(
@@ -117,6 +146,8 @@ sealed interface AccountAction {
     data class UniversityChanged(val value: String) : AccountAction
     data class CampusChanged(val value: String) : AccountAction
     data class PhoneChanged(val value: String) : AccountAction
+    data class VehiclePlateChanged(val value: String) : AccountAction
+    data class VehicleModelChanged(val value: String) : AccountAction
     data class EmailChanged(val value: String) : AccountAction
     data class CurrentEmailPasswordChanged(val value: String) : AccountAction
     data class CurrentPasswordChanged(val value: String) : AccountAction
@@ -240,6 +271,28 @@ fun AccountScreen(
                     isError = state.phoneError != null,
                     modifier = Modifier.fillMaxWidth().testTag("AccountPhoneInput"),
                 )
+                Text("Vehículo (solo si conduces)", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Para ofrecer viajes, enviar o recibir solicitudes e iniciar un viaje debes registrar ambos datos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                RutaUTextField(
+                    value = state.vehiclePlate,
+                    onValueChange = { onAction(AccountAction.VehiclePlateChanged(it)) },
+                    label = "Placa del vehículo",
+                    placeholder = "P123ABC",
+                    supportingText = state.vehicleError,
+                    isError = state.vehicleError != null,
+                    modifier = Modifier.fillMaxWidth().testTag("AccountVehiclePlateInput"),
+                )
+                RutaUTextField(
+                    value = state.vehicleModel,
+                    onValueChange = { onAction(AccountAction.VehicleModelChanged(it)) },
+                    label = "Modelo del vehículo",
+                    placeholder = "Toyota Corolla 2018",
+                    modifier = Modifier.fillMaxWidth().testTag("AccountVehicleModelInput"),
+                )
                 RutaULoadingButton(
                     text = "Guardar datos personales",
                     onClick = { onAction(AccountAction.SaveProfile) },
@@ -257,18 +310,35 @@ fun AccountScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                RutaUTextField(state.email, { onAction(AccountAction.EmailChanged(it)) }, "Nuevo correo", Modifier.fillMaxWidth())
+                RutaUTextField(
+                    value = state.email,
+                    onValueChange = { onAction(AccountAction.EmailChanged(it)) },
+                    label = "Nuevo correo",
+                    modifier = Modifier.fillMaxWidth().testTag("AccountEmailInput"),
+                    supportingText = state.emailError,
+                    isError = state.emailError != null,
+                )
                 RutaUPasswordField(
                     state.currentEmailPassword,
                     { onAction(AccountAction.CurrentEmailPasswordChanged(it)) },
                     "Contraseña actual",
                     Modifier.fillMaxWidth(),
+                    supportingText = if (state.currentEmailPassword.isBlank()) "Es necesaria para cambiar el correo." else null,
                 )
                 RutaUOutlinedButton(
-                    text = "Actualizar correo",
+                    text = if (state.isUpdatingEmail) "Enviando..." else "Actualizar correo",
                     onClick = { onAction(AccountAction.UpdateEmail) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("AccountUpdateEmailButton"),
+                    enabled = state.isEmailUpdateValid,
                 )
+                state.emailMessage?.let { emailMessage ->
+                    Text(
+                        text = emailMessage,
+                        color = if (state.emailUpdateFailed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.testTag("AccountEmailMessage"),
+                    )
+                }
                 HorizontalDivider()
                 Text("Contraseña", style = MaterialTheme.typography.titleSmall)
                 RutaUPasswordField(state.currentPassword, { onAction(AccountAction.CurrentPasswordChanged(it)) }, "Contraseña actual", Modifier.fillMaxWidth())

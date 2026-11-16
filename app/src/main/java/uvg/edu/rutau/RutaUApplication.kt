@@ -4,6 +4,7 @@ import android.app.Application
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import uvg.edu.rutau.BuildConfig
 import uvg.edu.rutau.app.RutaUAppDependencies
+import uvg.edu.rutau.core.diagnostics.CrashlyticsDebugVerifier
 import uvg.edu.rutau.core.firebase.FirebaseAppCheckSetup
 import uvg.edu.rutau.core.notifications.RutaUNotificationManager
 import org.osmdroid.config.Configuration
@@ -22,5 +23,6 @@ class RutaUApplication : Application() {
         FirebaseAppCheckSetup.configure()
         RutaUNotificationManager(this).ensureChannel()
         RutaUAppDependencies.initialize(this)
+        CrashlyticsDebugVerifier.reportOnce(this)
     }
 }
