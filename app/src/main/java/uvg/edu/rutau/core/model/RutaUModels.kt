@@ -66,6 +66,8 @@ data class UserAccount(
     val email: String,
     val photoUrl: String?,
     val phone: String? = null,
+    val vehiclePlate: String? = null,
+    val vehicleModel: String? = null,
     val universityId: String = university,
     val campusId: String = campus,
 )
@@ -91,6 +93,8 @@ data class UpdateProfileInput(
     val universityId: String = university,
     val campusId: String = campus,
     val phone: String? = null,
+    val vehiclePlate: String? = null,
+    val vehicleModel: String? = null,
 )
 
 /** Reúne los datos necesarios para cambiar el correo. */
@@ -178,6 +182,8 @@ data class Coordination(
     val meetingPointConfirmedByCurrentUser: Boolean = false,
     val meetingPointConfirmedByOtherParticipant: Boolean = false,
     val counterpartPhone: String? = null,
+    val driverVehiclePlate: String? = null,
+    val driverVehicleModel: String? = null,
     val seatCapacity: Int = 0,
     val confirmedPassengerCount: Int = 0,
     val availableSeatCount: Int = 0,

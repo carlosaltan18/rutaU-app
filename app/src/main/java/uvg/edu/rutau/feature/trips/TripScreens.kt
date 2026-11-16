@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import uvg.edu.rutau.core.designsystem.component.RutaUInfoCard
 import uvg.edu.rutau.core.designsystem.component.RutaUConfirmationDialog
 import uvg.edu.rutau.core.designsystem.component.RutaUDestructiveButton
@@ -291,8 +295,12 @@ private fun EmptyTripSection(message: String) {
 }
 
 @Composable
-fun TripEditorRoute(onBack: () -> Unit, viewModel: TripEditorViewModel) {
+fun TripEditorRoute(onBack: () -> Unit, onOpenAccount: () -> Unit, viewModel: TripEditorViewModel) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner, viewModel) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) { viewModel.refreshVehicle() }
+    }
     TripEditorScreen(
         state = state,
         onOriginChange = viewModel::setOrigin,
@@ -304,6 +312,8 @@ fun TripEditorRoute(onBack: () -> Unit, viewModel: TripEditorViewModel) {
         onSave = { viewModel.save { onBack() } },
         onDelete = { viewModel.delete(onBack) },
         onBack = onBack,
+        onOpenAccount = onOpenAccount,
+        onRetryVehicle = viewModel::refreshVehicle,
     )
 }
 
@@ -320,6 +330,8 @@ fun TripEditorScreen(
     onDelete: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenAccount: () -> Unit = {},
+    onRetryVehicle: () -> Unit = {},
 ) {
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     RutaUScreenContainer(
@@ -349,12 +361,33 @@ fun TripEditorScreen(
                     onSeatsChange,
                 )
             }
+            if (state.role == TripRole.DRIVER && state.vehicleReady != true) {
+                item {
+                    RutaUInfoCard(
+                        title = if (state.vehicleReady == null) "Verificando vehículo" else "Completa los datos del vehículo",
+                        message = if (state.vehicleCheckFailed) {
+                            "No pudimos comprobar los datos del vehículo. Revisa tu conexión e inténtalo de nuevo."
+                        } else if (state.vehicleReady == null) {
+                            "Comprobando la placa y el modelo guardados en tu cuenta."
+                        } else {
+                            "Registra la placa y el modelo en Cuenta para publicar y coordinar viajes como conductor."
+                        },
+                    )
+                    if (state.vehicleCheckFailed || state.vehicleReady == false) {
+                        RutaUSecondaryButton(
+                            text = if (state.vehicleCheckFailed) "Reintentar" else "Ir a Cuenta",
+                            onClick = if (state.vehicleCheckFailed) onRetryVehicle else onOpenAccount,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
             item {
                 RutaUPrimaryButton(
                     if (state.isEditing) "Guardar cambios" else "Publicar trayecto",
                     onClick = onSave,
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !state.isSaving,
+                    enabled = !state.isSaving && (state.role != TripRole.DRIVER || state.vehicleReady == true),
                 )
             }
             item {

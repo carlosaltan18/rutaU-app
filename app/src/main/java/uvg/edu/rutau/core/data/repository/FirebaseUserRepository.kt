@@ -49,6 +49,8 @@ class FirebaseUserRepository(
                 universityId = input.universityId,
                 campusId = input.campusId,
                 phone = input.phone,
+                vehiclePlate = input.vehiclePlate,
+                vehicleModel = input.vehicleModel,
             ),
         ).requireData()
         firebaseAuth.currentUser?.updateProfile(

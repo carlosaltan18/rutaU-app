@@ -59,6 +59,8 @@ data class AccountUiState(
     val campusId: String = user.campusId,
     val campusOptions: List<CatalogItem> = emptyList(),
     val phone: String = user.phone.orEmpty(),
+    val vehiclePlate: String = user.vehiclePlate.orEmpty(),
+    val vehicleModel: String = user.vehicleModel.orEmpty(),
     val email: String = user.email,
     val currentEmailPassword: String = "",
     val currentPassword: String = "",
@@ -79,15 +81,25 @@ data class AccountUiState(
             ?.takeUnless(PhonePattern::matches)
             ?.let { "Ingresa un teléfono válido." }
 
+    val vehicleError: String?
+        get() = when {
+            vehiclePlate.isBlank() && vehicleModel.isBlank() -> null
+            vehiclePlate.isBlank() || vehicleModel.isBlank() -> "Completa la placa y el modelo del vehículo."
+            !VehiclePlatePattern.matches(vehiclePlate.trim().uppercase()) -> "Ingresa una placa válida (3 a 16 letras, números o guiones)."
+            vehicleModel.trim().length !in 2..80 -> "El modelo debe tener entre 2 y 80 caracteres."
+            else -> null
+        }
+
     /** Evita guardar datos incompletos o un teléfono con formato inválido. */
     val isProfileValid: Boolean
         get() = fullName.trim().isNotEmpty() &&
             universityId.isNotBlank() &&
             campusId.isNotBlank() &&
-            phoneError == null
+            phoneError == null && vehicleError == null
 }
 
 private val PhonePattern = Regex("^\\+?[0-9 -]{7,24}$")
+private val VehiclePlatePattern = Regex("^[A-Z0-9-]{3,16}$")
 
 /** Indica el documento que se quiere consultar. */
 enum class LegalDocument(
@@ -117,6 +129,8 @@ sealed interface AccountAction {
     data class UniversityChanged(val value: String) : AccountAction
     data class CampusChanged(val value: String) : AccountAction
     data class PhoneChanged(val value: String) : AccountAction
+    data class VehiclePlateChanged(val value: String) : AccountAction
+    data class VehicleModelChanged(val value: String) : AccountAction
     data class EmailChanged(val value: String) : AccountAction
     data class CurrentEmailPasswordChanged(val value: String) : AccountAction
     data class CurrentPasswordChanged(val value: String) : AccountAction
@@ -239,6 +253,28 @@ fun AccountScreen(
                     supportingText = state.phoneError ?: "Se compartirá solo después de aceptar una coordinación.",
                     isError = state.phoneError != null,
                     modifier = Modifier.fillMaxWidth().testTag("AccountPhoneInput"),
+                )
+                Text("Vehículo (solo si conduces)", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "Para ofrecer viajes, enviar o recibir solicitudes e iniciar un viaje debes registrar ambos datos.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                RutaUTextField(
+                    value = state.vehiclePlate,
+                    onValueChange = { onAction(AccountAction.VehiclePlateChanged(it)) },
+                    label = "Placa del vehículo",
+                    placeholder = "P123ABC",
+                    supportingText = state.vehicleError,
+                    isError = state.vehicleError != null,
+                    modifier = Modifier.fillMaxWidth().testTag("AccountVehiclePlateInput"),
+                )
+                RutaUTextField(
+                    value = state.vehicleModel,
+                    onValueChange = { onAction(AccountAction.VehicleModelChanged(it)) },
+                    label = "Modelo del vehículo",
+                    placeholder = "Toyota Corolla 2018",
+                    modifier = Modifier.fillMaxWidth().testTag("AccountVehicleModelInput"),
                 )
                 RutaULoadingButton(
                     text = "Guardar datos personales",

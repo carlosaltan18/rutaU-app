@@ -186,6 +186,8 @@ data class TripEditorUiState(
     val departureTime: LocalTime = LocalTime.of(6, 30),
     val role: TripRole = TripRole.PASSENGER,
     val offeredSeats: Int = 1,
+    val vehicleReady: Boolean? = null,
+    val vehicleCheckFailed: Boolean = false,
     val isEditing: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
@@ -203,6 +205,7 @@ class TripEditorViewModel(
 
     init {
         loadCatalogs()
+        refreshVehicle()
         if (tripId != null) {
             viewModelScope.launch {
                 runCatching { repository.observeTrip(tripId).filterNotNull().first() }
@@ -235,8 +238,28 @@ class TripEditorViewModel(
     fun setRole(value: TripRole) = update { copy(role = value, error = null) }
     fun setSeats(value: Int) = update { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
 
+    fun refreshVehicle() {
+        val users = userRepository ?: return
+        viewModelScope.launch {
+            update { copy(vehicleReady = null, vehicleCheckFailed = false) }
+            runCatching { users.observeCurrentUser().first() }
+                .onSuccess { user ->
+                    update {
+                        copy(vehicleReady = user?.let {
+                            !it.vehiclePlate.isNullOrBlank() && !it.vehicleModel.isNullOrBlank()
+                        }, vehicleCheckFailed = user == null)
+                    }
+                }
+                .onFailure { update { copy(vehicleReady = null, vehicleCheckFailed = true) } }
+        }
+    }
+
     fun save(onSaved: (String) -> Unit) {
         val state = uiState.value
+        if (state.role == TripRole.DRIVER && state.vehicleReady != true) {
+            update { copy(error = "Antes de ofrecer un viaje, registra la placa y el modelo del vehículo en Cuenta.") }
+            return
+        }
         if (state.originZone.isBlank()) {
             mutableUiState.value = state.copy(error = "Selecciona una zona de origen.")
             return

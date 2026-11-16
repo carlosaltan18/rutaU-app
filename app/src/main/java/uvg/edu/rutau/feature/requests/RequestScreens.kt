@@ -434,6 +434,7 @@ fun CoordinatedRideScreen(
                 (state.coordination.liveLocationStatus == LiveLocationStatus.ACTIVE || state.liveLocation != null)
             val canStartJourney = !isTerminal &&
                 currentUserIsDriver &&
+                state.coordination.canStartLiveLocation &&
                 state.coordination.liveLocationStatus == LiveLocationStatus.NOT_STARTED
             val canEndJourney = !isTerminal &&
                 currentUserIsDriver &&
@@ -497,6 +498,23 @@ fun CoordinatedRideScreen(
                 }
                 if (!isTerminal) item {
                     AuthorizedContactCard(otherPerson.fullName, state.coordination.counterpartPhone)
+                }
+                if (!isTerminal && !currentUserIsDriver) item {
+                    val plate = state.coordination.driverVehiclePlate
+                    val model = state.coordination.driverVehicleModel
+                    if (!plate.isNullOrBlank() && !model.isNullOrBlank()) {
+                        RutaUInfoCard(
+                            title = "Vehículo del conductor",
+                            message = "$model · Placa $plate",
+                        )
+                    }
+                }
+                if (!isTerminal && currentUserIsDriver && !state.coordination.canStartLiveLocation &&
+                    state.coordination.liveLocationStatus == LiveLocationStatus.NOT_STARTED) item {
+                    RutaUInfoCard(
+                        title = "Completa los datos del vehículo",
+                        message = "Guarda la placa y el modelo en Cuenta para poder iniciar este viaje.",
+                    )
                 }
                 if (!isTerminal) item {
                     ExternalContactActions(

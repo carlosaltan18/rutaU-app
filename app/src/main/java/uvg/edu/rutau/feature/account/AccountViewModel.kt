@@ -26,6 +26,7 @@ import uvg.edu.rutau.core.preferences.ThemeMode
 import uvg.edu.rutau.core.preferences.ThemePreferenceRepository
 import uvg.edu.rutau.core.data.catalog.CatalogRepository
 import uvg.edu.rutau.core.data.catalog.CatalogItem
+import uvg.edu.rutau.core.network.BackendApiException
 
 /** Indica los resultados posibles de las acciones de cuenta. */
 sealed interface AccountEvent {
@@ -83,6 +84,8 @@ class AccountViewModel(
                         campusId = savedStateHandle[CampusIdKey] ?: account.campusId,
                         campusOptions = data.campuses,
                         phone = savedStateHandle[PhoneKey] ?: account.phone.orEmpty(),
+                        vehiclePlate = savedStateHandle[VehiclePlateKey] ?: account.vehiclePlate.orEmpty(),
+                        vehicleModel = savedStateHandle[VehicleModelKey] ?: account.vehicleModel.orEmpty(),
                         email = savedStateHandle[EmailKey] ?: account.email,
                         notificationsEnabled = savedStateHandle[NotificationsKey] ?: popupState.popupsEnabled,
                         themeMode = data.themeMode,
@@ -102,6 +105,8 @@ class AccountViewModel(
                 } ?: this
             }
             is AccountAction.PhoneChanged -> updateState { copy(phone = action.value) }
+            is AccountAction.VehiclePlateChanged -> updateState { copy(vehiclePlate = action.value) }
+            is AccountAction.VehicleModelChanged -> updateState { copy(vehicleModel = action.value) }
             is AccountAction.EmailChanged -> updateState { copy(email = action.value) }
             is AccountAction.CurrentEmailPasswordChanged -> updateState { copy(currentEmailPassword = action.value) }
             is AccountAction.CurrentPasswordChanged -> updateState { copy(currentPassword = action.value) }
@@ -155,7 +160,7 @@ class AccountViewModel(
         if (!state.isProfileValid) {
             updateState {
                 copy(
-                    message = state.phoneError ?: "Completa tu nombre, universidad y campus.",
+                    message = state.phoneError ?: state.vehicleError ?: "Completa tu nombre, universidad y campus.",
                 )
             }
             return
@@ -172,14 +177,20 @@ class AccountViewModel(
                         universityId = state.universityId,
                         campusId = state.campusId,
                         phone = state.phone.trim().takeIf(String::isNotEmpty),
+                        vehiclePlate = state.vehiclePlate.trim().uppercase().takeIf(String::isNotEmpty),
+                        vehicleModel = state.vehicleModel.trim().takeIf(String::isNotEmpty),
                     ),
                 )
                 updateState { copy(isSaving = false, message = "Tus datos fueron actualizados.") }
-            } catch (_: Throwable) {
+            } catch (error: Throwable) {
                 updateState {
                     copy(
                         isSaving = false,
-                        message = "No fue posible guardar tus datos. Revisa tu conexión e inténtalo de nuevo.",
+                        message = if (error is BackendApiException) {
+                            error.message ?: "No fue posible guardar tus datos."
+                        } else {
+                            "No fue posible guardar tus datos. Revisa tu conexión e inténtalo de nuevo."
+                        },
                     )
                 }
             }
@@ -258,6 +269,8 @@ class AccountViewModel(
         savedStateHandle[CampusKey] = state.campus
         savedStateHandle[CampusIdKey] = state.campusId
         savedStateHandle[PhoneKey] = state.phone
+        savedStateHandle[VehiclePlateKey] = state.vehiclePlate
+        savedStateHandle[VehicleModelKey] = state.vehicleModel
         savedStateHandle[EmailKey] = state.email
         savedStateHandle[PhotoUrlKey] = state.user.photoUrl
         savedStateHandle[NotificationsKey] = state.notificationsEnabled
@@ -289,6 +302,8 @@ class AccountViewModel(
         private const val CampusKey = "account_campus"
         private const val CampusIdKey = "account_campus_id"
         private const val PhoneKey = "account_phone"
+        private const val VehiclePlateKey = "account_vehicle_plate"
+        private const val VehicleModelKey = "account_vehicle_model"
         private const val EmailKey = "account_email"
         private const val PhotoUrlKey = "account_photo_url"
         private const val NotificationsKey = "account_notifications_enabled"

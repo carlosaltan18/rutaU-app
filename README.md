@@ -82,8 +82,12 @@ app/src/main/java/uvg/edu/rutau/
 | --- | --- |
 | `feature/auth/` | Inicio de sesión, registro, Google Sign-In, recuperación y restablecimiento de contraseña. `LoginViewModel`, `SignUpViewModel`, `PasswordRecoveryViewModel` y `ResetPasswordViewModel` contienen la lógica de cada recorrido. |
 | `feature/account/` | Perfil, cambio de foto, catálogos de universidad/campus, credenciales, preferencias, tema y documentos legales. |
+| `feature/account/AccountScreen.kt` | Permite guardar placa y modelo del vehículo; ambos se requieren para conducir. |
+
 | `feature/trips/` | Lista y edición de trayectos base, coincidencias, perfil compatible, explicación de compatibilidad y confirmación de solicitud/invitación. |
 | `feature/requests/` | Bandeja de recibidas/enviadas e historial, detalle, decisiones sobre solicitudes y detalle del viaje coordinado. |
+
+Los datos del vehículo se editan en **Cuenta** y se envían a `PATCH /me` del backend. Un pasajero no necesita registrarlos. Al escoger el rol de conductor en un trayecto, la app pide ambos datos y ofrece ir a Cuenta; el servidor vuelve a validar la regla en publicaciones, solicitudes e inicio del viaje. Tras confirmar una coordinación, el pasajero puede ver modelo y placa en el detalle.
 
 Cada funcionalidad usa normalmente cuatro archivos: `*Screens.kt` para la UI, `*ViewModels.kt` para estado y acciones, `*Navigation.kt` para enlazar rutas, y `*Previews.kt` para verificar los composables sin abrir toda la app.
 
@@ -274,7 +278,8 @@ El `AndroidManifest.xml` declara internet, notificaciones, ubicación aproximada
 | `minSdk` | 33 |
 | `targetSdk` | 37 |
 | `compileSdk` | 37.1 |
-| `versionCode` | 1 |
+| `versionCode` | 3 |
+| `versionName` | `1.2.0` |
 | Distribución configurada | APK con Firebase App Distribution |
 
 1. Abra este proyecto en Android Studio y espere la sincronización de Gradle.
@@ -292,7 +297,14 @@ $env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
 
 La APK queda en `app/build/outputs/apk/debug/`.
 
-Para distribuir una APK mediante Firebase App Distribution se debe usar una cuenta con acceso a Firebase y ejecutar la tarea correspondiente después de compilar. No se guardan credenciales de distribución en este repositorio.
+Para publicar la versión 3 de prueba en Firebase App Distribution, inicia sesión previamente con `firebase login` y ejecuta desde la raíz del repositorio:
+
+```powershell
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-21"
+.\gradlew.bat :app:assembleDebug :app:appDistributionUploadDebug
+```
+
+La tarea sube la APK `debug` con `versionCode=3` y `versionName=1.2.0`. Las notas de esta versión y el correo de prueba están en [`app/build.gradle.kts`](app/build.gradle.kts); agrega los demás correos a `testers` o configura un grupo antes de publicar para más personas. El plugin usa la sesión del Firebase CLI y `app/google-services.json` para identificar la aplicación. No se guardan credenciales de distribución en este repositorio. Publica primero el backend con su migración para que esta versión pueda guardar el vehículo.
 
 ## Pruebas y diagnóstico
 

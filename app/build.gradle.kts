@@ -23,8 +23,8 @@ android {
         applicationId = "com.apprutau.rutau"
         minSdk = 33
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -61,6 +61,7 @@ android {
 firebaseAppDistributionDefault {
     artifactType = "APK"
     testers = "carlosaltan850@gmail.com"
+    releaseNotes = "Versión 3: placa y modelo del conductor; validación antes de publicar trayectos, coordinar solicitudes e iniciar viajes."
 }
 
 dependencies {
