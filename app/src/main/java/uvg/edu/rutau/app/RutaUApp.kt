@@ -30,6 +30,7 @@ import uvg.edu.rutau.core.preferences.ThemeMode
 import uvg.edu.rutau.ui.theme.RutaUTheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 
 /** Inicia la interfaz de RutaU. */
@@ -57,7 +58,10 @@ fun RutaUApp(
         PushPopupStore.messages.collect { message -> pushPopup = message }
     }
     LaunchedEffect(appState, RutaUAppDependencies.sessionRepository) {
-        RutaUAppDependencies.sessionRepository.sessionState.collect { state ->
+        combine(
+            RutaUAppDependencies.sessionRepository.sessionState,
+            appState.navController.currentBackStackEntryFlow,
+        ) { state, _ -> state }.collect { state ->
             when (state) {
                 is SessionState.SignedIn -> {
                     if (appState.needsAuthenticatedRoot()) {

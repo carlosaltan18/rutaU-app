@@ -2,7 +2,11 @@ package uvg.edu.rutau.feature.trips
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory as savedStateViewModelFactory
 import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -199,8 +203,21 @@ class TripEditorViewModel(
     private val repository: TripRepository,
     private val catalogRepository: CatalogRepository? = null,
     private val userRepository: UserRepository? = null,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val mutableUiState = MutableStateFlow(TripEditorUiState(isEditing = tripId != null))
+    private val mutableUiState = MutableStateFlow(
+        TripEditorUiState(
+            originZone = savedStateHandle[OriginZoneKey] ?: "",
+            destinationCampus = savedStateHandle[DestinationCampusKey] ?: "",
+            dayOfWeek = savedStateHandle[DayOfWeekKey] ?: "Lunes",
+            departureTime = savedStateHandle.get<String>(DepartureTimeKey)
+                ?.let { runCatching { LocalTime.parse(it) }.getOrNull() } ?: LocalTime.of(6, 30),
+            role = savedStateHandle.get<String>(RoleKey)
+                ?.let { runCatching { TripRole.valueOf(it) }.getOrNull() } ?: TripRole.PASSENGER,
+            offeredSeats = savedStateHandle[OfferedSeatsKey] ?: 1,
+            isEditing = tripId != null,
+        ),
+    )
     val uiState: StateFlow<TripEditorUiState> = mutableUiState.asStateFlow()
 
     init {
@@ -210,16 +227,18 @@ class TripEditorViewModel(
             viewModelScope.launch {
                 runCatching { repository.observeTrip(tripId).filterNotNull().first() }
                     .onSuccess { trip ->
-                        update {
-                            copy(
-                                originZone = trip.originZoneId,
-                                destinationCampus = trip.destinationCampusId,
-                                dayOfWeek = trip.dayOfWeek,
-                                departureTime = trip.departureTime,
-                                role = trip.role,
-                                offeredSeats = trip.offeredSeats.coerceAtLeast(1),
-                                isEditing = true,
-                            )
+                        if (!savedStateHandle.contains(OriginZoneKey)) {
+                            updateDraft {
+                                copy(
+                                    originZone = trip.originZoneId,
+                                    destinationCampus = trip.destinationCampusId,
+                                    dayOfWeek = trip.dayOfWeek,
+                                    departureTime = trip.departureTime,
+                                    role = trip.role,
+                                    offeredSeats = trip.offeredSeats.coerceAtLeast(1),
+                                    isEditing = true,
+                                )
+                            }
                         }
                     }
                     .onFailure {
@@ -231,12 +250,12 @@ class TripEditorViewModel(
         }
     }
 
-    fun setOrigin(value: String) = update { copy(originZone = value, error = null) }
-    fun setCampus(value: String) = update { copy(destinationCampus = value, error = null) }
-    fun setDay(value: String) = update { copy(dayOfWeek = value, error = null) }
-    fun setTime(value: LocalTime) = update { copy(departureTime = value, error = null) }
-    fun setRole(value: TripRole) = update { copy(role = value, error = null) }
-    fun setSeats(value: Int) = update { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
+    fun setOrigin(value: String) = updateDraft { copy(originZone = value, error = null) }
+    fun setCampus(value: String) = updateDraft { copy(destinationCampus = value, error = null) }
+    fun setDay(value: String) = updateDraft { copy(dayOfWeek = value, error = null) }
+    fun setTime(value: LocalTime) = updateDraft { copy(departureTime = value, error = null) }
+    fun setRole(value: TripRole) = updateDraft { copy(role = value, error = null) }
+    fun setSeats(value: Int) = updateDraft { copy(offeredSeats = value.coerceIn(1, 3), error = null) }
 
     fun refreshVehicle() {
         val users = userRepository ?: return
@@ -303,6 +322,17 @@ class TripEditorViewModel(
         mutableUiState.value = mutableUiState.value.transform()
     }
 
+    private fun updateDraft(transform: TripEditorUiState.() -> TripEditorUiState) {
+        update(transform)
+        val state = mutableUiState.value
+        savedStateHandle[OriginZoneKey] = state.originZone
+        savedStateHandle[DestinationCampusKey] = state.destinationCampus
+        savedStateHandle[DayOfWeekKey] = state.dayOfWeek
+        savedStateHandle[DepartureTimeKey] = state.departureTime.toString()
+        savedStateHandle[RoleKey] = state.role.name
+        savedStateHandle[OfferedSeatsKey] = state.offeredSeats
+    }
+
     private fun loadCatalogs() {
         val catalogs = catalogRepository ?: return
         viewModelScope.launch {
@@ -329,7 +359,18 @@ class TripEditorViewModel(
             repository: TripRepository,
             catalogRepository: CatalogRepository? = null,
             userRepository: UserRepository? = null,
-        ) = viewModelFactory { TripEditorViewModel(tripId, repository, catalogRepository, userRepository) }
+        ) = savedStateViewModelFactory {
+            initializer {
+                TripEditorViewModel(tripId, repository, catalogRepository, userRepository, createSavedStateHandle())
+            }
+        }
+
+        private const val OriginZoneKey = "trip_editor_origin_zone"
+        private const val DestinationCampusKey = "trip_editor_destination_campus"
+        private const val DayOfWeekKey = "trip_editor_day_of_week"
+        private const val DepartureTimeKey = "trip_editor_departure_time"
+        private const val RoleKey = "trip_editor_role"
+        private const val OfferedSeatsKey = "trip_editor_offered_seats"
     }
 }
 

@@ -87,6 +87,10 @@ class AccountViewModel(
                         vehiclePlate = savedStateHandle[VehiclePlateKey] ?: account.vehiclePlate.orEmpty(),
                         vehicleModel = savedStateHandle[VehicleModelKey] ?: account.vehicleModel.orEmpty(),
                         email = savedStateHandle[EmailKey] ?: account.email,
+                        currentEmailPassword = mutableUiState.value?.currentEmailPassword.orEmpty(),
+                        isUpdatingEmail = mutableUiState.value?.isUpdatingEmail ?: false,
+                        emailMessage = mutableUiState.value?.emailMessage,
+                        emailUpdateFailed = mutableUiState.value?.emailUpdateFailed ?: false,
                         notificationsEnabled = savedStateHandle[NotificationsKey] ?: popupState.popupsEnabled,
                         themeMode = data.themeMode,
                     )
@@ -107,8 +111,12 @@ class AccountViewModel(
             is AccountAction.PhoneChanged -> updateState { copy(phone = action.value) }
             is AccountAction.VehiclePlateChanged -> updateState { copy(vehiclePlate = action.value) }
             is AccountAction.VehicleModelChanged -> updateState { copy(vehicleModel = action.value) }
-            is AccountAction.EmailChanged -> updateState { copy(email = action.value) }
-            is AccountAction.CurrentEmailPasswordChanged -> updateState { copy(currentEmailPassword = action.value) }
+            is AccountAction.EmailChanged -> updateState {
+                copy(email = action.value, emailMessage = null, emailUpdateFailed = false)
+            }
+            is AccountAction.CurrentEmailPasswordChanged -> updateState {
+                copy(currentEmailPassword = action.value, emailMessage = null, emailUpdateFailed = false)
+            }
             is AccountAction.CurrentPasswordChanged -> updateState { copy(currentPassword = action.value) }
             is AccountAction.NewPasswordChanged -> updateState { copy(newPassword = action.value) }
             is AccountAction.ConfirmPasswordChanged -> updateState { copy(confirmPassword = action.value) }
@@ -199,14 +207,22 @@ class AccountViewModel(
 
     private fun updateEmail() {
         val state = uiState.value ?: return
+        if (!state.isEmailUpdateValid) return
         viewModelScope.launch {
-            val didUpdate = userRepository.updateEmail(
-                UpdateEmailInput(state.email, state.currentEmailPassword),
-            )
+            updateState { copy(isUpdatingEmail = true, emailMessage = null) }
+            val didUpdate = runCatching {
+                userRepository.updateEmail(UpdateEmailInput(state.email.trim(), state.currentEmailPassword))
+            }.getOrDefault(false)
             updateState {
                 copy(
                     currentEmailPassword = "",
-                    message = if (didUpdate) "Tu correo fue actualizado." else "La contraseña actual no es correcta.",
+                    isUpdatingEmail = false,
+                    emailUpdateFailed = !didUpdate,
+                    emailMessage = if (didUpdate) {
+                        "Enviamos un enlace de verificación al nuevo correo. Confirma el cambio desde ese mensaje."
+                    } else {
+                        "No fue posible cambiar el correo. Verifica tu contraseña y conexión e inténtalo de nuevo."
+                    },
                 )
             }
         }

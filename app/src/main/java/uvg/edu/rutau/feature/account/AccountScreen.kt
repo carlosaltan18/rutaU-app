@@ -69,6 +69,9 @@ data class AccountUiState(
     val notificationsEnabled: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val isSaving: Boolean = false,
+    val isUpdatingEmail: Boolean = false,
+    val emailMessage: String? = null,
+    val emailUpdateFailed: Boolean = false,
     val showLogoutConfirmation: Boolean = false,
     val showDeleteConfirmation: Boolean = false,
     val legalDocument: LegalDocument? = null,
@@ -96,10 +99,24 @@ data class AccountUiState(
             universityId.isNotBlank() &&
             campusId.isNotBlank() &&
             phoneError == null && vehicleError == null
+
+    val emailError: String?
+        get() = when {
+            email.isBlank() -> "Ingresa el nuevo correo."
+            !EmailPattern.matches(email.trim()) -> "Ingresa un correo válido."
+            else -> null
+        }
+
+    val isEmailUpdateValid: Boolean
+        get() = emailError == null &&
+            !email.trim().equals(user.email.trim(), ignoreCase = true) &&
+            currentEmailPassword.isNotBlank() &&
+            !isUpdatingEmail
 }
 
 private val PhonePattern = Regex("^\\+?[0-9 -]{7,24}$")
 private val VehiclePlatePattern = Regex("^[A-Z0-9-]{3,16}$")
+private val EmailPattern = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
 /** Indica el documento que se quiere consultar. */
 enum class LegalDocument(
@@ -293,18 +310,35 @@ fun AccountScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                RutaUTextField(state.email, { onAction(AccountAction.EmailChanged(it)) }, "Nuevo correo", Modifier.fillMaxWidth())
+                RutaUTextField(
+                    value = state.email,
+                    onValueChange = { onAction(AccountAction.EmailChanged(it)) },
+                    label = "Nuevo correo",
+                    modifier = Modifier.fillMaxWidth().testTag("AccountEmailInput"),
+                    supportingText = state.emailError,
+                    isError = state.emailError != null,
+                )
                 RutaUPasswordField(
                     state.currentEmailPassword,
                     { onAction(AccountAction.CurrentEmailPasswordChanged(it)) },
                     "Contraseña actual",
                     Modifier.fillMaxWidth(),
+                    supportingText = if (state.currentEmailPassword.isBlank()) "Es necesaria para cambiar el correo." else null,
                 )
                 RutaUOutlinedButton(
-                    text = "Actualizar correo",
+                    text = if (state.isUpdatingEmail) "Enviando..." else "Actualizar correo",
                     onClick = { onAction(AccountAction.UpdateEmail) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().testTag("AccountUpdateEmailButton"),
+                    enabled = state.isEmailUpdateValid,
                 )
+                state.emailMessage?.let { emailMessage ->
+                    Text(
+                        text = emailMessage,
+                        color = if (state.emailUpdateFailed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.testTag("AccountEmailMessage"),
+                    )
+                }
                 HorizontalDivider()
                 Text("Contraseña", style = MaterialTheme.typography.titleSmall)
                 RutaUPasswordField(state.currentPassword, { onAction(AccountAction.CurrentPasswordChanged(it)) }, "Contraseña actual", Modifier.fillMaxWidth())

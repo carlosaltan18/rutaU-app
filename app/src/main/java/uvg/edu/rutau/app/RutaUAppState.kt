@@ -71,13 +71,13 @@ class RutaUAppState internal constructor(
 
     /** Indica si una sesión iniciada debe salir de las pantallas de acceso. */
     fun needsAuthenticatedRoot(): Boolean {
-        val route = navController.currentDestination?.route ?: return true
+        val route = navController.currentDestination?.route ?: return false
         return AuthenticationRouteNames.any(route::contains)
     }
 
     /** Indica si el cierre de sesión necesita limpiar una pantalla privada. */
     fun needsLoginDestination(): Boolean {
-        val route = navController.currentDestination?.route ?: return true
+        val route = navController.currentDestination?.route ?: return false
         return AuthenticationRouteNames.none(route::contains)
     }
 
